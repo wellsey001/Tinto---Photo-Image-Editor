@@ -5,6 +5,7 @@
   "description": "Tinto - Photo & Image Editor. A desktop photo editor for Windows and Linux with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
   "homepage": "https://github.com/wellsey001/Tinto---Photo-Image-Editor",
   "main": "src/main.js",
+  "desktopName": "tinto.desktop",
   "author": "Tinto contributors",
   "license": "MIT",
   "private": true,
@@ -109,7 +110,8 @@
           "Comment": "Edit photos and make collages",
           "Keywords": "photo;image;editor;filter;crop;collage;"
         }
-      }
+      },
+      "syncDesktopName": true
     }
   }
 }
