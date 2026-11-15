@@ -179,12 +179,20 @@
 
         <div class="pane" id="pane-collage" hidden>
           <h2 class="pane-title">Collage</h2>
-          <div class="group-h">Layout</div>
+          <div class="group-h">Templates</div>
+          <div class="templates" id="templateGrid"></div>
+          <div class="sub" id="cTextFields" hidden>
+            <label class="field" id="cTitleF"><span>Title</span><input class="input" type="text" id="cTitle" maxlength="60"></label>
+            <label class="field" id="cSubF"><span>Subtitle</span><input class="input" type="text" id="cSub" maxlength="80"></label>
+          </div>
+          <div class="group-h">Grids</div>
           <div class="layouts" id="layoutGrid"></div>
-          <div class="group-h">Shape</div>
-          <div class="chips" id="ratioChips"></div>
-          <div class="row"><label for="cgap">Spacing</label><output id="cgapOut"></output><input type="range" id="cgap" min="0" max="100"></div>
-          <div class="row"><label for="cradius">Corners</label><output id="cradiusOut"></output><input type="range" id="cradius" min="0" max="100"></div>
+          <div class="sub" id="gridOptions">
+            <div class="group-h">Shape</div>
+            <div class="chips" id="ratioChips"></div>
+            <div class="row"><label for="cgap">Spacing</label><output id="cgapOut"></output><input type="range" id="cgap" min="0" max="100"></div>
+            <div class="row"><label for="cradius">Corners</label><output id="cradiusOut"></output><input type="range" id="cradius" min="0" max="100"></div>
+          </div>
           <div class="field"><span>Background</span><div class="swatches" id="cbg"></div></div>
           <div class="sub" id="cellEdit" hidden>
             <div class="group-h">Selected photo</div>

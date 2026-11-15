@@ -1,7 +1,16 @@
-/* Layout: one-screen editor — top bar, photo stage on a neutral surround, a tool rail, then the tool panel (rail and panel stack below on phones). Deliberately dark-only so colours are judged against neutral grey. */
+/* Tinto's "Studio" look: a one-screen editor where the toolbar, tool rail and tool panel float as dark
+   glass over a near-black page with a soft amber glow. Deliberately dark-only, so colours in the photo
+   are judged against neutral surroundings. Rail and panel stack below the photo on narrow windows. */
 :root{
-  --bg:#121316; --surround:#0d0e10; --surface:#191a1e; --raise:#24262c; --line:#30333a;
-  --fg:#ebe9e4; --muted:#8f929a; --accent:#efb34a; --accent-ink:#1d1504; --warn:#ff8a70;
+  --bg:#0c0d10; --surround:#0f1014; --surface:#1a1b20; --raise:rgba(255,255,255,.06); --hover:rgba(255,255,255,.1); --line:rgba(255,255,255,.08);
+  --fg:#f4f3ef; --muted:#9b9da7; --accent:#f6b443; --accent-ink:#1c1206; --warn:#ff8a70;
+  --chrome:rgba(24,25,30,.72); --blur:blur(24px) saturate(140%); --solid:#1e1f25;
+  --page-bg:radial-gradient(900px 520px at 78% -12%, rgba(246,180,67,.14), transparent 62%), radial-gradient(800px 480px at -5% 112%, rgba(255,128,92,.10), transparent 60%), #0c0d10;
+  --stage-bg:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1.5px) 0 0 / 22px 22px, #0f1014;
+  --accent-grad:linear-gradient(135deg,#f9c867,#ff8f5a); --glow:0 8px 24px rgba(255,143,90,.32); --glow-soft:0 4px 16px rgba(246,180,67,.35);
+  --tool-on-bg:rgba(246,180,67,.16); --tool-on-fg:#f6b443; --tool-on-shadow:none;
+  --chip-on-bg:rgba(246,180,67,.16); --chip-on-fg:#f9c460; --seg-on:#2b2c33; --thumb-ring:rgba(246,180,67,.32);
+  --shadow:0 16px 44px rgba(0,0,0,.38); --shadow-sm:0 4px 14px rgba(0,0,0,.25); --histo-bg:rgba(255,255,255,.04);
   --f-display:"Sora", "Segoe UI", system-ui, sans-serif;
   --f-body:"Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
   --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
@@ -225,3 +234,68 @@ textarea.input{resize:vertical;min-height:64px;line-height:1.35}
 .sk-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sk-gap{flex:1}
 @media (max-width:820px){ .sk-body{grid-template-columns:1fr} .sk-stage{min-height:240px} }
+
+/* Collage templates: preview tiles in two columns. */
+.templates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tpl{background:none;border:0;padding:0;cursor:pointer;display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12px;text-align:left}
+.tpl canvas{width:100%;aspect-ratio:1;max-width:100%;object-fit:contain;background:var(--raise);border-radius:8px;border:2px solid transparent;display:block}
+.tpl[aria-pressed="true"]{color:var(--fg)}
+.tpl[aria-pressed="true"] canvas{border-color:var(--accent)}
+
+/* Modern layout shared by every direction: floating rounded panels, a grouped toolbar,
+   larger icons, pill controls and softer sliders. Colours come from the palette tokens. */
+body{background:var(--page-bg)}
+.app{padding-block:10px 14px}
+.bar{border-bottom:0;padding-block:2px 12px;gap:12px 18px}
+.brand{font-size:19px;gap:10px}
+.brand .mark{width:34px;height:34px;border-radius:10px;box-shadow:var(--glow-soft)}
+.brand .mark svg{width:25px;height:25px}
+.file-info{font-size:12px}
+.actions{gap:2px;background:var(--chrome);border:1px solid var(--line);border-radius:14px;padding:4px;box-shadow:var(--shadow-sm);backdrop-filter:var(--blur)}
+.btn{border:1px solid transparent;background:transparent;border-radius:10px;padding:8px 13px;font-weight:500}
+.btn:hover:not(:disabled){background:var(--hover);border-color:transparent}
+.panel .btn,.dialog .btn{background:var(--raise)}
+.btn.primary,.panel .btn.primary,.dialog .btn.primary{background:var(--accent-grad);color:var(--accent-ink);border:0;box-shadow:var(--glow);font-weight:600}
+.btn.primary:hover:not(:disabled){filter:brightness(1.06)}
+.btn.on{background:var(--chip-on-bg);color:var(--chip-on-fg);border-color:transparent}
+.work{gap:12px;grid-template-columns:minmax(0,1fr) 74px 324px}
+.stage{border-radius:22px;background:var(--stage-bg);border:1px solid var(--line)}
+#view,#collageWrap canvas{border-radius:4px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.rail{border:1px solid var(--line);border-radius:22px;background:var(--chrome);padding:8px;gap:4px;box-shadow:var(--shadow);backdrop-filter:var(--blur)}
+.tool{border-left:0;border-radius:14px;padding:11px 2px 9px;font-size:11px;font-weight:500;gap:5px}
+.tool svg{width:22px;height:22px}
+.tool:hover{background:var(--hover)}
+.tool[aria-selected="true"]{background:var(--tool-on-bg);color:var(--tool-on-fg);border-left-color:transparent;box-shadow:var(--tool-on-shadow)}
+.panel{border:1px solid var(--line);border-radius:22px;background:var(--chrome);overflow:hidden;box-shadow:var(--shadow);backdrop-filter:var(--blur)}
+.tab-body{padding:22px 20px 24px}
+.pane{gap:16px}
+.pane-title{font:600 21px/1.2 var(--f-display);letter-spacing:-.015em}
+.group-h{text-transform:none;letter-spacing:0;font:600 13px var(--f-body);color:var(--fg);margin-top:10px}
+.linkbtn{font-weight:600;font-size:12.5px}
+.row{gap:6px 8px}
+.row output{font-size:11.5px;background:var(--raise);border-radius:6px;padding:2px 7px;min-width:4ch;text-align:center}
+.row output.mod{background:var(--chip-on-bg);color:var(--chip-on-fg)}
+input[type=range]{height:22px}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px}
+input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;background:#fff;border:0;box-shadow:0 1px 4px rgba(0,0,0,.35),0 0 0 4px var(--thumb-ring)}
+.chip{border-color:transparent;background:var(--raise);padding:7px 13px;font-weight:500}
+.chip:hover{background:var(--hover)}
+.chip[aria-pressed="true"]{background:var(--chip-on-bg);color:var(--chip-on-fg);border-color:transparent}
+.seg{border:0;border-radius:12px;padding:4px;background:var(--raise)}
+.seg button{border-radius:9px;padding:7px}
+.seg button[aria-pressed="true"]{background:var(--seg-on);color:var(--fg);box-shadow:var(--shadow-sm)}
+.stk,.lay,.preset{border-radius:14px;border-color:transparent;background:var(--raise)}
+.stk:hover,.lay:hover,.preset:hover{background:var(--hover);border-color:transparent}
+.lay[aria-pressed="true"]{background:var(--chip-on-bg);color:var(--chip-on-fg)}
+.fbtn canvas,.tpl canvas{border-radius:14px}
+.fbtn,.tpl{font-weight:500}
+.input{border-radius:10px;border-color:transparent;background:var(--raise)}
+.swc{border-width:0;box-shadow:inset 0 0 0 1px rgba(127,127,127,.35)}
+.histo{border-top:1px solid var(--line);padding:14px 20px 16px}
+.histo canvas{border-radius:10px}
+.dialog{border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.toast,.update-bar{border-radius:14px}
+
+/* Floating messages need a solid background, not glass, to read over a photo. */
+.toast,.update-bar,.dialog{background:var(--solid)}
+.stk.mine-item{background:var(--raise)}

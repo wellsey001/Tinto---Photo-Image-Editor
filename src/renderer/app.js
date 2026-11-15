@@ -382,7 +382,7 @@ function drawHisto(img){
   }
   let max = 1; for (let i=2;i<254;i++) max = Math.max(max, R[i], G[i], B[i]);
   const W = hc.width, H = hc.height, bw = W/255;
-  hx.fillStyle = '#202227'; hx.fillRect(0,0,W,H);
+  hx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--histo-bg').trim() || '#202227'; hx.fillRect(0,0,W,H);
   hx.globalCompositeOperation = 'lighter';
   [[R,'rgba(220,70,60,.75)'],[G,'rgba(70,190,90,.7)'],[B,'rgba(70,120,235,.8)']].forEach(([arr,col]) => {
     hx.fillStyle = col; hx.beginPath(); hx.moveTo(0,H);
@@ -1021,6 +1021,8 @@ function showFallback(blob){
 }
 
 /* ================= collage ================= */
+// Two kinds of collage: plain grids (spacing, corners and background are yours to set) and
+// styled templates (rotated photos, shapes, frames, tape, film sprockets and editable titles).
 const R3 = 1/3;
 const LAYOUTS = [
   {id:'two', cells:[[0,0,.5,1],[.5,0,.5,1]]},
@@ -1036,50 +1038,260 @@ const LAYOUTS = [
   {id:'strip', cells:[[0,0,1,.25],[0,.25,1,.25],[0,.5,1,.25],[0,.75,1,.25]]},
   {id:'grid9', cells:[0,1,2].flatMap(r => [0,1,2].map(c => [c*R3, r*R3, R3, R3]))},
 ];
+
+/* Templates. Positions are fractions of the collage's width (x, w) and height (y, h); `sq` makes a
+   cell square in pixels (its height follows its width). Rotation is in degrees around the photo's centre.
+   Decorations (`deco`) draw under every photo, or after the photo numbered in `after`, or on top. */
+const TEMPLATES = [
+  {id:'polaroids', name:'Polaroids', ratio:4/5, bg:{type:'paper', color:'#ece5d8'},
+    cells:[
+      {x:.08, y:.06, w:.5, sq:true, rot:-6, frame:'polaroid', shadow:true},
+      {x:.44, y:.29, w:.48, sq:true, rot:5, frame:'polaroid', shadow:true},
+      {x:.12, y:.55, w:.40, sq:true, rot:-3, frame:'polaroid', shadow:true},
+    ],
+    deco:[
+      {type:'tape', x:.33, y:.055, w:.17, h:.045, rot:-9},
+      {type:'tape', x:.84, y:.285, w:.15, h:.042, rot:28},
+      {type:'tape', x:.32, y:.545, w:.15, h:.042, rot:6},
+      {type:'text', slot:'title', x:.74, y:.9, size:.085, font:'Caveat', weight:700, color:'#3b3530', rot:-5, maxW:.4},
+    ], text:{title:'Summer days'}},
+  {id:'film', name:'Film strip', ratio:9/16, bg:{type:'solid', color:'#121212'},
+    cells:[
+      {x:.15, y:.055, w:.70, h:.265, rad:.012},
+      {x:.15, y:.345, w:.70, h:.265, rad:.012},
+      {x:.15, y:.635, w:.70, h:.265, rad:.012},
+    ],
+    deco:[
+      {type:'sprockets', x:.035, w:.07, color:'#e9e3d6'},
+      {type:'sprockets', x:.895, w:.07, color:'#e9e3d6'},
+      {type:'text', slot:'title', x:.5, y:.95, size:.042, font:'Space Mono', weight:700, color:'#e9e3d6', spacing:.18, upper:true},
+    ], text:{title:'Roll 01 · Lakeside'}},
+  {id:'magazine', name:'Magazine', ratio:4/5, bg:{type:'solid', color:'#111111'},
+    cells:[
+      {x:0, y:0, w:1, h:1},
+      {x:.57, y:.645, w:.35, h:.27, frame:'border', shadow:true},
+    ],
+    deco:[
+      {type:'shade', after:0, y0:0, y1:.42, alpha:.55},
+      {type:'text', slot:'title', after:0, x:.5, y:.135, size:.2, font:'Anton', weight:400, color:'#ffffff', spacing:.04, upper:true},
+      {type:'text', slot:'sub', after:0, x:.5, y:.225, size:.034, font:'Hanken Grotesk', weight:600, color:'#ffffff', spacing:.2, upper:true},
+    ], text:{title:'Wander', sub:'Issue 12 · Autumn edition'}},
+  {id:'story', name:'Story', ratio:9/16, bg:{type:'solid', color:'#f3ece0'},
+    cells:[
+      {x:.1, y:.065, w:.8, h:.52, shape:'arch', shadow:true},
+      {x:.1, y:.62, w:.385, h:.22, rad:.08, shadow:true},
+      {x:.515, y:.62, w:.385, h:.22, rad:.08, shadow:true},
+    ],
+    deco:[
+      {type:'text', slot:'title', x:.5, y:.91, size:.09, font:'Playfair Display', weight:700, color:'#3b3530', maxW:.84},
+      {type:'text', slot:'sub', x:.5, y:.955, size:.034, font:'Hanken Grotesk', weight:600, color:'#8a7f72', spacing:.25, upper:true},
+    ], text:{title:'Little moments', sub:'November 2026'}},
+  {id:'scrapbook', name:'Scrapbook', ratio:1, bg:{type:'dots', color:'#efe7d8', dot:'#dccfb8'},
+    cells:[
+      {x:.06, y:.07, w:.42, h:.36, rot:-5, frame:'border', shadow:true},
+      {x:.54, y:.05, w:.40, h:.42, rot:4, frame:'border', shadow:true},
+      {x:.07, y:.53, w:.38, h:.39, rot:3, frame:'border', shadow:true},
+      {x:.52, y:.56, w:.42, h:.34, rot:-4, frame:'border', shadow:true},
+    ],
+    deco:[
+      {type:'tape', x:.27, y:.075, w:.16, h:.05, rot:-12},
+      {type:'tape', x:.74, y:.05, w:.15, h:.05, rot:8},
+      {type:'tape', x:.26, y:.53, w:.15, h:.05, rot:4},
+      {type:'tape', x:.73, y:.565, w:.16, h:.05, rot:-6},
+    ], text:{}},
+  {id:'circles', name:'Circles', ratio:1, bg:{type:'gradient', from:'#ffd6a5', to:'#fdb4c8'},
+    cells:[
+      {x:.2, y:.12, w:.6, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.06, y:.6, w:.25, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.69, y:.58, w:.25, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.77, y:.08, w:.16, sq:true, shape:'circle', frame:'border', shadow:true},
+    ],
+    deco:[{type:'text', slot:'title', x:.5, y:.9, size:.085, font:'Pacifico', weight:400, color:'#ffffff', shadow:true}],
+    text:{title:'Best day ever'}},
+  {id:'heart', name:'Heart', ratio:1, bg:{type:'gradient', from:'#ffe3ea', to:'#ffc9d6'},
+    cells:[{x:.11, y:.07, w:.78, h:.72, shape:'heart', shadow:true}],
+    deco:[{type:'text', slot:'title', x:.5, y:.88, size:.09, font:'Pacifico', weight:400, color:'#e2456f'}],
+    text:{title:'Love you'}},
+  {id:'diagonal', name:'Diagonal', ratio:16/9, bg:{type:'solid', color:'#ffffff'},
+    cells:[
+      {x:0, y:0, w:.38, h:1, shape:'slant', slantR:true},
+      {x:.289, y:0, w:.38, h:1, shape:'slant', slantL:true, slantR:true},
+      {x:.5775, y:0, w:.4225, h:1, shape:'slant', slantL:true},
+    ],
+    deco:[{type:'text', slot:'title', x:.13, y:.89, size:.05, font:'Bebas Neue', weight:400, color:'#ffffff', spacing:.12, upper:true, shadow:true, maxW:.2}],
+    text:{title:'Weekend escape'}},
+  {id:'mood', name:'Mood board', ratio:4/5, bg:{type:'solid', color:'#e9e4dc'},
+    cells:[
+      {x:.05, y:.12, w:.5, h:.36, frame:'thin'},
+      {x:.58, y:.12, w:.37, h:.22, frame:'thin'},
+      {x:.58, y:.37, w:.37, h:.30, frame:'thin'},
+      {x:.05, y:.51, w:.24, h:.20, frame:'thin'},
+      {x:.31, y:.51, w:.24, h:.20, frame:'thin'},
+      {x:.05, y:.74, w:.5, h:.21, frame:'thin'},
+      {x:.58, y:.70, w:.37, h:.25, frame:'thin'},
+    ],
+    deco:[{type:'text', slot:'title', x:.5, y:.065, size:.075, font:'Bebas Neue', weight:400, color:'#3b3530', spacing:.45, upper:true}],
+    text:{title:'Mood'}},
+  {id:'postcard', name:'Postcard', ratio:3/2, bg:{type:'paper', color:'#f7f1e6'},
+    cells:[
+      {x:.05, y:.08, w:.52, h:.84, rad:.01, shadow:true},
+      {x:.835, y:.075, w:.105, h:.15, frame:'stamp', shadow:true},
+    ],
+    deco:[
+      {type:'text', slot:'sub', x:.775, y:.37, size:.05, font:'Dancing Script', weight:700, color:'#c0503c', maxW:.32},
+      {type:'text', slot:'title', x:.775, y:.48, size:.075, font:'Anton', weight:400, color:'#2b3a55', spacing:.06, upper:true, maxW:.32},
+      {type:'lines', x:.63, w:.29, y:.63, gap:.085, count:4, color:'#cdbfa6'},
+    ], text:{title:'The Lakes', sub:'Greetings from'}},
+];
 const RATIOS = [['1:1',1],['4:5',4/5],['9:16',9/16],['16:9',16/9],['3:2',3/2]];
 const CLONG = 2400;
-let C = {layout:LAYOUTS[3], ratio:4/5, gap:30, radius:12, bg:'#ffffff', cells:[], sel:-1};
+let C = {layout:LAYOUTS[3], tpl:null, ratio:4/5, gap:30, radius:12, bg:'#ffffff', text:{}, cells:[], sel:-1};
 const ccv = $('#collage'), cctx = ccv.getContext('2d');
+const HEART = new Path2D(SHAPES.find(s => s.id === 'heart').d);
 
-function collageSize(){ return C.ratio >= 1 ? [CLONG, Math.round(CLONG/C.ratio)] : [Math.round(CLONG*C.ratio), CLONG]; }
-function cellRects(W, H){
+function collageSize(ratio = C.ratio, long = CLONG){ return ratio >= 1 ? [long, Math.round(long/ratio)] : [Math.round(long*ratio), long]; }
+const cellCount = () => (C.tpl ? C.tpl.cells : C.layout.cells).length;
+
+/* Every cell as a centre, size, rotation and style, in pixels. */
+function cellRects(W, H, tpl = C.tpl){
+  if (tpl) return tpl.cells.map(c => {
+    const w = c.w*W, h = c.sq ? w : c.h*H;
+    return {cx: c.x*W + w/2, cy: c.y*H + h/2, w, h, rot: (c.rot || 0)*RAD, shape: c.shape || 'rect', rad: (c.rad || 0)*Math.max(W, H), frame: c.frame || '', shadow: !!c.shadow, c};
+  });
   const g = C.gap/100 * 0.05 * Math.max(W, H), m = g/2;
-  return C.layout.cells.map(([x,y,w,h]) => ({x: m + x*(W-2*m) + g/2, y: m + y*(H-2*m) + g/2, w: Math.max(1, w*(W-2*m) - g), h: Math.max(1, h*(H-2*m) - g)}));
+  return C.layout.cells.map(([x,y,w,h]) => {
+    const pw = Math.max(1, w*(W-2*m) - g), ph = Math.max(1, h*(H-2*m) - g);
+    return {cx: m + x*(W-2*m) + g/2 + pw/2, cy: m + y*(H-2*m) + g/2 + ph/2, w: pw, h: ph, rot: 0, shape: 'rect', rad: C.radius/100 * 0.5 * Math.min(pw, ph), frame: '', shadow: false};
+  });
 }
 function cellGeom(cell, r){
   const iw = cell.img.width, ih = cell.img.height, s = Math.max(r.w/iw, r.h/ih) * cell.zoom;
   const dw = iw*s, dh = ih*s, ex = (dw - r.w)/2, ey = (dh - r.h)/2;
-  return {dw, dh, ex, ey, dx: r.x + (r.w - dw)/2 + cell.fx*ex, dy: r.y + (r.h - dh)/2 + cell.fy*ey};
+  return {dw, dh, ex, ey, dx: -r.w/2 + (r.w - dw)/2 + cell.fx*ex, dy: -r.h/2 + (r.h - dh)/2 + cell.fy*ey};
 }
-function renderCollage(ctx, W, H, preview){
-  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-  const rects = cellRects(W, H);
-  rects.forEach((r, i) => {
-    const cell = C.cells[i], rad = C.radius/100 * 0.5 * Math.min(r.w, r.h);
-    ctx.save(); ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, rad); ctx.clip();
-    if (cell){ const g = cellGeom(cell, r); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(cell.img, g.dx, g.dy, g.dw, g.dh); }
-    else if (preview){
-      ctx.fillStyle = 'rgba(128,128,136,.22)'; ctx.fillRect(r.x, r.y, r.w, r.h);
-      const s = Math.min(r.w, r.h)*0.12, cx = r.x + r.w/2, cy = r.y + r.h/2;
-      ctx.strokeStyle = 'rgba(128,128,136,.85)'; ctx.lineWidth = Math.max(4, s*0.18); ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(cx - s, cy); ctx.lineTo(cx + s, cy); ctx.moveTo(cx, cy - s); ctx.lineTo(cx, cy + s); ctx.stroke();
-    }
+
+/* The outline of a cell, centred on 0,0. */
+function cellPath(r){
+  const {w, h} = r, p = new Path2D();
+  if (r.shape === 'circle') p.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI*2);
+  else if (r.shape === 'heart') p.addPath(HEART, new DOMMatrix().translate(-w/2, -h/2).scale(w/100, h/100));
+  else if (r.shape === 'arch'){ p.moveTo(-w/2, h/2); p.lineTo(-w/2, -h/2 + w/2); p.arc(0, -h/2 + w/2, w/2, Math.PI, 0); p.lineTo(w/2, h/2); p.closePath(); }
+  else if (r.shape === 'slant'){
+    const s = h*0.18, L = r.c && r.c.slantL ? s : 0, R = r.c && r.c.slantR ? s : 0, g = 12;
+    p.moveTo(-w/2 + L + (L ? g/2 : 0), -h/2); p.lineTo(w/2 - (R ? g/2 : 0), -h/2); p.lineTo(w/2 - R - (R ? g/2 : 0), h/2); p.lineTo(-w/2 + (L ? g/2 : 0), h/2); p.closePath();
+  }
+  else p.roundRect(-w/2, -h/2, w, h, Math.min(r.rad, w/2, h/2));
+  return p;
+}
+/* How far a frame reaches past the photo: [left/right/top, bottom]. */
+function framePad(r, W){
+  if (r.frame === 'polaroid') return [r.w*0.06, r.w*0.24];
+  if (r.frame === 'stamp') return [r.w*0.12, r.w*0.12];
+  if (r.frame === 'border') return [W*0.012, W*0.012];
+  if (r.frame === 'thin') return [W*0.006, W*0.006];
+  return [0, 0];
+}
+
+function paintBackground(ctx, W, H, tpl){
+  const bg = C.bg || (tpl && tpl.bg) || {type:'solid', color:'#ffffff'};
+  if (typeof bg === 'string'){ ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); return; }
+  if (bg.type === 'gradient'){ const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, bg.from); g.addColorStop(1, bg.to); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); return; }
+  ctx.fillStyle = bg.color; ctx.fillRect(0, 0, W, H);
+  if (bg.type === 'dots'){ ctx.fillStyle = bg.dot; const st = W*0.03; for (let y = st/2; y < H; y += st) for (let x = st/2; x < W; x += st){ ctx.beginPath(); ctx.arc(x, y, W*0.0028, 0, Math.PI*2); ctx.fill(); } }
+  if (bg.type === 'paper'){
+    // A faint, fixed paper grain.
+    ctx.save(); ctx.globalAlpha = 0.05;
+    for (let i = 0; i < 2600; i++){ const x = (i*7919 % 997)/997*W, y = (i*104729 % 991)/991*H; ctx.fillStyle = i % 2 ? '#000' : '#fff'; ctx.fillRect(x, y, W*0.002, W*0.002); }
     ctx.restore();
-    if (preview && i===C.sel){
-      ctx.save(); ctx.strokeStyle = '#efb34a'; ctx.lineWidth = Math.max(6, W*0.004);
-      ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, rad); ctx.stroke(); ctx.restore();
+  }
+}
+
+function textFor(d, tpl){ const t = (C.text[d.slot] ?? (tpl.text || {})[d.slot] ?? ''); return d.upper ? t.toUpperCase() : t; }
+function decoFont(d, W){ return `${d.weight || 400} ${Math.round(d.size*W)}px "${d.font}", system-ui, sans-serif`; }
+
+function paintDeco(ctx, d, W, H, tpl, withText){
+  ctx.save();
+  if (d.type === 'text'){
+    if (!withText) { ctx.restore(); return; }
+    ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);
+    ctx.font = decoFont(d, W); ctx.letterSpacing = ((d.spacing || 0) * d.size * W) + 'px';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = d.color;
+    if (d.shadow){ ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = d.size*W*0.25; ctx.shadowOffsetY = d.size*W*0.05; }
+    ctx.fillText(textFor(d, tpl), 0, 0, (d.maxW || 0.9)*W);   // long titles shrink to fit their space
+  } else if (d.type === 'tape'){
+    ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);
+    ctx.fillStyle = 'rgba(244,232,198,.82)'; ctx.shadowColor = 'rgba(0,0,0,.12)'; ctx.shadowBlur = W*0.004;
+    const w = d.w*W, h = d.h*W; ctx.fillRect(-w/2, -h/2, w, h);
+  } else if (d.type === 'sprockets'){
+    const x = d.x*W, w = d.w*W, hh = w*0.62, step = hh*1.9;
+    ctx.fillStyle = d.color;
+    for (let y = step*0.4; y < H - hh; y += step){ ctx.beginPath(); ctx.roundRect(x + w*0.18, y, w*0.64, hh, w*0.12); ctx.fill(); }
+  } else if (d.type === 'shade'){
+    const g = ctx.createLinearGradient(0, d.y0*H, 0, d.y1*H); g.addColorStop(0, `rgba(0,0,0,${d.alpha})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, d.y0*H, W, (d.y1 - d.y0)*H);
+  } else if (d.type === 'lines'){
+    ctx.strokeStyle = d.color; ctx.lineWidth = Math.max(2, W*0.0025);
+    for (let i = 0; i < d.count; i++){ const y = (d.y + i*d.gap)*H; ctx.beginPath(); ctx.moveTo(d.x*W, y); ctx.lineTo((d.x + d.w)*W, y); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+
+function paintCell(ctx, r, cell, i, W, preview){
+  const [pad, padB] = framePad(r, W), path = cellPath(r);
+  ctx.save(); ctx.translate(r.cx, r.cy); ctx.rotate(r.rot);
+  // Frame card (polaroid, stamp) or the shadow under a bare photo.
+  if (r.frame === 'polaroid' || r.frame === 'stamp'){
+    ctx.save();
+    if (r.shadow){ ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = W*0.018; ctx.shadowOffsetY = W*0.006; }
+    ctx.fillStyle = '#fbfaf7'; ctx.fillRect(-r.w/2 - pad, -r.h/2 - pad, r.w + pad*2, r.h + pad + padB);
+    ctx.restore();
+    if (r.frame === 'stamp'){
+      // Perforated edge: small bites of background colour around the card.
+      const bg = C.bg || (C.tpl && C.tpl.bg && C.tpl.bg.color) || '#ffffff', x0 = -r.w/2 - pad, y0 = -r.h/2 - pad, cw = r.w + pad*2, ch = r.h + pad*2, br = pad*0.32;
+      ctx.fillStyle = typeof bg === 'string' ? bg : bg.color;
+      for (let x = x0; x <= x0 + cw + 0.1; x += br*2.6){ ctx.beginPath(); ctx.arc(x, y0, br, 0, Math.PI*2); ctx.arc(x, y0 + ch, br, 0, Math.PI*2); ctx.fill(); }
+      for (let y = y0; y <= y0 + ch + 0.1; y += br*2.6){ ctx.beginPath(); ctx.arc(x0, y, br, 0, Math.PI*2); ctx.arc(x0 + cw, y, br, 0, Math.PI*2); ctx.fill(); }
     }
-  });
+  } else if (r.shadow || r.frame){
+    ctx.save();
+    if (r.shadow){ ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = W*0.018; ctx.shadowOffsetY = W*0.006; }
+    if (r.frame){ ctx.lineJoin = 'round'; ctx.lineWidth = pad*2; ctx.strokeStyle = '#ffffff'; ctx.stroke(path); }
+    ctx.fillStyle = '#ffffff'; ctx.fill(path);
+    ctx.restore();
+  }
+  // The photo, clipped to its shape.
+  ctx.save(); ctx.clip(path);
+  if (cell){ const g = cellGeom(cell, r); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(cell.img, g.dx, g.dy, g.dw, g.dh); }
+  else {
+    ctx.fillStyle = preview ? '#cfccc6' : 'rgba(128,128,136,.15)'; ctx.fillRect(-r.w/2, -r.h/2, r.w, r.h);
+    if (preview){
+      const s = Math.min(r.w, r.h)*0.12;
+      ctx.strokeStyle = 'rgba(80,80,88,.7)'; ctx.lineWidth = Math.max(4, s*0.18); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(0, -s); ctx.lineTo(0, s); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  if (preview && i === C.sel){ ctx.strokeStyle = '#efb34a'; ctx.lineWidth = Math.max(6, W*0.004); ctx.stroke(path); }
+  ctx.restore();
+}
+
+function renderCollage(ctx, W, H, preview, {withText = true, tpl = C.tpl, cells = C.cells} = {}){
+  paintBackground(ctx, W, H, tpl);
+  const rects = cellRects(W, H, tpl), deco = tpl ? tpl.deco : [];
+  const decoAt = n => deco.filter(d => (d.after ?? (d.type === 'sprockets' ? -1 : 'top')) === n);
+  decoAt(-1).forEach(d => paintDeco(ctx, d, W, H, tpl, withText));
+  rects.forEach((r, i) => { paintCell(ctx, r, cells[i], i, W, preview); decoAt(i).forEach(d => paintDeco(ctx, d, W, H, tpl, withText)); });
+  decoAt('top').forEach(d => paintDeco(ctx, d, W, H, tpl, withText));
 }
 function drawCollage(){
   const [W, H] = collageSize();
   if (ccv.width !== W || ccv.height !== H){ ccv.width = W; ccv.height = H; }
   renderCollage(cctx, W, H, true);
 }
-function renderCollageFull(){ const [W, H] = collageSize(), c = mk(W, H); renderCollage(c.getContext('2d'), W, H, false); return c; }
-const usedCells = () => C.layout.cells.map((_, i) => C.cells[i]).filter(Boolean).length;
-function collageInfo(){ if (tab !== 'collage') return; const [W, H] = collageSize(); $('#fileInfo').textContent = `Collage · ${usedCells()} of ${C.layout.cells.length} photos · ${W} × ${H} px`; }
-function firstEmpty(from = 0){ const n = C.layout.cells.length; for (let k=0; k<n; k++){ const i = (from + k) % n; if (!C.cells[i]) return i; } return -1; }
+function renderCollageFull(opts){ const [W, H] = collageSize(), c = mk(W, H); renderCollage(c.getContext('2d'), W, H, false, opts); return c; }
+const usedCells = () => Array.from({length: cellCount()}, (_, i) => C.cells[i]).filter(Boolean).length;
+function collageInfo(){ if (tab !== 'collage') return; const [W, H] = collageSize(); $('#fileInfo').textContent = `Collage${C.tpl ? ' · ' + C.tpl.name : ''} · ${usedCells()} of ${cellCount()} photos · ${W} × ${H} px`; }
+function firstEmpty(from = 0){ const n = cellCount(); for (let k=0; k<n; k++){ const i = (from + k) % n; if (!C.cells[i]) return i; } return -1; }
 
 function shrinkTo(src, max = CLONG){
   const s = Math.min(1, max / Math.max(src.width, src.height));
@@ -1107,19 +1319,41 @@ async function fillCells(files, start){
     } catch (e) { failed++; }
   }
   if (failed) toast(`${failed} photo${failed>1?'s':''} couldn’t be read. HEIC needs converting to JPG first.`);
-  else if (left > 0) toast(`Added ${placed}. Pick a layout with more cells for the other ${left}.`);
+  else if (left > 0) toast(`Added ${placed}. Pick a layout with more photos for the other ${left}.`);
 }
 let pendingCell = -1;
 function pickFor(i){ pendingCell = i; $('#collageInput').click(); }
 $('#collageInput').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) fillCells(fs, pendingCell); };
 
 /* collage UI */
+function loadTemplateFonts(){
+  const fonts = new Set(TEMPLATES.flatMap(t => t.deco.filter(d => d.type === 'text').map(d => `${d.weight || 400} 40px "${d.font}"`)));
+  return Promise.all([...fonts].map(f => document.fonts.load(f).catch(() => {})));
+}
+function useTemplate(t){
+  C.tpl = t; C.ratio = t.ratio; C.bg = null; C.text = {...(t.text || {})};
+  if (C.sel >= cellCount()) C.sel = -1;
+  syncCollage();
+}
+function useLayout(L){
+  C.tpl = null; C.layout = L; if (!C.bg) C.bg = '#ffffff';
+  if (C.sel >= cellCount()) C.sel = -1;
+  syncCollage();
+}
 (function buildCollageUI(){
+  const tg = $('#templateGrid');
+  TEMPLATES.forEach(t => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'tpl'; b.title = `${t.name}: ${t.cells.length} photo${t.cells.length > 1 ? 's' : ''}`;
+    const c = mk(10, 10); b.appendChild(c);
+    const n = document.createElement('span'); n.textContent = t.name; b.appendChild(n);
+    b.onclick = () => useTemplate(t);
+    tg.appendChild(b); t.btn = b; t.thumb = c;
+  });
   const grid = $('#layoutGrid');
   LAYOUTS.forEach(L => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'lay'; b.title = `${L.cells.length} photos`;
     b.innerHTML = `<svg viewBox="0 0 100 100">${L.cells.map(([x,y,w,h]) => `<rect x="${x*100+3}" y="${y*100+3}" width="${w*100-6}" height="${h*100-6}" rx="4" fill="currentColor" opacity=".8"/>`).join('')}</svg>`;
-    b.onclick = () => { C.layout = L; if (C.sel >= L.cells.length) C.sel = -1; syncCollage(); };
+    b.onclick = () => useLayout(L);
     grid.appendChild(b); L.btn = b;
   });
   const rc = $('#ratioChips');
@@ -1128,40 +1362,79 @@ $('#collageInput').onchange = e => { const fs = [...e.target.files]; e.target.va
     c.onclick = () => { C.ratio = v; syncCollage(); };
     rc.appendChild(c);
   });
+  ['title', 'sub'].forEach(slot => {
+    const inp = $(slot === 'title' ? '#cTitle' : '#cSub');
+    inp.addEventListener('input', () => { C.text[slot] = inp.value; drawCollage(); });
+  });
 })();
+/* Template previews, drawn with the photos already in the collage. */
+function buildTemplateThumbs(){
+  TEMPLATES.forEach(t => {
+    const [W, H] = collageSize(t.ratio, 260), c = t.thumb; c.width = W; c.height = H;
+    const sample = Array.from({length: t.cells.length}, (_, i) => C.cells[i % Math.max(1, C.cells.filter(Boolean).length)] || null);
+    const keep = {bg: C.bg, text: C.text}; C.bg = null; C.text = {};
+    renderCollage(c.getContext('2d'), W, H, false, {tpl: t, cells: sample});
+    C.bg = keep.bg; C.text = keep.text;
+  });
+}
 const cBg = makeSwatches($('#cbg'), ['#ffffff','#111111','#f3ece0','#efb34a','#ff7ac6','#4da3ff','#3ddc97'], c => { C.bg = c; syncCollage(); });
 const paintCGap = bindRange('cgap', () => C.gap, v => { C.gap = v; drawCollage(); });
 const paintCRadius = bindRange('cradius', () => C.radius, v => { C.radius = v; drawCollage(); });
 const paintCZoom = bindRange('czoom', () => { const c = C.cells[C.sel]; return c ? Math.round(c.zoom*100) : null; }, v => { const c = C.cells[C.sel]; if (c){ c.zoom = v/100; drawCollage(); } }, v => v+'%');
 $('#cReplace').onclick = () => { if (C.sel >= 0) pickFor(C.sel); };
 $('#cRemove').onclick = () => { if (C.sel >= 0){ C.cells[C.sel] = null; syncCollage(); } };
-$('#cAdd').onclick = () => { const e = firstEmpty(C.sel >= 0 ? C.sel : 0); if (e < 0) { toast('Every cell has a photo. Pick a layout with more cells, or select one and use Replace.'); return; } pickFor(e); };
+$('#cAdd').onclick = () => { const e = firstEmpty(C.sel >= 0 ? C.sel : 0); if (e < 0) { toast('Every spot has a photo. Pick a layout with more photos, or select one and use Replace.'); return; } pickFor(e); };
 $('#cAddCurrent').onclick = async () => {
   const e = C.sel >= 0 && !C.cells[C.sel] ? C.sel : firstEmpty(C.sel >= 0 ? C.sel : 0);
-  if (e < 0) { toast('Every cell has a photo. Remove one first.'); return; }
+  if (e < 0) { toast('Every spot has a photo. Remove one first.'); return; }
   const img = shrinkTo(await renderEditorFull());
   C.cells[e] = {img, zoom:1, fx:0, fy:0}; C.sel = e; syncCollage(); toast('Added the photo you’re editing, with its edits.');
 };
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
-  S.base = renderCollageFull(); S.layers = []; S.params = defaults(); S.filter = 'none'; S.strength = 100;
+  const [W, H] = collageSize(), tpl = C.tpl;
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100;
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
+  // Template titles arrive as text layers, so they stay editable in the editor.
+  const fitSize = d => {   // the same shrink-to-fit the collage uses
+    mctx.font = decoFont(d, W); mctx.letterSpacing = ((d.spacing || 0) * d.size * W) + 'px';
+    const tw = mctx.measureText(textFor(d, tpl)).width;
+    return Math.round(d.size*W * Math.min(1, (d.maxW || 0.9)*W / Math.max(1, tw)));
+  };
+  S.layers = !tpl ? [] : tpl.deco.filter(d => d.type === 'text' && textFor(d, tpl).trim()).map(d => ({
+    id: nextId++, type:'text', text: textFor(d, tpl), font: d.font, size: fitSize(d), color: d.color, bold: (d.weight || 400) >= 600,
+    align:'center', outline:0, ocolor:'#111111', shadow: d.shadow ? 40 : 0, bg:'', glow:'', spacing: d.spacing ? Math.round(d.spacing*200) : 0,
+    x: d.x*W, y: d.y*H, rot: d.rot || 0, scale:1, opacity:1, flip:false, hidden:false,
+  }));
   commit(); syncUI(); setTab('adjust'); rebuildPreview(); syncResize(); refreshLayerUI();
-  toast('Collage sent to the editor. Undo brings back your previous photo.');
+  toast(tpl ? 'Collage sent to the editor. Its titles are text layers you can edit.' : 'Collage sent to the editor. Undo brings back your previous photo.');
 };
 function syncCollage(){
-  LAYOUTS.forEach(L => L.btn.setAttribute('aria-pressed', String(L===C.layout)));
-  document.querySelectorAll('#ratioChips .chip').forEach(c => c.setAttribute('aria-pressed', String(+c.dataset.v===C.ratio)));
-  cBg.set(C.bg); paintCGap(); paintCRadius();
+  const t = C.tpl;
+  TEMPLATES.forEach(x => x.btn.setAttribute('aria-pressed', String(x === t)));
+  LAYOUTS.forEach(L => L.btn.setAttribute('aria-pressed', String(!t && L === C.layout)));
+  document.querySelectorAll('#ratioChips .chip').forEach(c => c.setAttribute('aria-pressed', String(+c.dataset.v === C.ratio)));
+  $('#gridOptions').hidden = !!t;
+  const slots = t ? new Set(t.deco.filter(d => d.type === 'text').map(d => d.slot)) : new Set();
+  $('#cTextFields').hidden = !slots.size;
+  $('#cTitleF').hidden = !slots.has('title'); $('#cSubF').hidden = !slots.has('sub');
+  if (document.activeElement !== $('#cTitle')) $('#cTitle').value = C.text.title ?? '';
+  if (document.activeElement !== $('#cSub')) $('#cSub').value = C.text.sub ?? '';
+  cBg.set(typeof C.bg === 'string' ? C.bg : ''); paintCGap(); paintCRadius();
   $('#cellEdit').hidden = !(C.sel >= 0 && C.cells[C.sel]); paintCZoom();
   drawCollage(); collageInfo();
 }
 
 /* collage pointer: tap empty = add, drag = reposition, wheel = zoom */
 function collagePoint(e){ const r = ccv.getBoundingClientRect(); return {x:(e.clientX - r.left) * ccv.width / r.width, y:(e.clientY - r.top) * ccv.height / r.height, k: ccv.width / r.width}; }
+const toCellLocal = (r, p) => { const dx = p.x - r.cx, dy = p.y - r.cy, c = Math.cos(-r.rot), s = Math.sin(-r.rot); return {x: dx*c - dy*s, y: dx*s + dy*c}; };
 function collageCellAt(e){
-  const p = collagePoint(e), rects = cellRects(ccv.width, ccv.height);
-  return rects.findIndex(r => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+  const p = collagePoint(e), W = ccv.width, rects = cellRects(ccv.width, ccv.height);
+  for (let i = rects.length - 1; i >= 0; i--){   // topmost first
+    const r = rects[i], q = toCellLocal(r, p), [pad, padB] = framePad(r, W);
+    if (q.x >= -r.w/2 - pad && q.x <= r.w/2 + pad && q.y >= -r.h/2 - pad && q.y <= r.h/2 + padB) return i;
+  }
+  return -1;
 }
 let cdragCell = null;
 ccv.addEventListener('pointerdown', e => {
@@ -1172,14 +1445,15 @@ ccv.addEventListener('pointerdown', e => {
   const cell = C.cells[i];
   if (!cell){ pickFor(i); return; }
   const r = cellRects(ccv.width, ccv.height)[i], g = cellGeom(cell, r);
-  cdragCell = {cell, p0:collagePoint(e), fx0:cell.fx, fy0:cell.fy, ex:g.ex, ey:g.ey};
+  cdragCell = {cell, r, p0:collagePoint(e), fx0:cell.fx, fy0:cell.fy, ex:g.ex, ey:g.ey};
   ccv.setPointerCapture(e.pointerId); ccv.style.cursor = 'grabbing';
 });
 ccv.addEventListener('pointermove', e => {
   if (!cdragCell) return;
-  const p = collagePoint(e), d = cdragCell;
-  if (d.ex > 0.5) d.cell.fx = clamp(d.fx0 + (p.x - d.p0.x)/d.ex, -1, 1);
-  if (d.ey > 0.5) d.cell.fy = clamp(d.fy0 + (p.y - d.p0.y)/d.ey, -1, 1);
+  const p = collagePoint(e), d = cdragCell, c = Math.cos(-d.r.rot), s = Math.sin(-d.r.rot);
+  const mx = p.x - d.p0.x, my = p.y - d.p0.y, lx = mx*c - my*s, ly = mx*s + my*c;   // drag in the photo's own direction
+  if (d.ex > 0.5) d.cell.fx = clamp(d.fx0 + lx/d.ex, -1, 1);
+  if (d.ey > 0.5) d.cell.fy = clamp(d.fy0 + ly/d.ey, -1, 1);
   drawCollage();
 });
 const endCollageDrag = () => { cdragCell = null; ccv.style.cursor = ''; };
@@ -1202,7 +1476,11 @@ function seedCollage(){
     {img:crop(0, 0, 1, 1, {}, 'none'), zoom:1.15, fx:0.3, fy:0},
     {img:crop(.45, .2, .4, .45, {}, 'warm'), zoom:1, fx:0, fy:0},
     {img:crop(0, .45, .5, .55, {}, 'noir'), zoom:1, fx:0, fy:0},
+    {img:crop(.3, .05, .6, .6, {}, 'cinema'), zoom:1, fx:0, fy:0},
   ];
+  C.tpl = TEMPLATES[0]; C.ratio = C.tpl.ratio; C.bg = null; C.text = {...C.tpl.text};
+  buildTemplateThumbs();
+  loadTemplateFonts().then(() => { buildTemplateThumbs(); if (tab === 'collage') drawCollage(); });
 }
 
 /* ================= toast ================= */
