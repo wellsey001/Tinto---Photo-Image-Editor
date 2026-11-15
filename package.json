@@ -1,0 +1,59 @@
+{
+  "name": "tinto",
+  "productName": "Tinto",
+  "version": "1.0.0",
+  "description": "Tinto - Photo & Image Editor. A desktop photo editor with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
+  "main": "src/main.js",
+  "author": "Tinto contributors",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64",
+    "dist:dir": "electron-builder --win --x64 --dir"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.tinto.photoeditor",
+    "productName": "Tinto",
+    "copyright": "Copyright © 2026 Tinto contributors",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tinto",
+      "artifactName": "Tinto-Setup-${version}.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": ["jpg", "jpeg", "png", "webp", "gif", "bmp"],
+        "name": "Image",
+        "description": "Image file",
+        "role": "Editor",
+        "icon": "build/icon.ico"
+      }
+    ]
+  }
+}
