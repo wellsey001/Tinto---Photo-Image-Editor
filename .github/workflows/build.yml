@@ -50,6 +50,13 @@ jobs:
           ls dist/win-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/
           du -h dist/*.exe
 
+      - name: Run the background remover inside the packaged app
+        shell: bash
+        run: |
+          TINTO_SELFTEST=cutout TINTO_SELFTEST_OUT="$PWD/selftest.json" timeout 300 dist/win-unpacked/Tinto.exe || true
+          cat selftest.json
+          grep -q '"ok":true' selftest.json
+
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
@@ -101,6 +108,12 @@ jobs:
           grep -qE "node_modules[\\\\/]@huggingface[\\\\/]transformers[\\\\/]package.json" asar.txt
           ls dist/linux-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/linux/x64/
           du -h dist/*.AppImage
+
+      - name: Run the background remover inside the packaged app
+        run: |
+          TINTO_SELFTEST=cutout TINTO_SELFTEST_OUT="$PWD/selftest.json" timeout 300 xvfb-run -a dist/linux-unpacked/tinto --no-sandbox || true
+          cat selftest.json
+          grep -q '"ok":true' selftest.json
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v5

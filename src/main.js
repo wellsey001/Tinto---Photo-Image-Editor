@@ -284,6 +284,28 @@ ipcMain.handle('sticker:remove-bg', async (event, req) => {
   }
 });
 
+// Build check: the packaged app runs the background remover once on a made-up picture,
+// writes the result to TINTO_SELFTEST_OUT and quits. Only runs when that variable is set.
+async function runCutoutSelfTest() {
+  const out = process.env.TINTO_SELFTEST_OUT;
+  const report = async (r) => { if (out) await fs.writeFile(out, JSON.stringify(r)).catch(() => {}); };
+  try {
+    const w = 160, h = 120, rgb = new Uint8Array(w * h * 3);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const inside = (x - 80) ** 2 / 35 ** 2 + (y - 60) ** 2 / 45 ** 2 < 1;
+      rgb.set(inside ? [224, 172, 140] : [96, 110, 128], (y * w + x) * 3);
+    }
+    const mask = await cutout.maskFor(rgb, w, h);
+    let min = 255, max = 0;
+    for (const v of mask) { if (v < min) min = v; if (v > max) max = v; }
+    await report({ ok: mask.length === w * h && max > min, length: mask.length, min, max });
+    app.exit(0);
+  } catch (err) {
+    await report({ ok: false, error: String(err && err.stack || err) });
+    app.exit(1);
+  }
+}
+
 /* ---------- updates for the installed app (GitHub Releases, via electron-updater) ---------- */
 // Tinto checks a few seconds after opening and every few hours after that. A new version
 // downloads in the background; the editor then shows a bar with a button to restart and install.
@@ -359,6 +381,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    if (process.env.TINTO_SELFTEST === 'cutout') { runCutoutSelfTest(); return; }
     buildMenu();
     createSplash();
     createWindow();
