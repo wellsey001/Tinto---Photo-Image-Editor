@@ -2527,7 +2527,7 @@ function openCtx(items, x, y){
   const r = m.getBoundingClientRect(), pad = 8;
   m.style.left = Math.max(pad, Math.min(x, innerWidth - r.width - pad)) + 'px';
   m.style.top = Math.max(pad, Math.min(y, innerHeight - r.height - pad)) + 'px';
-  CTX.el = m; CTX.back = document.activeElement;
+  CTX.el = m; CTX.back = document.activeElement; CTX.t = performance.now();
   CTX.items = [...m.querySelectorAll('.ctx-item:not(:disabled)')];
   if (CTX.items[0]) CTX.items[0].focus({preventScroll:true});
 }
@@ -2541,6 +2541,27 @@ stage.addEventListener('contextmenu', e => {
   const p = clientToImg(e), l = hitTest(p);
   if (l){ if (selId !== l.id) select(l.id); openCtx(layerMenu(l, p), e.clientX, e.clientY); }
   else openCtx(photoMenu(p), e.clientX, e.clientY);
+});
+// right-click on a sticker in My stickers
+$('#myStickers').addEventListener('contextmenu', e => {
+  const tile = e.target.closest('.mine-item'); if (!tile) return;
+  e.preventDefault();
+  const id = tile.dataset.id, c = STICKER_IMG.get(id); if (!c) return;
+  openCtx([
+    {label:'Add to photo', off:!S.base, act:() => placeSticker(id)},
+    {label:'Tidy edges', act:async () => {
+      const t = window.tidySticker(c);
+      if (t === c){ toast('Nothing to tidy on this one.'); return; }
+      STICKER_IMG.set(id, t);
+      tile.querySelector('img').src = t.toDataURL('image/png');
+      if (desktop){
+        try { const blob = await new Promise(r => t.toBlob(r, 'image/png')); await window.tinto.stickers.save(id, new Uint8Array(await blob.arrayBuffer())); }
+        catch { toast('Tidied, but the change couldn’t be saved.'); return; }
+      }
+      toast('Edges tidied. Stickers already on the photo keep their old edges.');
+    }},
+    ...(desktop ? ['-', {label:'Delete from My stickers', danger:true, act:async () => { if (await window.tinto.stickers.remove(id)) tile.remove(); }}] : []),
+  ], e.clientX, e.clientY);
 });
 // right-click on a row in the Layers panel
 $('#layerList').addEventListener('contextmenu', e => {
@@ -2558,7 +2579,7 @@ window.addEventListener('contextmenu', e => {
 window.addEventListener('pointerdown', e => { if (CTX.el && !CTX.el.contains(e.target)) closeCtx(); }, true);
 window.addEventListener('blur', () => closeCtx());
 window.addEventListener('resize', () => closeCtx());
-document.addEventListener('scroll', () => closeCtx(), true);
+document.addEventListener('scroll', () => { if (CTX.el && performance.now() - CTX.t > 250) closeCtx(); }, true);
 // while the menu is open, keys move through it and never reach the photo
 window.addEventListener('keydown', e => {
   if (!CTX.el) return;

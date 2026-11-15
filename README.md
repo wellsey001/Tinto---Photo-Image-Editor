@@ -53,7 +53,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
 - **Sticker packs:** about 290 stickers in ten packs: Kawaii, Y2K, Street and Aesthetic (cut-out sticker art), plus Food, Summer, Love, Party, Dreamy and Nature (illustrated vector stickers that stay sharp at any size). All have white die-cut borders and a soft shadow.
-- **Sticker sheets:** load one image with lots of stickers on it and Tinto cuts them all out (transparent sheets, sheets with a fake grey-and-white checked background, or a plain background). Untick any you don't want; if two are stuck together, tap **Split** and tap each one. They go into **My stickers**.
+- **Sticker sheets:** load one image with lots of stickers on it and Tinto cuts them all out (transparent sheets, sheets with a fake grey-and-white checked background, or a plain background). Untick any you don't want; if two are stuck together, tap **Split** and tap each one. They go into **My stickers** with tidy edges. Right-click any sticker in My stickers and choose **Tidy edges** to clean up one you added before.
 - **Stickers:** 25 vector shapes with colour, outline and drop shadow, plus 28 emoji.
 - **Cheeky stickers (18+):** 20 rude word stickers (speech bubbles, bursts, stamps, pills and neon) and 15 naughty emoji. Hidden until you choose **Show** in Stickers.
 - **Custom stickers:** import any image and turn it into a sticker. Remove the background with AI (runs on your computer; the model downloads once, about 25 MB), in one click for plain backgrounds, or by tapping a colour; touch up with erase and restore brushes; add a white or black sticker border. Saved stickers stay in **My stickers** for next time.
@@ -144,7 +144,7 @@ tinto/
 │       ├── stickerart.js  Cut-out sticker packs (WebP images)
 │       ├── sheetsplit.js  Splits a sticker sheet into separate stickers
 │       └── app.js         Editor: image processing, layers, collage, export
-├── scripts/             Sticker pack generator and the AI cutout check
+├── scripts/             Sticker pack generator, sticker edge tidier and the AI cutout check
 ├── .github/workflows/     GitHub Actions build
 └── package.json           Scripts and electron-builder settings
 ```

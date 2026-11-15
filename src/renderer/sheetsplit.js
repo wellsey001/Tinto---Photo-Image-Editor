@@ -187,7 +187,7 @@
       const nb = [x > 0 ? i-1 : -1, x < W-1 ? i+1 : -1, i >= W ? i-W : -1, i < W*(H-1) ? i+W : -1];
       for (const j of nb) if (j >= 0 && fg[j] && !out[j]){ out[j] = v; q[qt++] = j; }
     }
-    onProgress('Cutting them out…'); await tick();
+    onProgress('Cutting them out and tidying the edges…'); await tick();
 
     // bounding boxes
     const boxes = new Map();
@@ -226,13 +226,86 @@
         d[o+3] = a;
       }
       cx.putImageData(id, 0, 0);
-      pieces.push({canvas:c, x:x0, y:y0, w, h});
+      let canvas = c;
+      if (mode !== 'alpha'){ try { canvas = tidySticker(c); } catch { canvas = c; } }
+      pieces.push({canvas, x:x0, y:y0, w:canvas.width, h:canvas.height});
     }
     // reading order: rows top to bottom, then left to right
     const row = Math.max(30, 60*S);
     pieces.sort((a, b) => Math.round((a.y+a.h/2)/row) - Math.round((b.y+b.h/2)/row) || (a.x - b.x));
     return pieces.slice(0, 400);
   }
+
+  /* Tidies a cut-out: keeps the drawing, drops leftover background and specks around it,
+     and gives it a fresh, even white die-cut border. Returns a new canvas. */
+  function tidySticker(src){
+    const W = src.width, H = src.height, N = W*H;
+    const d = src.getContext('2d').getImageData(0, 0, W, H).data;
+    const fillHoles = m => { const inv = new Uint8Array(N); for (let i=0; i<N; i++) inv[i] = m[i] ? 0 : 1; const out = floodFromEdge(inv, W, H), r = new Uint8Array(N); for (let i=0; i<N; i++) r[i] = out[i] ? 0 : 1; return r; };
+    // the drawing: anything visible that isn't white border or grey check pattern
+    let art = new Uint8Array(N), solid = new Uint8Array(N);
+    for (let i=0, j=0; i<N; i++, j+=4){
+      const r = d[j], g = d[j+1], b = d[j+2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      solid[i] = d[j+3] > 128 ? 1 : 0;
+      art[i] = solid[i] && !((mx - mn) < 30 && (r+g+b)/3 > 195) ? 1 : 0;
+    }
+    art = close(art, W, H, 1);
+    // white-bodied drawings with small gaps in their outline: close the gaps just to find the inside
+    const inside = fillHoles(close(art, W, H, 6));
+    for (let i=0; i<N; i++) if (inside[i] && solid[i]) art[i] = 1;
+    art = fillHoles(art);
+    let count = 0; for (let i=0; i<N; i++) count += art[i];
+    if (count < 30) return src;
+    // drop specks: keep big parts, and small parts touching a big one
+    const L = label(art, W, H), size = new Int32Array(L.n+1);
+    for (let i=0; i<N; i++) size[L.lab[i]]++;
+    let big = 0; for (let c=1; c<=L.n; c++) big = Math.max(big, size[c]);
+    const keepBig = new Uint8Array(N); for (let i=0; i<N; i++) keepBig[i] = L.lab[i] && size[L.lab[i]] >= 0.05*big ? 1 : 0;
+    const nearBig = dilate(keepBig, W, H, 2), keepSmall = new Uint8Array(L.n+1);
+    for (let i=0; i<N; i++){ const c = L.lab[i]; if (c && !keepBig[i] && size[c] >= 4 && nearBig[i]) keepSmall[c] = 1; }
+    for (let i=0; i<N; i++) art[i] = keepBig[i] || keepSmall[L.lab[i]] ? 1 : 0;
+    art = fillHoles(art);
+    // border width: how far the original white border reached past the drawing (typical value)
+    const notArt = new Uint8Array(N); for (let i=0; i<N; i++) notArt[i] = art[i] ? 0 : 1;
+    const dist0 = distance(notArt, W, H), ring = [];
+    for (let y=0; y<H; y++) for (let x=0; x<W; x++){
+      const i = y*W+x; if (!solid[i]) continue;
+      const edge = x===0 || y===0 || x===W-1 || y===H-1 || !solid[i-1] || !solid[i+1] || !solid[i-W] || !solid[i+W];
+      if (edge && dist0[i] > 0 && dist0[i] < 20) ring.push(dist0[i]);
+    }
+    ring.sort((a, b) => a-b);
+    const R = Math.min(8, Math.max(3.5, ring.length ? ring[ring.length >> 1] : 5)) * Math.max(1, Math.max(W, H)/400);
+    // new sticker: the drawing as it was, then a clean white band with a soft edge
+    const pad = Math.ceil(R) + 2, W2 = W + pad*2, H2 = H + pad*2, N2 = W2*H2;
+    const big2 = new Uint8Array(N2);
+    for (let y=0; y<H; y++) for (let x=0; x<W; x++) big2[(y+pad)*W2 + x+pad] = art[y*W+x];
+    const outside = new Uint8Array(N2); for (let i=0; i<N2; i++) outside[i] = big2[i] ? 0 : 1;
+    const D = distance(outside, W2, H2);
+    const c = document.createElement('canvas'); c.width = W2; c.height = H2;
+    const cx = c.getContext('2d'), o = cx.createImageData(W2, H2), od = o.data;
+    for (let y=0; y<H2; y++) for (let x=0; x<W2; x++){
+      const i = y*W2+x, k = i*4;
+      if (big2[i]){
+        const s = ((y-pad)*W + x-pad)*4;
+        const rim = x>0 && y>0 && x<W2-1 && y<H2-1 && (!big2[i-1] || !big2[i+1] || !big2[i-W2] || !big2[i+W2]);
+        const t = rim ? 0.35 : 0;
+        od[k] = d[s] + (255-d[s])*t; od[k+1] = d[s+1] + (255-d[s+1])*t; od[k+2] = d[s+2] + (255-d[s+2])*t;
+        od[k+3] = d[s+3];                       // see-through gaps inside a drawing stay see-through
+      } else {
+        od[k] = od[k+1] = od[k+2] = 255;
+        od[k+3] = Math.round(255 * Math.max(0, Math.min(1, R + 0.5 - D[i])));
+      }
+    }
+    cx.putImageData(o, 0, 0);
+    // trim to what's visible
+    let x0 = W2, y0 = H2, x1 = -1, y1 = -1;
+    for (let y=0; y<H2; y++) for (let x=0; x<W2; x++) if (od[(y*W2+x)*4+3] > 0){ if (x<x0) x0=x; if (x>x1) x1=x; if (y<y0) y0=y; if (y>y1) y1=y; }
+    if (x1 < 0) return src;
+    const t = document.createElement('canvas'); t.width = x1-x0+1; t.height = y1-y0+1;
+    t.getContext('2d').drawImage(c, -x0, -y0);
+    return t;
+  }
+
   /* Splits one cut-out into several, one per tapped point: each pixel goes to the nearest tap,
      measured along the sticker itself, so the cut falls where the drawings meet. */
   function splitAtPoints(src, points){
@@ -266,4 +339,5 @@
   }
   window.splitStickerSheet = splitStickerSheet;
   window.splitStickerAt = splitAtPoints;
+  window.tidySticker = tidySticker;
 })();
