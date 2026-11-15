@@ -1151,3 +1151,45 @@ FONTS.forEach(f => document.fonts.load(`400 40px "${f}"`).catch(()=>{}));
     document.removeEventListener('visibilitychange', once); firstPlay();
   });
 })();
+
+/* ================= updates ================= */
+// The main process checks GitHub Releases on launch and every few hours, and downloads new
+// versions in the background. This shows the progress, and the button to restart and install.
+let updateStatus = {state:'off'}, updateHidden = false, userCheck = false, appVer = '';
+function renderUpdate(){
+  const s = updateStatus, bar = $('#updateBar');
+  bar.hidden = updateHidden || !(s.state==='downloading' || s.state==='ready');
+  if (bar.hidden) return;
+  const pct = Math.round((s.progress || 0) * 100);
+  $('#updateMsg').textContent = s.state==='ready' ? `Tinto ${s.version} is ready to install` : `Downloading Tinto ${s.version}… ${pct}%`;
+  $('#updateTrack').hidden = s.state!=='downloading';
+  $('#updateFill').style.width = pct + '%';
+  $('#updateGo').hidden = s.state!=='ready';
+}
+function reportCheck(s){
+  if (!userCheck) return;
+  if (s.state==='current'){ userCheck = false; toast(`You have the latest version of Tinto${appVer ? ` (${appVer})` : ''}.`); }
+  else if (s.state==='error'){ userCheck = false; toast('Couldn’t check for updates. Check your internet connection and try again.'); }
+  else if (s.state==='off'){ userCheck = false; toast('Updates are off when Tinto runs from the project folder. Install it to get updates.'); }
+  else if (s.state==='downloading' || s.state==='ready'){ userCheck = false; updateHidden = false; renderUpdate(); }
+}
+async function checkUpdatesNow(){
+  userCheck = true;
+  toast('Checking for updates…');
+  try { reportCheck(await window.tinto.checkForUpdates()); }
+  catch { reportCheck({state:'error'}); }
+}
+if (desktop){
+  window.tinto.appVersion().then(v => { appVer = v; }).catch(() => {});
+  window.tinto.updateState().then(s => { updateStatus = s; renderUpdate(); }).catch(() => {});
+  window.tinto.onUpdateStatus(s => {
+    if (s.state==='ready' && updateStatus.state!=='ready') updateHidden = false;
+    updateStatus = s; renderUpdate(); reportCheck(s);
+  });
+  window.tinto.onMenu(action => { if (action==='check-updates') checkUpdatesNow(); });
+  $('#updateGo').onclick = async () => {
+    const res = await window.tinto.installUpdate(hi > 0);
+    if (res && res.ok) $('#updateGo').disabled = true;
+  };
+  $('#updateHide').onclick = () => { updateHidden = true; renderUpdate(); };
+}

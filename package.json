@@ -1,16 +1,23 @@
 {
   "name": "tinto",
   "productName": "Tinto",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Tinto - Photo & Image Editor. A desktop photo editor with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
   "main": "src/main.js",
   "author": "Tinto contributors",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wellsey001/Tinto---Photo-Image-Editor.git"
+  },
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win --x64",
     "dist:dir": "electron-builder --win --x64 --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -32,7 +39,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
@@ -48,11 +57,26 @@
     },
     "fileAssociations": [
       {
-        "ext": ["jpg", "jpeg", "png", "webp", "gif", "bmp"],
+        "ext": [
+          "jpg",
+          "jpeg",
+          "png",
+          "webp",
+          "gif",
+          "bmp"
+        ],
         "name": "Image",
         "description": "Image file",
         "role": "Editor",
         "icon": "build/icon.ico"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "wellsey001",
+        "repo": "Tinto---Photo-Image-Editor",
+        "releaseType": "release"
       }
     ]
   }

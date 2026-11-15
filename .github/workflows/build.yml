@@ -1,3 +1,7 @@
+# Builds the Windows installer on GitHub's own computers.
+# - Every push to main and every pull request: the installer is kept as a downloadable build artifact.
+# - A version tag like v1.1.0 (or publishing a release with that tag): the installer and the update
+#   files are attached to the release. Installed copies of Tinto read latest.yml to find updates.
 name: Build
 
 on:
@@ -20,8 +24,18 @@ jobs:
         with:
           node-version: 22
 
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but package.json says $want"
+            exit 1
+          fi
+
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Build installer
         run: npx electron-builder --win --x64 --publish never
@@ -30,10 +44,15 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: Tinto-Setup
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/latest.yml
 
-      - name: Attach installer to release
+      - name: Attach installer and update files to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml

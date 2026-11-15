@@ -154,6 +154,9 @@ function buildMenu() {
     {
       label: 'Help',
       submenu: [
+        { label: 'Check for Updates…', click: send('check-updates') },
+        { label: 'Tinto on GitHub', click: () => shell.openExternal('https://github.com/wellsey001/Tinto---Photo-Image-Editor') },
+        { type: 'separator' },
         {
           label: 'About Tinto',
           click: () => dialog.showMessageBox(win, {
@@ -217,6 +220,66 @@ ipcMain.handle('show-in-folder', (_e, filePath) => {
   if (typeof filePath === 'string') shell.showItemInFolder(filePath);
 });
 
+/* ---------- updates for the installed app (GitHub Releases, via electron-updater) ---------- */
+// Tinto checks a few seconds after opening and every few hours after that. A new version
+// downloads in the background; the editor then shows a bar with a button to restart and install.
+// Running from the project folder (npm start), updates are off.
+
+let autoUpdater = null;
+try { ({ autoUpdater } = require('electron-updater')); } catch { /* not installed yet: no auto-updates */ }
+let updateState = { state: app.isPackaged && autoUpdater ? 'idle' : 'off' };
+const UPDATE_EVERY_MS = 4 * 60 * 60 * 1000;
+
+function sendUpdate(s) {
+  updateState = s;
+  if (win && !win.isDestroyed()) win.webContents.send('update:status', s);
+}
+
+function setupUpdates() {
+  if (!autoUpdater || !app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('checking-for-update', () => sendUpdate({ state: 'checking' }));
+  autoUpdater.on('update-not-available', () => sendUpdate({ state: 'current' }));
+  autoUpdater.on('update-available', info => sendUpdate({ state: 'downloading', version: info.version, progress: 0 }));
+  autoUpdater.on('download-progress', p => sendUpdate({ ...updateState, state: 'downloading', progress: p.percent / 100 }));
+  autoUpdater.on('update-downloaded', info => sendUpdate({ state: 'ready', version: info.version }));
+  autoUpdater.on('error', err => sendUpdate({ state: 'error', message: String(err && err.message ? err.message : err).split('\n')[0] }));
+  const check = () => { if (updateState.state !== 'downloading' && updateState.state !== 'ready') autoUpdater.checkForUpdates().catch(() => {}); };
+  setTimeout(check, 4000);
+  setInterval(check, UPDATE_EVERY_MS);
+}
+
+ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.handle('update:state', () => updateState);
+ipcMain.handle('update:check', async () => {
+  if (!autoUpdater || !app.isPackaged) return { state: 'off' };
+  if (updateState.state === 'downloading' || updateState.state === 'ready') return updateState;
+  try { await autoUpdater.checkForUpdates(); } catch { /* reported through the error event */ }
+  return updateState;
+});
+
+// Installing: the installer runs silently with the choices made the first time
+// (where Tinto is installed), then the new version opens by itself.
+let installingUpdate = false;
+ipcMain.handle('update:install', async (_e, opts) => {
+  if (!autoUpdater || installingUpdate || updateState.state !== 'ready') return { ok: false };
+  if (opts && opts.hasEdits && win && !win.isDestroyed()) {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['Update now', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message: 'Export your photo first?',
+      detail: 'Tinto closes to install the update, and edits you haven’t exported will be lost. To keep them, cancel and press Ctrl+E to export.',
+    });
+    if (choice === 1) return { ok: false, cancelled: true };
+  }
+  installingUpdate = true;
+  autoUpdater.quitAndInstall(true, true);
+  return { ok: true };
+});
+
 /* ---------- app lifecycle ---------- */
 
 if (!app.requestSingleInstanceLock()) {
@@ -235,6 +298,7 @@ if (!app.requestSingleInstanceLock()) {
     buildMenu();
     createSplash();
     createWindow();
+    setupUpdates();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
 

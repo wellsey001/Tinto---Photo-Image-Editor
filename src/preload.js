@@ -19,6 +19,15 @@ contextBridge.exposeInMainWorld('tinto', {
   /** Images opened from Explorer while Tinto is already running. */
   onOpenFile: cb => ipcRenderer.on('open-file', (_e, file) => cb(file)),
 
-  /** Menu commands: 'open' or 'export'. */
+  /** Menu commands: 'open', 'export' or 'check-updates'. */
   onMenu: cb => ipcRenderer.on('menu', (_e, action) => cb(action)),
+
+  /** Tinto's version number, e.g. "1.1.0". */
+  appVersion: () => ipcRenderer.invoke('app:version'),
+
+  /** Updates: state is idle | checking | current | downloading | ready | error | off. */
+  updateState: () => ipcRenderer.invoke('update:state'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  installUpdate: hasEdits => ipcRenderer.invoke('update:install', { hasEdits: !!hasEdits }),
+  onUpdateStatus: cb => ipcRenderer.on('update:status', (_e, s) => cb(s)),
 });

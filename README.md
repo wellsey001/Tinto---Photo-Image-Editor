@@ -21,7 +21,11 @@ Tinto is a desktop photo editor in the spirit of Picsart: quick adjustments and 
 
 After installing, right-click any JPG, PNG, WebP, GIF or BMP in File Explorer and choose **Open with**, then **Tinto**.
 
-To update, download and run the newest installer. It installs over the old version.
+### Updates
+
+From version 1.1.0, Tinto keeps itself up to date. It checks for a new version a few seconds after opening and every few hours after that, and downloads it in the background. When it's ready, a bar appears in the bottom-right corner: choose **Restart and update** to install it straight away, or carry on and it installs the next time you close Tinto. You can also check at any time from **Help › Check for Updates…**.
+
+If you have version 1.0.0, download and run the newest installer once. It installs over the old version, and updates are automatic from then on.
 
 ## Features
 
@@ -65,7 +69,7 @@ The installer is written to `dist/Tinto-Setup-<version>.exe`. Run it to install 
 The workflow in `.github/workflows/build.yml` builds the installer on GitHub's Windows machines:
 
 - Every push to `main` and every pull request produces the installer as a downloadable build artifact.
-- A new version tag attaches the installer to its GitHub Release.
+- A new version tag attaches the installer and the update files (`latest.yml` and the `.blockmap`) to its GitHub Release. Installed copies of Tinto read `latest.yml` to find updates, so keep it attached.
 
 To release a new version, bump `version` in `package.json`, push it to `main`, then either publish a new release on GitHub with a tag such as `v1.1.0`, or push the tag yourself:
 

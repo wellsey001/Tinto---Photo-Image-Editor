@@ -8,7 +8,9 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+img{max-width:100%}
 body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-body);overflow:hidden}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -187,3 +189,11 @@ textarea.input{resize:vertical;min-height:64px;line-height:1.35}
 @keyframes t-look { 0%, 100% { transform: translateX(0); } 30%, 65% { transform: translateX(-2.4px); } }
 @keyframes t-blink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.1); } }
 @media (prefers-reduced-motion: reduce) { .tlogo.play * { animation: none !important; } }
+
+/* Update bar: bottom-right, while a new version downloads and once it's ready to install. */
+.update-bar{position:fixed;right:max(20px, env(safe-area-inset-right, 0px));bottom:calc(20px + env(safe-area-inset-bottom, 0px));z-index:45;display:flex;align-items:center;gap:12px;background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:10px 10px 10px 14px;box-shadow:0 10px 32px rgba(0,0,0,.5);max-width:calc(100% - 40px)}
+.update-bar .upd-icon{width:18px;height:18px;color:var(--accent);flex:none}
+.update-bar .upd-text{display:flex;flex-direction:column;gap:6px;min-width:0}
+.update-bar #updateMsg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upd-track{width:200px;max-width:100%;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.upd-fill{height:100%;width:0;background:var(--accent);transition:width .3s ease}
