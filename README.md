@@ -56,7 +56,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Custom stickers:** import any image and turn it into a sticker. Remove the background with AI (runs on your computer; the model downloads once, about 25 MB), in one click for plain backgrounds, or by tapping a colour; touch up with erase and restore brushes; add a white or black sticker border. Saved stickers stay in **My stickers** for next time.
 - **Draw:** freehand brush with a highlighter mode.
 - **Layers:** move, resize and rotate on the photo; reorder, hide, duplicate and set opacity.
-- **Collage:** 10 styled templates (Polaroids, Film strip, Magazine, Story, Scrapbook, Circles, Heart, Diagonal, Mood board, Postcard) with editable titles, plus 12 grid layouts for 2 to 9 photos with spacing, rounded corners and background colour. Template titles become editable text layers when you send a collage to the editor.
+- **Collage:** 20 styled templates (Polaroids, Film strip, Magazine, Story, Scrapbook, Circles, Heart, Diagonal, Mood board, Postcard, Photo booth, Honeycomb, Gallery wall, Before & after, Pills, Card stack, Newspaper, Arches, Sticker sheet, Banner) with editable titles, plus 12 grid layouts for 2 to 9 photos with spacing, rounded corners and background colour. Template titles become editable text layers when you send a collage to the editor.
 - **Before and after:** hold the compare button (or `\`) to see the original.
 - **Undo and redo** for every edit.
 - **Export** as JPG, PNG or WebP through your system's save dialog.

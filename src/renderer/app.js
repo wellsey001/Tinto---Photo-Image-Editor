@@ -1042,6 +1042,12 @@ const LAYOUTS = [
 /* Templates. Positions are fractions of the collage's width (x, w) and height (y, h); `sq` makes a
    cell square in pixels (its height follows its width). Rotation is in degrees around the photo's centre.
    Decorations (`deco`) draw under every photo, or after the photo numbered in `after`, or on top. */
+/* Seven flat-topped hexagons in a honeycomb, centred on cx, cy (fractions of a square collage). */
+function honeycomb(cx, cy, w){
+  const h = w*0.866, s = 1.07;
+  return [[0,0],[0,-h*s],[0,h*s],[-.75*w*s,-h/2*s],[.75*w*s,-h/2*s],[-.75*w*s,h/2*s],[.75*w*s,h/2*s]]
+    .map(([dx, dy]) => ({x: cx + dx - w/2, y: cy + dy - h/2, w, h, shape:'hex'}));
+}
 const TEMPLATES = [
   {id:'polaroids', name:'Polaroids', ratio:4/5, bg:{type:'paper', color:'#ece5d8'},
     cells:[
@@ -1142,6 +1148,96 @@ const TEMPLATES = [
       {type:'text', slot:'title', x:.775, y:.48, size:.075, font:'Anton', weight:400, color:'#2b3a55', spacing:.06, upper:true, maxW:.32},
       {type:'lines', x:.63, w:.29, y:.63, gap:.085, count:4, color:'#cdbfa6'},
     ], text:{title:'The Lakes', sub:'Greetings from'}},
+  {id:'booth', name:'Photo booth', ratio:9/16, bg:{type:'paper', color:'#fbfaf7'},
+    cells:[
+      {x:.1, y:.05, w:.8, h:.19, rad:.004},
+      {x:.1, y:.26, w:.8, h:.19, rad:.004},
+      {x:.1, y:.47, w:.8, h:.19, rad:.004},
+      {x:.1, y:.68, w:.8, h:.19, rad:.004},
+    ],
+    deco:[
+      {type:'text', slot:'title', x:.5, y:.925, size:.1, font:'Caveat', weight:700, color:'#3b3530', maxW:.8},
+      {type:'text', slot:'sub', x:.5, y:.968, size:.032, font:'Space Mono', weight:700, color:'#8a7f72', spacing:.1},
+    ], text:{title:'Best friends', sub:'15.11.2026'}},
+  {id:'honeycomb', name:'Honeycomb', ratio:1, bg:{type:'gradient', from:'#2a2433', to:'#16141c'},
+    cells: honeycomb(.5, .47, .28),
+    deco:[{type:'text', slot:'title', x:.5, y:.95, size:.04, font:'Hanken Grotesk', weight:700, color:'#f6b443', spacing:.3, upper:true}],
+    text:{title:'Sweet memories'}},
+  {id:'gallery', name:'Gallery wall', ratio:16/9, bg:{type:'paper', color:'#d9d1c4'},
+    cells:[
+      {x:.37, y:.13, w:.26, h:.58, frame:'gallery', shadow:true},
+      {x:.11, y:.14, w:.17, h:.24, frame:'gallery', shadow:true},
+      {x:.11, y:.50, w:.17, h:.24, frame:'gallery', shadow:true},
+      {x:.72, y:.14, w:.17, h:.24, frame:'gallery', shadow:true},
+      {x:.72, y:.50, w:.17, h:.24, frame:'gallery', shadow:true},
+    ],
+    deco:[{type:'text', slot:'title', x:.5, y:.9, size:.04, font:'Playfair Display', weight:700, color:'#3b3530', maxW:.5}],
+    text:{title:'Home sweet home'}},
+  {id:'beforeafter', name:'Before & after', ratio:16/9, bg:{type:'solid', color:'#ffffff'},
+    cells:[{x:0, y:0, w:.5, h:1}, {x:.5, y:0, w:.5, h:1}],
+    deco:[
+      {type:'rect', x:.4985, y:0, w:.003, h:1, color:'#ffffff'},
+      {type:'badge', value:'BEFORE', x:.085, y:.1, size:.024, bg:'rgba(17,17,17,.78)', color:'#ffffff', spacing:.15},
+      {type:'badge', value:'AFTER', x:.925, y:.1, size:.024, bg:'#f6b443', color:'#1c1206', spacing:.15},
+    ], text:{}},
+  {id:'pills', name:'Pills', ratio:9/16, bg:{type:'gradient', from:'#c6b4ff', to:'#ffb9d3'},
+    cells:[
+      {x:.1, y:.05, w:.48, h:.36, rad:.5, shadow:true, rot:-4},
+      {x:.42, y:.27, w:.48, h:.36, rad:.5, shadow:true, rot:4},
+      {x:.1, y:.5, w:.48, h:.36, rad:.5, shadow:true, rot:-3},
+    ],
+    deco:[{type:'text', slot:'title', x:.5, y:.93, size:.1, font:'Pacifico', weight:400, color:'#ffffff', shadow:true, maxW:.86}],
+    text:{title:'Good times'}},
+  {id:'stack', name:'Card stack', ratio:4/5, bg:{type:'gradient', from:'#262a35', to:'#15171d'},
+    cells:[
+      {x:.18, y:.22, w:.64, h:.55, rot:-9, frame:'border', shadow:true},
+      {x:.18, y:.22, w:.64, h:.55, rot:6, frame:'border', shadow:true},
+      {x:.18, y:.22, w:.64, h:.55, rot:0, frame:'border', shadow:true},
+    ],
+    deco:[
+      {type:'text', slot:'title', x:.5, y:.1, size:.085, font:'Playfair Display', weight:700, color:'#ffffff', maxW:.86},
+      {type:'text', slot:'sub', x:.5, y:.9, size:.03, font:'Hanken Grotesk', weight:600, color:'#f6b443', spacing:.35, upper:true},
+    ], text:{title:'Highlights', sub:'Year in photos'}},
+  {id:'newspaper', name:'Newspaper', ratio:4/5, bg:{type:'paper', color:'#f2ede2'},
+    cells:[
+      {x:.05, y:.25, w:.9, h:.42},
+      {x:.05, y:.7, w:.285, h:.24},
+      {x:.358, y:.7, w:.285, h:.24},
+    ],
+    deco:[
+      {type:'text', value:'The Daily Tinto', x:.5, y:.065, size:.08, font:'Playfair Display', weight:700, color:'#1b1b1b', maxW:.9},
+      {type:'rect', x:.05, y:.112, w:.9, h:.004, color:'#1b1b1b'},
+      {type:'text', slot:'sub', x:.5, y:.132, size:.019, font:'Hanken Grotesk', weight:600, color:'#4a4740', spacing:.2, upper:true, maxW:.9},
+      {type:'rect', x:.05, y:.15, w:.9, h:.0015, color:'#1b1b1b'},
+      {type:'text', slot:'title', x:.5, y:.2, size:.062, font:'Anton', weight:400, color:'#1b1b1b', spacing:.02, upper:true, maxW:.9},
+      {type:'lines', x:.67, w:.28, y:.71, gap:.027, count:9, color:'#a7a196'},
+    ], text:{title:'Sunset steals the show', sub:'Sunday 15 November 2026 · Late edition'}},
+  {id:'arches', name:'Arches', ratio:16/9, bg:{type:'paper', color:'#efe6d8'},
+    cells:[
+      {x:.08, y:.09, w:.26, h:.68, shape:'arch', shadow:true},
+      {x:.37, y:.09, w:.26, h:.68, shape:'arch', shadow:true},
+      {x:.66, y:.09, w:.26, h:.68, shape:'arch', shadow:true},
+    ],
+    deco:[{type:'text', slot:'title', x:.5, y:.88, size:.045, font:'Playfair Display', weight:700, color:'#3b3530', maxW:.8}],
+    text:{title:'Golden hour'}},
+  {id:'stickersheet', name:'Sticker sheet', ratio:1, bg:{type:'dots', color:'#fff4d6', dot:'#ffd98a'},
+    cells:[
+      {x:.07, y:.07, w:.4, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.53, y:.13, w:.36, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.13, y:.53, w:.34, sq:true, shape:'circle', frame:'border', shadow:true},
+      {x:.52, y:.54, w:.4, sq:true, shape:'circle', frame:'border', shadow:true},
+    ],
+    deco:[
+      {type:'emoji', char:'✨', x:.5, y:.08, size:.08, rot:10},
+      {type:'emoji', char:'🌈', x:.93, y:.08, size:.08, rot:12},
+      {type:'emoji', char:'😎', x:.49, y:.5, size:.1, rot:-10},
+      {type:'emoji', char:'💛', x:.07, y:.93, size:.08, rot:-8},
+      {type:'emoji', char:'⭐', x:.94, y:.95, size:.07, rot:14},
+    ], text:{}},
+  {id:'banner', name:'Banner', ratio:9/16, bg:{type:'solid', color:'#f6b443'},
+    cells:[{x:0, y:0, w:1, h:.44}, {x:0, y:.56, w:1, h:.44}],
+    deco:[{type:'text', slot:'title', x:.5, y:.5, size:.11, font:'Anton', weight:400, color:'#1c1206', spacing:.04, upper:true, maxW:.9}],
+    text:{title:'Weekend vibes'}},
 ];
 const RATIOS = [['1:1',1],['4:5',4/5],['9:16',9/16],['16:9',16/9],['3:2',3/2]];
 const CLONG = 2400;
@@ -1175,6 +1271,9 @@ function cellPath(r){
   const {w, h} = r, p = new Path2D();
   if (r.shape === 'circle') p.ellipse(0, 0, w/2, h/2, 0, 0, Math.PI*2);
   else if (r.shape === 'heart') p.addPath(HEART, new DOMMatrix().translate(-w/2, -h/2).scale(w/100, h/100));
+  else if (r.shape === 'hex'){   // flat-topped hexagon
+    p.moveTo(-w/2, 0); p.lineTo(-w/4, -h/2); p.lineTo(w/4, -h/2); p.lineTo(w/2, 0); p.lineTo(w/4, h/2); p.lineTo(-w/4, h/2); p.closePath();
+  }
   else if (r.shape === 'arch'){ p.moveTo(-w/2, h/2); p.lineTo(-w/2, -h/2 + w/2); p.arc(0, -h/2 + w/2, w/2, Math.PI, 0); p.lineTo(w/2, h/2); p.closePath(); }
   else if (r.shape === 'slant'){
     const s = h*0.18, L = r.c && r.c.slantL ? s : 0, R = r.c && r.c.slantR ? s : 0, g = 12;
@@ -1187,6 +1286,7 @@ function cellPath(r){
 function framePad(r, W){
   if (r.frame === 'polaroid') return [r.w*0.06, r.w*0.24];
   if (r.frame === 'stamp') return [r.w*0.12, r.w*0.12];
+  if (r.frame === 'gallery'){ const p = Math.min(r.w, r.h)*0.1 + W*0.012; return [p, p]; }
   if (r.frame === 'border') return [W*0.012, W*0.012];
   if (r.frame === 'thin') return [W*0.006, W*0.006];
   return [0, 0];
@@ -1206,7 +1306,7 @@ function paintBackground(ctx, W, H, tpl){
   }
 }
 
-function textFor(d, tpl){ const t = (C.text[d.slot] ?? (tpl.text || {})[d.slot] ?? ''); return d.upper ? t.toUpperCase() : t; }
+function textFor(d, tpl){ const t = d.value ?? (C.text[d.slot] ?? (tpl.text || {})[d.slot] ?? ''); return d.upper ? t.toUpperCase() : t; }
 function decoFont(d, W){ return `${d.weight || 400} ${Math.round(d.size*W)}px "${d.font}", system-ui, sans-serif`; }
 
 function paintDeco(ctx, d, W, H, tpl, withText){
@@ -1218,6 +1318,20 @@ function paintDeco(ctx, d, W, H, tpl, withText){
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = d.color;
     if (d.shadow){ ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = d.size*W*0.25; ctx.shadowOffsetY = d.size*W*0.05; }
     ctx.fillText(textFor(d, tpl), 0, 0, (d.maxW || 0.9)*W);   // long titles shrink to fit their space
+  } else if (d.type === 'badge'){
+    // A pill-shaped label, like BEFORE / AFTER.
+    ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);
+    const fs = d.size*W; ctx.font = `${d.weight || 700} ${Math.round(fs)}px "${d.font || 'Hanken Grotesk'}", system-ui, sans-serif`;
+    ctx.letterSpacing = ((d.spacing || 0) * fs) + 'px';
+    const t = d.value, tw = ctx.measureText(t).width, bw = tw + fs*1.6, bh = fs*2;
+    ctx.fillStyle = d.bg; ctx.beginPath(); ctx.roundRect(-bw/2, -bh/2, bw, bh, bh/2); ctx.fill();
+    ctx.fillStyle = d.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 0, fs*0.05);
+  } else if (d.type === 'emoji'){
+    ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);
+    ctx.font = `${Math.round(d.size*W)}px ${EMOJI_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(d.char, 0, 0);
+  } else if (d.type === 'rect'){
+    ctx.fillStyle = d.color; ctx.beginPath(); ctx.roundRect(d.x*W, d.y*H, d.w*W, d.h*H, (d.r || 0)*W); ctx.fill();
   } else if (d.type === 'tape'){
     ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);
     ctx.fillStyle = 'rgba(244,232,198,.82)'; ctx.shadowColor = 'rgba(0,0,0,.12)'; ctx.shadowBlur = W*0.004;
@@ -1240,7 +1354,16 @@ function paintCell(ctx, r, cell, i, W, preview){
   const [pad, padB] = framePad(r, W), path = cellPath(r);
   ctx.save(); ctx.translate(r.cx, r.cy); ctx.rotate(r.rot);
   // Frame card (polaroid, stamp) or the shadow under a bare photo.
-  if (r.frame === 'polaroid' || r.frame === 'stamp'){
+  if (r.frame === 'gallery'){
+    // A black frame with a white mat inside it, hung with a soft shadow.
+    const mat = Math.min(r.w, r.h)*0.1, fw = W*0.012;
+    ctx.save();
+    if (r.shadow){ ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = W*0.016; ctx.shadowOffsetY = W*0.008; }
+    ctx.fillStyle = '#17171a'; ctx.fillRect(-r.w/2 - pad, -r.h/2 - pad, r.w + pad*2, r.h + pad*2);
+    ctx.restore();
+    ctx.fillStyle = '#fbfaf7'; ctx.fillRect(-r.w/2 - mat, -r.h/2 - mat, r.w + mat*2, r.h + mat*2);
+    ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = Math.max(1, fw*0.15); ctx.strokeRect(-r.w/2, -r.h/2, r.w, r.h);
+  } else if (r.frame === 'polaroid' || r.frame === 'stamp'){
     ctx.save();
     if (r.shadow){ ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = W*0.018; ctx.shadowOffsetY = W*0.006; }
     ctx.fillStyle = '#fbfaf7'; ctx.fillRect(-r.w/2 - pad, -r.h/2 - pad, r.w + pad*2, r.h + pad + padB);
