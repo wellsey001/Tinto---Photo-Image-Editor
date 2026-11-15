@@ -337,8 +337,34 @@ async function runCutoutSelfTest() {
 // downloads in the background; the editor then shows a bar with a button to restart and install.
 // Running from the project folder (npm start), updates are off.
 
+/* Launched from a desktop shortcut (AppImage, Gear Lever, a .desktop file), the app has no terminal:
+   its console output goes to a closed pipe and writing there throws EPIPE. Never let that crash Tinto. */
+for (const s of [process.stdout, process.stderr]) {
+  if (s && typeof s.on === 'function') s.on('error', () => { /* a closed console: drop the line */ });
+}
+process.on('uncaughtException', err => {
+  if (err && (err.code === 'EPIPE' || /write EPIPE/.test(String(err.message)))) return;   // a lost console line, nothing more
+  try { dialog.showErrorBox('Tinto hit a problem', String(err && err.stack || err)); } catch { /* no window to show it in */ }
+});
+
+/* The updater's own notes go to a small log file instead of the console. */
+const fs_log = require('fs');
+let updateLogPath = null;
+function updateLog(level, args){
+  try {
+    if (!updateLogPath) updateLogPath = path.join(app.getPath('userData'), 'update.log');
+    const line = `${new Date().toISOString()} ${level} ${args.map(a => (a && a.stack) || (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}\n`;
+    try { if (fs_log.statSync(updateLogPath).size > 512 * 1024) fs_log.writeFileSync(updateLogPath, ''); } catch { /* no log yet */ }
+    fs_log.appendFileSync(updateLogPath, line);
+  } catch { /* logging must never break updating */ }
+}
+const updaterLogger = {
+  info: (...a) => updateLog('info', a), warn: (...a) => updateLog('warn', a),
+  error: (...a) => updateLog('error', a), debug: () => {},
+};
+
 let autoUpdater = null;
-try { ({ autoUpdater } = require('electron-updater')); } catch { /* not installed yet: no auto-updates */ }
+try { ({ autoUpdater } = require('electron-updater')); autoUpdater.logger = updaterLogger; } catch { /* not installed yet: no auto-updates */ }
 let updateState = { state: app.isPackaged && autoUpdater ? 'idle' : 'off' };
 const UPDATE_EVERY_MS = 4 * 60 * 60 * 1000;
 
