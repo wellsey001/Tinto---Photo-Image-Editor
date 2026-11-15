@@ -17,6 +17,63 @@ const MAX_OPEN_BYTES = 200 * 1024 * 1024; // refuse anything over 200 MB
 let win = null;
 let startupFile = findImageArg(process.argv);
 
+// The loading screen plays its 1.8-second logo animation, then hands over to the editor
+// (a quick start still gets the whole animation; a slow one keeps the logo up until the editor is ready).
+const SPLASH_MS = 1800;
+let splash = null;
+let splashShownAt = 0;
+let editorWaiting = false;
+
+function createSplash() {
+  splash = new BrowserWindow({
+    width: 460,
+    height: 340,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    center: true,
+    show: false,
+    backgroundColor: '#00000000',
+    title: 'Tinto',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  splash.loadFile(path.join(__dirname, 'splash.html'));
+  splash.once('ready-to-show', () => {
+    if (!splash || splash.isDestroyed()) return;
+    if (win && !win.isDestroyed() && win.isVisible()) { splash.destroy(); return; } // the editor beat it
+    splash.show();
+    splashShownAt = Date.now();
+    if (editorWaiting) revealEditor();
+  });
+  // If the loading screen itself can't start, the editor doesn't wait for it.
+  setTimeout(() => { if (!splashShownAt && editorWaiting) { if (splash && !splash.isDestroyed()) splash.destroy(); revealEditor(); } }, 1500);
+  splash.on('closed', () => { splash = null; });
+}
+
+// Shows the editor once the animation has finished, then lets the loading screen fade away.
+function revealEditor() {
+  if (!win || win.isDestroyed() || win.isVisible()) return;
+  // The editor was quicker than the loading screen: wait for it, so the animation still plays.
+  if (splash && !splash.isDestroyed() && !splashShownAt) { editorWaiting = true; return; }
+  editorWaiting = false;
+  const wait = splash && splashShownAt ? Math.max(0, SPLASH_MS - (Date.now() - splashShownAt)) : 0;
+  setTimeout(() => {
+    if (!win || win.isDestroyed()) return;
+    win.maximize();
+    win.show();
+    win.focus();
+    const s = splash;
+    if (!s || s.isDestroyed()) return;
+    s.webContents.executeJavaScript("document.body.classList.add('leaving')").catch(() => {});
+    setTimeout(() => { if (!s.isDestroyed()) s.destroy(); }, 200);
+  }, wait);
+}
+
 /** Find an image path in a command line (first launch or a second instance). */
 function findImageArg(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
@@ -58,7 +115,7 @@ function createWindow() {
     },
   });
 
-  win.once('ready-to-show', () => { win.maximize(); win.show(); });
+  win.once('ready-to-show', revealEditor);
   win.on('closed', () => { win = null; });
 
   // Keep the app on its own page: links open in the default browser instead.
@@ -176,6 +233,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     buildMenu();
+    createSplash();
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });

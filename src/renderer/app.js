@@ -1134,3 +1134,20 @@ seedCollage(); syncCollage();
 if (desktop) window.tinto.startupFile().then(f => { if (f) openFile(nativeToFile(f)); }).catch(() => {});
 document.fonts.load('700 40px "Caveat"').then(composite).catch(()=>{});
 FONTS.forEach(f => document.fonts.load(`400 40px "${f}"`).catch(()=>{}));
+
+/* ================= logo animation ================= */
+(function logoAnimation(){
+  const logo = document.querySelector('.tlogo'), brand = document.querySelector('.brand');
+  if (!logo || !brand) return;
+  const play = () => { logo.classList.remove('play'); void brand.offsetWidth; logo.classList.add('play'); };
+  let busy = false;
+  logo.addEventListener('animationend', e => { if (e.animationName === 't-slide') busy = false; });
+  brand.addEventListener('mouseenter', () => { if (!busy){ busy = true; play(); } });
+  // The window stays hidden behind the startup screen at first, so wait until it can be seen.
+  const firstPlay = () => setTimeout(() => { busy = true; play(); }, 400);
+  if (document.visibilityState === 'visible') firstPlay();
+  else document.addEventListener('visibilitychange', function once(){
+    if (document.visibilityState !== 'visible') return;
+    document.removeEventListener('visibilitychange', once); firstPlay();
+  });
+})();

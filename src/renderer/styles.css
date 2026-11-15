@@ -172,3 +172,18 @@ textarea.input{resize:vertical;min-height:64px;line-height:1.35}
   .btn.primary .lbl,.btn.keep .lbl{display:inline}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Logo animation: the slider knob glides left and back, the eye watches it go and blinks
+   as it passes. Plays once on launch and again whenever the logo is hovered. */
+.tlogo .t-knob, .tlogo .t-fill, .tlogo .t-eye, .tlogo .t-pupil { transform-box: view-box; }
+.tlogo .t-fill { transform-origin: 16px 41.5px; }
+.tlogo .t-eye { transform-origin: 42px 25px; }
+.tlogo.play .t-knob { animation: t-slide .95s cubic-bezier(.45, 0, .25, 1) .15s both; }
+.tlogo.play .t-fill { animation: t-fill .95s cubic-bezier(.45, 0, .25, 1) .15s both; }
+.tlogo.play .t-pupil { animation: t-look .95s ease-in-out .15s both; }
+.tlogo.play .t-eye { animation: t-blink .2s ease-in-out .35s both; }
+@keyframes t-slide { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-44px); } }
+@keyframes t-fill { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.154); } }
+@keyframes t-look { 0%, 100% { transform: translateX(0); } 30%, 65% { transform: translateX(-2.4px); } }
+@keyframes t-blink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.1); } }
+@media (prefers-reduced-motion: reduce) { .tlogo.play * { animation: none !important; } }
