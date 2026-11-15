@@ -1,7 +1,8 @@
-# Builds the Windows installer on GitHub's own computers.
-# - Every push to main and every pull request: the installer is kept as a downloadable build artifact.
-# - A version tag like v1.1.0 (or publishing a release with that tag): the installer and the update
-#   files are attached to the release. Installed copies of Tinto read latest.yml to find updates.
+# Builds Tinto on GitHub's own computers: a Windows installer (.exe) and a Linux AppImage.
+# - Every push to main and every pull request: both are kept as downloadable build artifacts.
+# - A version tag like v1.2.0 (or publishing a release with that tag): both, and their update
+#   files, are attached to the release. Installed copies of Tinto read latest.yml (Windows) and
+#   latest-linux.yml (Linux) to find updates.
 name: Build
 
 on:
@@ -43,7 +44,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
-          name: Tinto-Setup
+          name: Tinto-Windows
           path: |
             dist/*.exe
             dist/latest.yml
@@ -56,3 +57,43 @@ jobs:
             dist/*.exe
             dist/*.exe.blockmap
             dist/latest.yml
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but package.json says $want"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build AppImage
+        run: npx electron-builder --linux AppImage --x64 --publish never
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v5
+        with:
+          name: Tinto-Linux
+          path: |
+            dist/*.AppImage
+            dist/latest-linux.yml
+
+      - name: Attach AppImage and update files to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.AppImage
+            dist/latest-linux.yml

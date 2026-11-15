@@ -1,8 +1,9 @@
 {
   "name": "tinto",
   "productName": "Tinto",
-  "version": "1.1.0",
-  "description": "Tinto - Photo & Image Editor. A desktop photo editor with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
+  "version": "1.2.0",
+  "description": "Tinto - Photo & Image Editor. A desktop photo editor for Windows and Linux with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
+  "homepage": "https://github.com/wellsey001/Tinto---Photo-Image-Editor",
   "main": "src/main.js",
   "author": "Tinto contributors",
   "license": "MIT",
@@ -14,6 +15,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win --x64",
+    "dist:linux": "electron-builder --linux AppImage --x64",
     "dist:dir": "electron-builder --win --x64 --dir"
   },
   "dependencies": {
@@ -78,6 +80,36 @@
         "repo": "Tinto---Photo-Image-Editor",
         "releaseType": "release"
       }
-    ]
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Graphics",
+      "synopsis": "Photo & Image Editor",
+      "description": "Edit photos with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
+      "mimeTypes": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/bmp"
+      ],
+      "artifactName": "Tinto-${version}.${ext}",
+      "desktop": {
+        "entry": {
+          "Name": "Tinto",
+          "GenericName": "Photo & Image Editor",
+          "Comment": "Edit photos and make collages",
+          "Keywords": "photo;image;editor;filter;crop;collage;"
+        }
+      }
+    }
   }
 }

@@ -5,6 +5,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const { fileURLToPath } = require('node:url');
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
 const SAVE_FILTERS = {
@@ -76,7 +77,11 @@ function revealEditor() {
 
 /** Find an image path in a command line (first launch or a second instance). */
 function findImageArg(argv) {
-  const args = argv.slice(app.isPackaged ? 1 : 2);
+  const args = argv.slice(app.isPackaged ? 1 : 2).map(a => {
+    // Linux file managers may pass a file:// link instead of a path.
+    if (a.startsWith('file://')) { try { return fileURLToPath(a); } catch { return a; } }
+    return a;
+  });
   return args.find(a => !a.startsWith('-') && IMAGE_EXTS.includes(path.extname(a).slice(1).toLowerCase())) || null;
 }
 

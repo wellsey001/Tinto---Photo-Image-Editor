@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">Tinto</h1>
-<p align="center"><strong>Photo &amp; Image Editor</strong> for Windows, built with Electron.</p>
+<p align="center"><strong>Photo &amp; Image Editor</strong> for Windows and Linux, built with Electron.</p>
 
 <p align="center">
   <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest"><img src="https://img.shields.io/github/v/release/wellsey001/Tinto---Photo-Image-Editor?label=Download&amp;color=efb34a" alt="Download the latest release"></a>
@@ -13,19 +13,36 @@ Tinto is a desktop photo editor in the spirit of Picsart: quick adjustments and 
 
 ## Download
 
-**[Download Tinto for Windows](https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest)** (Windows 10 and 11, 64-bit)
+Get Tinto from the **[latest release](https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest)**, under **Assets**:
 
-1. On the latest release page, download **`Tinto-Setup-<version>.exe`** under **Assets**.
+| System | File |
+| --- | --- |
+| Windows 10 and 11 (64-bit) | `Tinto-Setup-<version>.exe` |
+| Linux (64-bit), including Bazzite, Fedora, Ubuntu and SteamOS | `Tinto-<version>.AppImage` |
+
+### Windows
+
+1. Download **`Tinto-Setup-<version>.exe`**.
 2. Run the installer and choose where to install Tinto. It adds Start menu and desktop shortcuts.
 3. Windows may show a SmartScreen warning because the installer isn't code-signed yet. Choose **More info**, then **Run anyway**.
 
 After installing, right-click any JPG, PNG, WebP, GIF or BMP in File Explorer and choose **Open with**, then **Tinto**.
 
+### Linux
+
+An AppImage is a single file that runs on most Linux distributions without installing anything.
+
+1. Download **`Tinto-<version>.AppImage`**.
+2. Make it runnable: right-click it, open **Properties**, and turn on **Allow executing as a program** (or **Is executable**). In a terminal: `chmod +x Tinto-*.AppImage`.
+3. Double-click it to open Tinto.
+
+To add Tinto to your app menu, with its icon and **Open with** for images, open the AppImage with **[Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)**. On Bazzite it's in the Bazaar app store. Gear Lever also keeps the AppImage in one tidy place.
+
 ### Updates
 
-From version 1.1.0, Tinto keeps itself up to date. It checks for a new version a few seconds after opening and every few hours after that, and downloads it in the background. When it's ready, a bar appears in the bottom-right corner: choose **Restart and update** to install it straight away, or carry on and it installs the next time you close Tinto. You can also check at any time from **Help › Check for Updates…**.
+From version 1.1.0, Tinto keeps itself up to date. It checks for a new version a few seconds after opening and every few hours after that, and downloads it in the background. This works on Windows and with the Linux AppImage. When it's ready, a bar appears in the bottom-right corner: choose **Restart and update** to install it straight away, or carry on and it installs the next time you close Tinto. You can also check at any time from **Help › Check for Updates…**.
 
-If you have version 1.0.0, download and run the newest installer once. It installs over the old version, and updates are automatic from then on.
+If you have version 1.0.0 on Windows, download and run the newest installer once. It installs over the old version, and updates are automatic from then on.
 
 ## Features
 
@@ -40,8 +57,9 @@ If you have version 1.0.0, download and run the newest installer once. It instal
 - **Collage:** 12 layouts for 2 to 9 photos, five shapes, spacing, rounded corners and background colour.
 - **Before and after:** hold the compare button (or `\`) to see the original.
 - **Undo and redo** for every edit.
-- **Export** as JPG, PNG or WebP through the Windows save dialog.
-- **Open with Tinto** from File Explorer for JPG, PNG, WebP, GIF and BMP files.
+- **Export** as JPG, PNG or WebP through your system's save dialog.
+- **Open with Tinto** from your file manager for JPG, PNG, WebP, GIF and BMP files.
+- **Automatic updates** on Windows and the Linux AppImage.
 
 ## Running from source
 
@@ -54,7 +72,9 @@ npm install
 npm start
 ```
 
-## Building the Windows installer
+## Building
+
+Windows installer (build on Windows):
 
 ```bash
 npm run dist
@@ -64,18 +84,26 @@ The installer is written to `dist/Tinto-Setup-<version>.exe`. Run it to install 
 
 `npm run dist:dir` builds an unpacked app in `dist/win-unpacked/` without an installer, which is quicker for testing.
 
-### Automatic builds on GitHub
-
-The workflow in `.github/workflows/build.yml` builds the installer on GitHub's Windows machines:
-
-- Every push to `main` and every pull request produces the installer as a downloadable build artifact.
-- A new version tag attaches the installer and the update files (`latest.yml` and the `.blockmap`) to its GitHub Release. Installed copies of Tinto read `latest.yml` to find updates, so keep it attached.
-
-To release a new version, bump `version` in `package.json`, push it to `main`, then either publish a new release on GitHub with a tag such as `v1.1.0`, or push the tag yourself:
+Linux AppImage (build on Linux):
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+npm run dist:linux
+```
+
+The AppImage is written to `dist/Tinto-<version>.AppImage`.
+
+### Automatic builds on GitHub
+
+The workflow in `.github/workflows/build.yml` builds the Windows installer on GitHub's Windows machines and the AppImage on its Linux machines:
+
+- Every push to `main` and every pull request produces both as downloadable build artifacts.
+- A new version tag attaches both, plus their update files, to its GitHub Release: `latest.yml` and the `.blockmap` for Windows, `latest-linux.yml` for Linux. Installed copies of Tinto read these to find updates, so keep them attached.
+
+To release a new version, bump `version` in `package.json`, push it to `main`, then either publish a new release on GitHub with a tag such as `v1.3.0`, or push the tag yourself:
+
+```bash
+git tag v1.3.0
+git push origin v1.3.0
 ```
 
 ## Keyboard shortcuts
@@ -99,6 +127,7 @@ tinto/
 ├── src/
 │   ├── main.js            Main process: window, menu, native open/save, Explorer files
 │   ├── preload.js         The small, fixed bridge the editor page can call (window.tinto)
+│   ├── splash.html        Startup screen with the logo animation
 │   ├── assets/icon.png    Window icon
 │   └── renderer/
 │       ├── index.html     Editor layout
