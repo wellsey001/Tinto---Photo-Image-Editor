@@ -1,7 +1,7 @@
 {
   "name": "tinto",
   "productName": "Tinto",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Tinto - Photo & Image Editor. A desktop photo editor for Windows and Linux with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
   "homepage": "https://github.com/wellsey001/Tinto---Photo-Image-Editor",
   "main": "src/main.js",
@@ -20,6 +20,7 @@
     "dist:dir": "electron-builder --win --x64 --dir"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.2.0",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
@@ -36,7 +37,10 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map",
+      "!**/*.d.ts",
+      "!node_modules/onnxruntime-node/bin/napi-v*/darwin/**"
     ],
     "win": {
       "target": [
@@ -47,7 +51,11 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v*/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v*/win32/arm64/**"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -111,7 +119,16 @@
           "Keywords": "photo;image;editor;filter;crop;collage;"
         }
       },
-      "syncDesktopName": true
-    }
+      "syncDesktopName": true,
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v*/win32/**",
+        "!node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**"
+      ]
+    },
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ]
   }
 }

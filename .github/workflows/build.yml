@@ -41,6 +41,14 @@ jobs:
       - name: Build installer
         run: npx electron-builder --win --x64 --publish never
 
+      - name: Check the app includes the updater and the AI runtime
+        shell: bash
+        run: |
+          npx @electron/asar list dist/win-unpacked/resources/app.asar > asar.txt
+          grep -q "node_modules/electron-updater/package.json" asar.txt
+          grep -q "node_modules/@huggingface/transformers/package.json" asar.txt
+          ls dist/win-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/
+
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:
@@ -79,8 +87,18 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Run the background remover once (downloads the AI model)
+        run: node scripts/check-cutout.js
+
       - name: Build AppImage
         run: npx electron-builder --linux AppImage --x64 --publish never
+
+      - name: Check the app includes the updater and the AI runtime
+        run: |
+          npx @electron/asar list dist/linux-unpacked/resources/app.asar > asar.txt
+          grep -q "node_modules/electron-updater/package.json" asar.txt
+          grep -q "node_modules/@huggingface/transformers/package.json" asar.txt
+          ls dist/linux-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/linux/x64/
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v5

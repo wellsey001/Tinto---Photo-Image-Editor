@@ -22,6 +22,21 @@ contextBridge.exposeInMainWorld('tinto', {
   /** Menu commands: 'open', 'export' or 'check-updates'. */
   onMenu: cb => ipcRenderer.on('menu', (_e, action) => cb(action)),
 
+  /** My stickers: custom stickers saved as PNGs. list() resolves to [{id, data}]. */
+  stickers: {
+    list: () => ipcRenderer.invoke('stickers:list'),
+    save: (id, data) => ipcRenderer.invoke('stickers:save', { id, data }),
+    remove: id => ipcRenderer.invoke('stickers:delete', id),
+  },
+
+  /** AI background removal: RGB bytes in, a 0-255 subject mask out. */
+  removeBackground: (rgb, w, h) => ipcRenderer.invoke('sticker:remove-bg', { rgb, w, h }),
+  onRemoveBgProgress: cb => {
+    const handler = (_e, p) => cb(p);
+    ipcRenderer.on('sticker:remove-bg-progress', handler);
+    return () => ipcRenderer.removeListener('sticker:remove-bg-progress', handler);
+  },
+
   /** Tinto's version number, e.g. "1.1.0". */
   appVersion: () => ipcRenderer.invoke('app:version'),
 

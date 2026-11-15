@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { fileURLToPath } = require('node:url');
+const { createCutout } = require('./cutout');
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
 const SAVE_FILTERS = {
@@ -223,6 +224,64 @@ ipcMain.handle('save-image', async (_e, req) => {
 
 ipcMain.handle('show-in-folder', (_e, filePath) => {
   if (typeof filePath === 'string') shell.showItemInFolder(filePath);
+});
+
+/* ---------- My stickers: custom stickers saved as PNGs in the app data folder ---------- */
+
+const stickersDir = () => path.join(app.getPath('userData'), 'stickers');
+const STICKER_ID = /^[\w-]{1,64}$/;
+
+ipcMain.handle('stickers:list', async () => {
+  try {
+    const names = (await fs.readdir(stickersDir())).filter(n => n.endsWith('.png') && STICKER_ID.test(n.slice(0, -4))).sort();
+    const out = [];
+    for (const n of names) out.push({ id: n.slice(0, -4), data: await fs.readFile(path.join(stickersDir(), n)) });
+    return out;
+  } catch {
+    return []; // no stickers saved yet
+  }
+});
+
+ipcMain.handle('stickers:save', async (_e, req) => {
+  if (!req || !STICKER_ID.test(req.id) || !(req.data instanceof Uint8Array)) return false;
+  await fs.mkdir(stickersDir(), { recursive: true });
+  await fs.writeFile(path.join(stickersDir(), `${req.id}.png`), req.data);
+  return true;
+});
+
+ipcMain.handle('stickers:delete', async (_e, id) => {
+  if (!STICKER_ID.test(id)) return false;
+  const choice = dialog.showMessageBoxSync(win, {
+    type: 'question',
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    message: 'Delete this sticker from My stickers?',
+    detail: 'Copies already placed on photos stay where they are.',
+  });
+  if (choice !== 0) return false;
+  await fs.rm(path.join(stickersDir(), `${id}.png`), { force: true });
+  return true;
+});
+
+/* ---------- AI background removal for stickers (see cutout.js) ---------- */
+
+const cutout = createCutout({ cacheDir: path.join(app.getPath('userData'), 'models') });
+let cutoutBusy = false;
+
+ipcMain.handle('sticker:remove-bg', async (event, req) => {
+  if (cutoutBusy) throw new Error('A background is already being removed.');
+  const { rgb, w, h } = req || {};
+  if (!(rgb instanceof Uint8Array) || !Number.isInteger(w) || !Number.isInteger(h) || rgb.length !== w * h * 3) {
+    throw new Error('There’s no picture to remove the background from.');
+  }
+  const send = p => { if (!event.sender.isDestroyed()) event.sender.send('sticker:remove-bg-progress', p); };
+  cutoutBusy = true;
+  try {
+    return await cutout.maskFor(rgb, w, h, send);
+  } finally {
+    cutoutBusy = false;
+  }
 });
 
 /* ---------- updates for the installed app (GitHub Releases, via electron-updater) ---------- */
