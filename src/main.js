@@ -2,7 +2,7 @@
 // Owns the window, native open/save dialogs, the app menu, and files opened
 // from File Explorer ("Open with Tinto" or double-clicking an associated image).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, clipboard, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { fileURLToPath } = require('node:url');
@@ -131,6 +131,22 @@ function createWindow() {
   });
   win.webContents.on('will-navigate', e => e.preventDefault());
 
+  // Text boxes get the usual Cut / Copy / Paste menu (the editor draws its own menu everywhere else).
+  win.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable) return;
+    const f = params.editFlags;
+    Menu.buildFromTemplate([
+      { role: 'undo', enabled: f.canUndo },
+      { role: 'redo', enabled: f.canRedo },
+      { type: 'separator' },
+      { role: 'cut', enabled: f.canCut },
+      { role: 'copy', enabled: f.canCopy },
+      { role: 'paste', enabled: f.canPaste },
+      { type: 'separator' },
+      { role: 'selectAll', enabled: f.canSelectAll },
+    ]).popup({ window: win });
+  });
+
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
@@ -224,6 +240,16 @@ ipcMain.handle('save-image', async (_e, req) => {
 
 ipcMain.handle('show-in-folder', (_e, filePath) => {
   if (typeof filePath === 'string') shell.showItemInFolder(filePath);
+});
+
+/* ---------- Copy the edited picture to the system clipboard (PNG bytes in) ---------- */
+
+ipcMain.handle('clipboard:write-image', (_e, data) => {
+  if (!(data instanceof Uint8Array) || data.length < 8 || data.length > 400 * 1024 * 1024) return false;
+  const img = nativeImage.createFromBuffer(Buffer.from(data));
+  if (img.isEmpty()) return false;
+  clipboard.writeImage(img);
+  return true;
 });
 
 /* ---------- My stickers: custom stickers saved as PNGs in the app data folder ---------- */

@@ -948,7 +948,11 @@ window.addEventListener('drop', e => {
   else openFile(e.dataTransfer.files[0]);
 });
 window.addEventListener('paste', e => {
-  const fs = [...(e.clipboardData?.files||[])].filter(f => f.type.startsWith('image/')); if (!fs.length) return;
+  if (typing()) return;
+  const fs = [...(e.clipboardData?.files||[])].filter(f => f.type.startsWith('image/'));
+  const text = e.clipboardData?.getData('text/plain') || '';
+  if (tab!=='collage' && layerClip && !fs.length && (text===CLIP_MARK || !text)){ e.preventDefault(); pasteLayer(); return; }
+  if (!fs.length) return;
   if (tab==='collage') fillCells(fs, C.sel >= 0 ? C.sel : firstEmpty()); else openFile(fs[0]);
 });
 
@@ -2421,4 +2425,166 @@ window.addEventListener('keydown', e => {
   e.stopImmediatePropagation();
   if (e.key === 'Escape'){ if (SP.i >= 0){ closeSplit(); syncSheetCount(); } else closeSheet(); }
 }, true);
+/* ================= right-click menu ================= */
+const CTX = {el:null, back:null, items:[]};
+const CLIP_MARK = 'tinto:layer';      // what Copy puts on the system clipboard, so Paste knows to paste the layer
+let layerClip = null;
+const kbd = k => desktop && /Mac/.test(navigator.platform) ? k.replace('Ctrl+', '⌘') : k;
+
+function copyLayer(l){
+  if (!l) return;
+  layerClip = clone(l);
+  try { navigator.clipboard.writeText(CLIP_MARK).catch(() => {}); } catch {}
+  toast(`Copied ${layerName(l)}. Paste with ${kbd('Ctrl+V')}.`);
+}
+function pasteLayer(at){
+  if (!layerClip || !S.base) return;
+  const d = clone(layerClip); d.id = nextId++; d.hidden = false;
+  if (at){ d.x = at.x; d.y = at.y; }
+  else { d.x = clamp(d.x + minSide()*0.04, 0, S.base.width); d.y = clamp(d.y + minSide()*0.04, 0, S.base.height); layerClip.x = d.x; layerClip.y = d.y; }
+  S.layers.push(d); selId = d.id; composite(); commit(); refreshLayerUI();
+}
+function arrange(l, where){
+  const i = S.layers.indexOf(l), n = S.layers.length; if (i < 0) return;
+  S.layers.splice(i, 1);
+  const to = where==='front' ? n-1 : where==='back' ? 0 : where==='up' ? Math.min(n-1, i+1) : Math.max(0, i-1);
+  S.layers.splice(to, 0, l);
+  composite(); commit(); refreshLayerUI();
+}
+function changeLayer(l, fn){ fn(l); composite(); commit(); refreshLayerUI(); }
+
+async function copyPicture(){
+  try {
+    let c = await renderEditorFull();
+    if (WM.on){ await document.fonts.ready; drawWatermark(c.getContext('2d'), c.width, c.height); }
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    let ok = false;
+    if (desktop && window.tinto.copyImage) ok = await window.tinto.copyImage(new Uint8Array(await blob.arrayBuffer()));
+    else if (window.ClipboardItem){ await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]); ok = true; }
+    toast(ok ? 'Picture copied. Paste it into any app.' : 'The picture couldn’t be copied. Try Export instead.');
+  } catch { toast('The picture couldn’t be copied. Try Export instead.'); }
+}
+
+function layerMenu(l, at){
+  const i = S.layers.indexOf(l), top = i === S.layers.length-1, bottom = i === 0;
+  const items = [];
+  if (l.type==='text') items.push({label:'Edit text', act:() => { select(l.id, {switchTab:true}); setTimeout(() => { txt.focus(); txt.select(); }, 30); }}, '-');
+  items.push(
+    {label:'Duplicate', kbd:'Ctrl+D', act:() => { selId = l.id; duplicateSel(); }},
+    {label:'Copy', kbd:'Ctrl+C', act:() => copyLayer(l)},
+    {label:'Paste', kbd:'Ctrl+V', off:!layerClip, act:() => pasteLayer(at)},
+    '-',
+    {label:'Bring to front', off:top, act:() => arrange(l, 'front')},
+    {label:'Bring forward', off:top, act:() => arrange(l, 'up')},
+    {label:'Send backward', off:bottom, act:() => arrange(l, 'down')},
+    {label:'Send to back', off:bottom, act:() => arrange(l, 'back')},
+    '-',
+    {label:'Flip horizontally', act:() => changeLayer(l, x => { x.flip = !x.flip; })},
+    {label:'Straighten', off:!l.rot, act:() => changeLayer(l, x => { x.rot = 0; })},
+    {label:'Centre on photo', act:() => changeLayer(l, x => { x.x = S.base.width/2; x.y = S.base.height/2; })},
+    {label:'Hide', act:() => { selId = null; changeLayer(l, x => { x.hidden = true; }); toast('Hidden. Show it again from Layers.'); }},
+    '-',
+    {label:'Delete', kbd:'Del', danger:true, act:() => deleteLayer(l.id)},
+  );
+  return items;
+}
+function photoMenu(at){
+  return [
+    {label:'Add text here', act:() => {
+      setTab('text'); addText();
+      const t = getSel(); if (t){ t.x = at.x; t.y = at.y; composite(); hist[hi] = snap(); placeSel(); }
+    }},
+    {label:'Paste', kbd:'Ctrl+V', off:!layerClip, act:() => pasteLayer(at)},
+    '-',
+    {label:'Undo', kbd:'Ctrl+Z', off:hi <= 0, act:undo},
+    {label:'Redo', kbd:'Ctrl+Y', off:hi >= hist.length-1, act:redo},
+    '-',
+    {label:'Copy picture', act:copyPicture},
+    {label:'Export…', act:() => $('#exportBtn').click()},
+    {label:'Open photo…', act:() => openPhoto()},
+  ];
+}
+
+function closeCtx(refocus){
+  if (!CTX.el) return;
+  CTX.el.remove(); CTX.el = null; CTX.items = [];
+  if (refocus && CTX.back && document.contains(CTX.back)) CTX.back.focus();
+  CTX.back = null;
+}
+function openCtx(items, x, y){
+  closeCtx();
+  const m = document.createElement('div'); m.className = 'ctxmenu'; m.setAttribute('role', 'menu');
+  for (const it of items){
+    if (it === '-'){ const s = document.createElement('div'); s.className = 'ctx-sep'; s.setAttribute('role', 'separator'); m.appendChild(s); continue; }
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ctx-item' + (it.danger ? ' danger' : '');
+    b.setAttribute('role', 'menuitem'); b.disabled = !!it.off;
+    const t = document.createElement('span'); t.textContent = it.label; b.appendChild(t);
+    if (it.kbd){ const k = document.createElement('kbd'); k.textContent = kbd(it.kbd); b.appendChild(k); }
+    b.onclick = () => { closeCtx(); it.act(); };
+    m.appendChild(b);
+  }
+  document.body.appendChild(m);
+  const r = m.getBoundingClientRect(), pad = 8;
+  m.style.left = Math.max(pad, Math.min(x, innerWidth - r.width - pad)) + 'px';
+  m.style.top = Math.max(pad, Math.min(y, innerHeight - r.height - pad)) + 'px';
+  CTX.el = m; CTX.back = document.activeElement;
+  CTX.items = [...m.querySelectorAll('.ctx-item:not(:disabled)')];
+  if (CTX.items[0]) CTX.items[0].focus({preventScroll:true});
+}
+
+// right-click on the photo: the layer under the pointer, or the photo itself
+stage.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (!S.base || tab==='crop' || tab==='collage') return;
+  const vr = view.getBoundingClientRect();
+  if (e.clientX < vr.left || e.clientX > vr.right || e.clientY < vr.top || e.clientY > vr.bottom){ closeCtx(); return; }
+  const p = clientToImg(e), l = hitTest(p);
+  if (l){ if (selId !== l.id) select(l.id); openCtx(layerMenu(l, p), e.clientX, e.clientY); }
+  else openCtx(photoMenu(p), e.clientX, e.clientY);
+});
+// right-click on a row in the Layers panel
+$('#layerList').addEventListener('contextmenu', e => {
+  const row = e.target.closest('.lrow'); if (!row || row.classList.contains('photo')) return;
+  e.preventDefault();
+  const idx = [...$('#layerList').children].indexOf(row), l = S.layers[S.layers.length-1-idx]; if (!l) return;
+  select(l.id); openCtx(layerMenu(l, null), e.clientX, e.clientY);
+});
+// no browser menu anywhere else in the editor (text boxes keep theirs)
+window.addEventListener('contextmenu', e => {
+  if (e.defaultPrevented) return;
+  const t = e.target; if (t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+  e.preventDefault();
+});
+window.addEventListener('pointerdown', e => { if (CTX.el && !CTX.el.contains(e.target)) closeCtx(); }, true);
+window.addEventListener('blur', () => closeCtx());
+window.addEventListener('resize', () => closeCtx());
+document.addEventListener('scroll', () => closeCtx(), true);
+// while the menu is open, keys move through it and never reach the photo
+window.addEventListener('keydown', e => {
+  if (!CTX.el) return;
+  e.stopImmediatePropagation();
+  const i = CTX.items.indexOf(document.activeElement), n = CTX.items.length;
+  if (e.key === 'Escape' || e.key === 'Tab'){ e.preventDefault(); closeCtx(true); }
+  else if (e.key === 'ArrowDown'){ e.preventDefault(); CTX.items[(i+1+n) % n]?.focus(); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); CTX.items[(i-1+n) % n]?.focus(); }
+  else if (e.key === 'Home'){ e.preventDefault(); CTX.items[0]?.focus(); }
+  else if (e.key === 'End'){ e.preventDefault(); CTX.items[n-1]?.focus(); }
+}, true);
+// the keyboard's Menu key (or Shift+F10) opens the menu for the selected layer
+window.addEventListener('keydown', e => {
+  if (CTX.el || typing() || tab==='collage' || tab==='crop' || !S.base) return;
+  if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')){
+    const l = getSel(); if (!l) return;
+    e.preventDefault();
+    const c = layerCentreClient(l); openCtx(layerMenu(l, null), c.x, c.y);
+  }
+});
+// Ctrl+C on a selected layer copies the layer
+window.addEventListener('copy', e => {
+  if (typing() || tab==='collage' || !selId || String(window.getSelection())) return;
+  const l = getSel(); if (!l) return;
+  e.preventDefault(); e.clipboardData.setData('text/plain', CLIP_MARK);
+  layerClip = clone(l); toast(`Copied ${layerName(l)}. Paste with ${kbd('Ctrl+V')}.`);
+});
+
 loadMyStickers();

@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('tinto', {
   /** Menu commands: 'open', 'export' or 'check-updates'. */
   onMenu: cb => ipcRenderer.on('menu', (_e, action) => cb(action)),
 
+  /** Puts a PNG (bytes) on the system clipboard so it can be pasted into other apps. Resolves true on success. */
+  copyImage: data => ipcRenderer.invoke('clipboard:write-image', data),
+
   /** My stickers: custom stickers saved as PNGs. list() resolves to [{id, data}]. */
   stickers: {
     list: () => ipcRenderer.invoke('stickers:list'),
