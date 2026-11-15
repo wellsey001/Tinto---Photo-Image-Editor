@@ -143,8 +143,10 @@
           <div class="group-h">My stickers</div>
           <div class="stickers mine" id="myStickers">
             <button class="stk import" id="importSticker" type="button" title="Import an image as a sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Import</span></button>
+            <button class="stk import" id="importSheet" type="button" title="Split a sticker sheet into separate stickers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Sheet</span></button>
           </div>
           <input type="file" id="stickerInput" accept="image/*" hidden>
+          <input type="file" id="sheetInput" accept="image/*" hidden>
           <div class="group-h">Shapes</div>
           <div class="stickers" id="stickerGrid"></div>
           <div class="group-h">Emoji</div>
@@ -257,6 +259,27 @@
     </div>
   </div>
 </div>
+<div class="modal" id="sheetModal" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+    <h2 id="shTitle">Sticker sheet</h2>
+    <p class="hint" id="shMsg">Finding the stickers…</p>
+    <div class="sh-grid" id="shGrid"></div>
+    <div class="sh-split" id="shSplit" hidden><canvas id="shSplitC" width="10" height="10" aria-label="Tap each sticker in this group once"></canvas></div>
+    <div class="sk-foot" id="shFoot">
+      <button class="btn ghost" id="shAll" type="button">Select all</button>
+      <button class="btn ghost" id="shNone" type="button">Select none</button>
+      <span class="sk-gap"></span>
+      <button class="btn" id="shCancel" type="button">Cancel</button>
+      <button class="btn primary" id="shAdd" type="button" disabled>Add to My stickers</button>
+    </div>
+    <div class="sk-foot" id="shSplitFoot" hidden>
+      <button class="btn ghost" id="shSplitClear" type="button">Clear taps</button>
+      <span class="sk-gap"></span>
+      <button class="btn" id="shSplitBack" type="button">Back</button>
+      <button class="btn primary" id="shSplitGo" type="button" disabled>Split</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="stickerModal" hidden>
   <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="skTitle">
     <h2 id="skTitle">New sticker</h2>
@@ -312,6 +335,8 @@
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="stickerpack.js"></script>
+<script src="stickerart.js"></script>
+<script src="sheetsplit.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
