@@ -5,7 +5,23 @@
 <h1 align="center">Tinto</h1>
 <p align="center"><strong>Photo &amp; Image Editor</strong> for Windows, built with Electron.</p>
 
+<p align="center">
+  <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest"><img src="https://img.shields.io/github/v/release/wellsey001/Tinto---Photo-Image-Editor?label=Download&amp;color=efb34a" alt="Download the latest release"></a>
+</p>
+
 Tinto is a desktop photo editor in the spirit of Picsart: quick adjustments and filters, text and stickers on top, and a collage maker, all exported at full resolution.
+
+## Download
+
+**[Download Tinto for Windows](https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest)** (Windows 10 and 11, 64-bit)
+
+1. On the latest release page, download **`Tinto-Setup-<version>.exe`** under **Assets**.
+2. Run the installer and choose where to install Tinto. It adds Start menu and desktop shortcuts.
+3. Windows may show a SmartScreen warning because the installer isn't code-signed yet. Choose **More info**, then **Run anyway**.
+
+After installing, right-click any JPG, PNG, WebP, GIF or BMP in File Explorer and choose **Open with**, then **Tinto**.
+
+To update, download and run the newest installer. It installs over the old version.
 
 ## Features
 
@@ -23,13 +39,13 @@ Tinto is a desktop photo editor in the spirit of Picsart: quick adjustments and 
 - **Export** as JPG, PNG or WebP through the Windows save dialog.
 - **Open with Tinto** from File Explorer for JPG, PNG, WebP, GIF and BMP files.
 
-## Getting started
+## Running from source
 
 You need [Node.js](https://nodejs.org/) 20 or newer.
 
 ```bash
-git clone https://github.com/<your-username>/tinto.git
-cd tinto
+git clone https://github.com/wellsey001/Tinto---Photo-Image-Editor.git
+cd Tinto---Photo-Image-Editor
 npm install
 npm start
 ```
@@ -49,11 +65,13 @@ The installer is written to `dist/Tinto-Setup-<version>.exe`. Run it to install 
 The workflow in `.github/workflows/build.yml` builds the installer on GitHub's Windows machines:
 
 - Every push to `main` and every pull request produces the installer as a downloadable build artifact.
-- Pushing a version tag creates a GitHub Release with the installer attached:
+- A new version tag attaches the installer to its GitHub Release.
+
+To release a new version, bump `version` in `package.json`, push it to `main`, then either publish a new release on GitHub with a tag such as `v1.1.0`, or push the tag yourself:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 ## Keyboard shortcuts
