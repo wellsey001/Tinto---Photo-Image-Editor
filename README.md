@@ -53,6 +53,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
 - **Stickers:** 25 vector shapes with colour, outline and drop shadow, plus 28 emoji.
+- **Custom stickers:** import any image and turn it into a sticker. Remove the background with AI (runs on your computer; the model downloads once, about 25 MB), in one click for plain backgrounds, or by tapping a colour; touch up with erase and restore brushes; add a white or black sticker border. Saved stickers stay in **My stickers** for next time.
 - **Draw:** freehand brush with a highlighter mode.
 - **Layers:** move, resize and rotate on the photo; reorder, hide, duplicate and set opacity.
 - **Collage:** 12 layouts for 2 to 9 photos, five shapes, spacing, rounded corners and background colour.
@@ -129,6 +130,7 @@ tinto/
 │   ├── main.js            Main process: window, menu, native open/save, Explorer files
 │   ├── preload.js         The small, fixed bridge the editor page can call (window.tinto)
 │   ├── splash.html        Startup screen with the logo animation
+│   ├── cutout.js          AI background removal for custom stickers (MODNet, runs locally)
 │   ├── assets/icon.png    Window icon
 │   └── renderer/
 │       ├── index.html     Editor layout

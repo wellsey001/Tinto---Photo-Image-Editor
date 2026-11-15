@@ -45,9 +45,10 @@ jobs:
         shell: bash
         run: |
           npx @electron/asar list dist/win-unpacked/resources/app.asar > asar.txt
-          grep -q "node_modules/electron-updater/package.json" asar.txt
-          grep -q "node_modules/@huggingface/transformers/package.json" asar.txt
+          grep -qE "node_modules[\\\\/]electron-updater[\\\\/]package.json" asar.txt
+          grep -qE "node_modules[\\\\/]@huggingface[\\\\/]transformers[\\\\/]package.json" asar.txt
           ls dist/win-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/win32/x64/
+          du -h dist/*.exe
 
       - name: Upload installer
         uses: actions/upload-artifact@v5
@@ -96,9 +97,10 @@ jobs:
       - name: Check the app includes the updater and the AI runtime
         run: |
           npx @electron/asar list dist/linux-unpacked/resources/app.asar > asar.txt
-          grep -q "node_modules/electron-updater/package.json" asar.txt
-          grep -q "node_modules/@huggingface/transformers/package.json" asar.txt
+          grep -qE "node_modules[\\\\/]electron-updater[\\\\/]package.json" asar.txt
+          grep -qE "node_modules[\\\\/]@huggingface[\\\\/]transformers[\\\\/]package.json" asar.txt
           ls dist/linux-unpacked/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v*/linux/x64/
+          du -h dist/*.AppImage
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v5

@@ -40,7 +40,9 @@
       "package.json",
       "!**/*.map",
       "!**/*.d.ts",
-      "!node_modules/onnxruntime-node/bin/napi-v*/darwin/**"
+      "!node_modules/onnxruntime-node/bin/napi-v*/darwin/**",
+      "!node_modules/onnxruntime-node/bin/**/*providers_cuda*",
+      "!node_modules/onnxruntime-node/bin/**/*providers_tensorrt*"
     ],
     "win": {
       "target": [

@@ -103,6 +103,7 @@ const SHAPES = [
   {id:'hexagon', name:'Hexagon', d:polyPath(6, 47, 0)},
   {id:'bow', name:'Bow', d:'M50 50 L8 24 Q2 50 8 76Z M50 50 L92 24 Q98 50 92 76Z' + ell(50,50,11,13)},
 ];
+const STICKER_IMG = new Map(); // custom sticker id -> canvas; layers store only the id
 const PATHS = Object.fromEntries(SHAPES.map(s => [s.id, new Path2D(s.d)]));
 const RULES = Object.fromEntries(SHAPES.map(s => [s.id, s.rule || 'nonzero']));
 const EMOJI = ['😍','😂','😎','🥳','😘','🤩','❤️','🔥','✨','💯','👍','🙌','🎉','🌈','⭐','🌸','🌻','🦋','🐶','🐱','🍕','☕','🎵','📸','🌞','🌙','👑','💎'];
@@ -236,6 +237,7 @@ function bbox(l){
   if (l.type==='text'){ const m = textMetrics(l), e = m.pad + m.ow/2 + 2; return [-m.w/2-e, -m.h/2-e, m.w/2+e, m.h/2+e]; }
   if (l.type==='shape'){ const e = l.outline ? 8 : 0; return [-50-e, -50-e, 50+e, 50+e]; }
   if (l.type==='emoji') return [-52, -52, 52, 52];
+  if (l.type==='image') return [-l.w/2, -l.h/2, l.w/2, l.h/2];
   let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
   for (const st of l.strokes){ const r = st.size/2; for (let i=0;i<st.pts.length;i+=2){ const x=st.pts[i], y=st.pts[i+1]; if (x-r<x0) x0=x-r; if (y-r<y0) y0=y-r; if (x+r>x1) x1=x+r; if (y+r>y1) y1=y+r; } }
   return x0===Infinity ? [-1,-1,1,1] : [x0,y0,x1,y1];
@@ -259,6 +261,7 @@ function drawLayer(ctx, l){
   if (l.type==='text') drawText(ctx, l);
   else if (l.type==='shape') drawShape(ctx, l);
   else if (l.type==='emoji') drawEmoji(ctx, l);
+  else if (l.type==='image'){ const img = STICKER_IMG.get(l.ref); if (img) ctx.drawImage(img, -l.w/2, -l.h/2, l.w, l.h); }
   else drawStrokes(ctx, l);
   ctx.restore();
 }
@@ -329,6 +332,7 @@ function layerName(l){
   if (l.type==='text') return (l.text || 'Text').split('\n')[0].slice(0, 28) || 'Text';
   if (l.type==='shape') return (SHAPES.find(s => s.id===l.shape) || {}).name || 'Sticker';
   if (l.type==='emoji') return `Emoji ${l.char}`;
+  if (l.type==='image') return 'My sticker';
   return 'Drawing';
 }
 
@@ -678,7 +682,7 @@ function select(id, {switchTab=false} = {}){
   selId = id;
   const l = getSel();
   if (l && switchTab && tab!=='layers'){
-    const t = l.type==='text' ? 'text' : (l.type==='shape' || l.type==='emoji') ? 'stickers' : null;
+    const t = l.type==='text' ? 'text' : (l.type==='shape' || l.type==='emoji' || l.type==='image') ? 'stickers' : null;
     if (t && t!==tab) setTab(t);
   }
   refreshLayerUI(); placeSel();
@@ -766,7 +770,7 @@ function refreshLayerList(){
   for (let i=S.layers.length-1; i>=0; i--){
     const l = S.layers[i], li = document.createElement('li');
     li.className = 'lrow' + (l.id===selId ? ' on' : '') + (l.hidden ? ' hid' : '');
-    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : l.type==='emoji' ? '☺' : '✎';
+    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : l.type==='emoji' ? '☺' : l.type==='image' ? '▣' : '✎';
     li.innerHTML = `<span class="kind" aria-hidden="true">${kind}</span><button class="name" type="button"></button><span><button class="ib" data-a="vis" type="button" title="${l.hidden?'Show':'Hide'}">${l.hidden?ICON.off:ICON.eye}</button><button class="ib" data-a="up" type="button" title="Bring forward" ${i===S.layers.length-1?'disabled':''}>${ICON.up}</button><button class="ib" data-a="down" type="button" title="Send backward" ${i===0?'disabled':''}>${ICON.down}</button></span>`;
     li.querySelector('.name').textContent = layerName(l);
     li.querySelector('.name').onclick = () => select(l.id);
@@ -1310,3 +1314,284 @@ if (desktop){
   };
   $('#updateHide').onclick = () => { updateHidden = true; renderUpdate(); };
 }
+
+
+/* ================= custom stickers: import, edit, save ================= */
+// Import an image, take its background out (AI, plain colour, tap a colour, or by hand),
+// add an optional sticker border, then place it as a layer. Saved ones appear in My stickers.
+const SK = {src:null, mask:null, w:0, h:0, pad:0, undo:[], tool:'wand', border:'#ffffff', painting:false, busy:false};
+const skC = $('#skCanvas'), skX = skC.getContext('2d');
+const SK_MAX = 1200;
+
+function stickerId(){ return 'stk-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+
+async function fileToCanvas(file, max){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0);
+    return shrinkTo(c, max);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function openStickerEditor(file){
+  if (!file) return;
+  if (file.type && !file.type.startsWith('image/')) { toast('That file isn’t an image. Choose a JPG, PNG, WebP or GIF.'); return; }
+  let c;
+  try { c = await fileToCanvas(file, SK_MAX); }
+  catch { toast('This image couldn’t be read. HEIC photos need converting to JPG first.'); return; }
+  SK.w = c.width; SK.h = c.height;
+  SK.src = c.getContext('2d').getImageData(0, 0, SK.w, SK.h);
+  SK.mask = new Uint8ClampedArray(SK.w*SK.h);
+  for (let i=0, j=3; i<SK.mask.length; i++, j+=4) SK.mask[i] = SK.src.data[j];   // keep any transparency the file already has
+  SK.orig = SK.mask.slice();
+  SK.pad = Math.round(Math.max(SK.w, SK.h) * 0.1);
+  SK.undo = [];
+  $('#skAi').hidden = $('#skAiHint').hidden = !desktop;
+  $('#skSaveRow').hidden = !desktop;
+  setSkBusy(null);
+  $('#stickerModal').hidden = false;
+  renderSk();
+}
+function closeStickerEditor(){ $('#stickerModal').hidden = true; SK.src = SK.mask = null; SK.undo = []; }
+
+/* The picture with its current cut-out applied (no border), as a canvas. */
+function skCutCanvas(){
+  const out = new ImageData(SK.w, SK.h), d = out.data, s = SK.src.data, m = SK.mask;
+  for (let i=0, j=0; i<m.length; i++, j+=4){ d[j]=s[j]; d[j+1]=s[j+1]; d[j+2]=s[j+2]; d[j+3]=m[i]; }
+  const c = mk(SK.w, SK.h); c.getContext('2d').putImageData(out, 0, 0); return c;
+}
+const skBorderPx = () => SK.border ? Math.max(1, Math.round(+$('#skBorderW').value / 400 * Math.max(SK.w, SK.h))) : 0;
+
+/* Draws a cut-out with a solid border around its outline: the silhouette stamped in a ring, then the picture on top. */
+function withBorder(cut, colour, bw, pad){
+  const out = mk(cut.width + pad*2, cut.height + pad*2), x = out.getContext('2d');
+  if (colour && bw > 0){
+    const sil = mk(cut.width, cut.height), sx = sil.getContext('2d');
+    sx.drawImage(cut, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = colour; sx.fillRect(0, 0, cut.width, cut.height);
+    for (const r of [bw, bw*0.66, bw*0.33]) for (let k=0; k<24; k++){ const a = k/24*Math.PI*2; x.drawImage(sil, pad + Math.cos(a)*r, pad + Math.sin(a)*r); }
+  }
+  x.drawImage(cut, pad, pad);
+  return out;
+}
+
+function renderSk(){
+  if (!SK.src) return;
+  const framed = withBorder(skCutCanvas(), SK.border, skBorderPx(), SK.pad);
+  if (skC.width !== framed.width || skC.height !== framed.height){ skC.width = framed.width; skC.height = framed.height; }
+  skX.clearRect(0, 0, skC.width, skC.height); skX.drawImage(framed, 0, 0);
+  $('#skUndo').disabled = !SK.undo.length;
+}
+function skPush(){ SK.undo.push(SK.mask.slice()); if (SK.undo.length > 20) SK.undo.shift(); }
+
+/* Pixel position in the picture from a pointer event on the preview. */
+function skPoint(e){
+  const r = skC.getBoundingClientRect(), k = skC.width / r.width;
+  return {x: Math.floor((e.clientX - r.left)*k - SK.pad), y: Math.floor((e.clientY - r.top)*k - SK.pad)};
+}
+const skTolerance = () => +$('#skTol').value * 2.4;
+
+/* Removes the region of similar colour connected to the seed pixels. */
+function skFloodRemove(seeds, refFor){
+  const {w, h} = SK, s = SK.src.data, m = SK.mask, seen = new Uint8Array(w*h), tol = skTolerance(), t2 = tol*tol;
+  const q = new Int32Array(w*h); let qh = 0, qt = 0;
+  const ref = new Int32Array(w*h);
+  for (const i of seeds){ if (!seen[i] && m[i] > 0){ seen[i] = 1; ref[i] = refFor(i); q[qt++] = i; } }
+  let removed = 0;
+  while (qh < qt){
+    const i = q[qh++], r = ref[i], j = i*4, rj = r*4;
+    const dr = s[j]-s[rj], dg = s[j+1]-s[rj+1], db = s[j+2]-s[rj+2];
+    if (dr*dr + dg*dg + db*db > t2) continue;
+    m[i] = 0; removed++;
+    const x = i % w, y = (i / w) | 0;
+    const nb = [x>0 ? i-1 : -1, x<w-1 ? i+1 : -1, y>0 ? i-w : -1, y<h-1 ? i+w : -1];
+    for (const n of nb) if (n >= 0 && !seen[n] && m[n] > 0){ seen[n] = 1; ref[n] = r; q[qt++] = n; }
+  }
+  // Soften the new edge by a pixel so it doesn't look cut with scissors.
+  for (let i=0; i<m.length; i++){
+    if (m[i] !== 255) continue;
+    const x = i % w, y = (i / w) | 0;
+    if ((x>0 && m[i-1]===0) || (x<w-1 && m[i+1]===0) || (y>0 && m[i-w]===0) || (y<h-1 && m[i+w]===0)) m[i] = 150;
+  }
+  return removed;
+}
+
+function skPlainBackground(){
+  const {w, h} = SK, seeds = [];
+  for (let x=0; x<w; x++){ seeds.push(x, (h-1)*w + x); }
+  for (let y=0; y<h; y++){ seeds.push(y*w, y*w + w - 1); }
+  skPush();
+  const n = skFloodRemove(seeds, i => i);   // each edge pixel spreads into colours close to its own
+  if (n === 0) { SK.undo.pop(); toast('No plain background found at the edges. Try Tap colour, or Remove background.'); }
+  else if (n > SK.w*SK.h*0.97) { SK.mask = SK.undo.pop(); toast('That would remove almost everything. Lower the tolerance and try again.'); }
+  renderSk();
+}
+
+function skBrush(p, value){
+  const r = Math.max(1, +$('#skBrush').value / 400 * Math.max(SK.w, SK.h)), {w, h} = SK, m = SK.mask, o = SK.orig, r2 = r*r;
+  for (let y = Math.max(0, Math.floor(p.y - r)); y <= Math.min(h-1, Math.ceil(p.y + r)); y++)
+    for (let x = Math.max(0, Math.floor(p.x - r)); x <= Math.min(w-1, Math.ceil(p.x + r)); x++)
+      if ((x-p.x)**2 + (y-p.y)**2 <= r2){ const i = y*w + x; m[i] = value ? o[i] : 0; }
+}
+
+skC.addEventListener('pointerdown', e => {
+  if (!SK.src || SK.busy) return;
+  const p = skPoint(e);
+  if (SK.tool === 'wand'){
+    if (p.x < 0 || p.y < 0 || p.x >= SK.w || p.y >= SK.h) return;
+    const i = p.y*SK.w + p.x;
+    if (SK.mask[i] === 0) { toast('That part is already removed.'); return; }
+    skPush(); skFloodRemove([i], () => i); renderSk(); return;
+  }
+  skPush(); SK.painting = true; skC.setPointerCapture(e.pointerId);
+  skBrush(p, SK.tool === 'restore'); renderSk();
+});
+skC.addEventListener('pointermove', e => {
+  if (!SK.painting) return;
+  skBrush(skPoint(e), SK.tool === 'restore'); renderSk();
+});
+const skEndPaint = () => { SK.painting = false; };
+skC.addEventListener('pointerup', skEndPaint); skC.addEventListener('pointercancel', skEndPaint);
+
+function setSkBusy(msg, progress){
+  SK.busy = !!msg;
+  $('#skBusy').hidden = !msg;
+  if (msg) $('#skBusyMsg').textContent = msg;
+  $('#skBusyFill').parentElement.hidden = progress === undefined;
+  if (progress !== undefined) $('#skBusyFill').style.width = Math.round(progress*100) + '%';
+  ['#skAi','#skPlain','#skAdd','#skUndo','#skReset'].forEach(id => { $(id).disabled = !!msg || (id==='#skUndo' && !SK.undo.length); });
+}
+
+async function skRemoveWithAI(){
+  if (!desktop || SK.busy) return;
+  const {w, h} = SK, s = SK.src.data, rgb = new Uint8Array(w*h*3);
+  for (let i=0, j=0, k=0; i<w*h; i++, j+=4, k+=3){ rgb[k]=s[j]; rgb[k+1]=s[j+1]; rgb[k+2]=s[j+2]; }
+  let downloading = false;
+  const stop = window.tinto.onRemoveBgProgress(pr => {
+    if (pr.phase === 'loading') setSkBusy('Getting the background remover ready…');
+    else if (pr.phase === 'download'){ downloading = true; setSkBusy('Downloading the AI model (first time only)…', pr.progress || 0); }
+    else if (pr.phase === 'working') setSkBusy('Removing the background…');
+  });
+  setSkBusy('Removing the background…');
+  try {
+    const mask = await window.tinto.removeBackground(rgb, w, h);
+    skPush();
+    const m = SK.mask;
+    for (let i=0; i<m.length; i++) m[i] = Math.min(m[i], mask[i]);   // keeps anything already erased
+    setSkBusy(null); renderSk();
+  } catch (err) {
+    setSkBusy(null);
+    const msg = String(err && err.message || err);
+    if (/already being removed/.test(msg)) toast('A background is already being removed. Wait for it to finish.');
+    else if (downloading || /fetch|network|ENOTFOUND|ETIMEDOUT|ECONN/i.test(msg)) toast('Couldn’t download the background remover. Check your internet connection and try again.');
+    else toast('The background couldn’t be removed from this picture. Try Remove plain background or Tap colour.');
+  } finally { stop(); }
+}
+
+/* The finished sticker: cut out, trimmed to its content, with its border. */
+function skFinish(){
+  const cut = skCutCanvas(), {w, h} = SK, m = SK.mask;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y=0; y<h; y++) for (let x=0; x<w; x++) if (m[y*w + x] > 8){ if (x<x0) x0=x; if (x>x1) x1=x; if (y<y0) y0=y; if (y>y1) y1=y; }
+  if (x1 < 0) return null;
+  const tw = x1-x0+1, th = y1-y0+1, trimmed = mk(tw, th);
+  trimmed.getContext('2d').drawImage(cut, x0, y0, tw, th, 0, 0, tw, th);
+  const bw = skBorderPx();
+  return withBorder(trimmed, SK.border, bw, bw ? bw + 2 : 0);
+}
+
+function placeSticker(id){
+  const c = STICKER_IMG.get(id); if (!c) return;
+  addLayer({type:'image', ref:id, w:c.width, h:c.height, scale: minSide()*0.4/Math.max(c.width, c.height)});
+}
+
+async function skAdd(){
+  if (SK.busy) return;
+  const c = skFinish();
+  if (!c) { toast('Nothing is left to make a sticker from. Undo, or Start over.'); return; }
+  const id = stickerId();
+  STICKER_IMG.set(id, c);
+  const save = desktop && $('#skSave').checked;
+  closeStickerEditor();
+  if (tab !== 'stickers') setTab('stickers');
+  placeSticker(id);
+  if (save){
+    try {
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      await window.tinto.stickers.save(id, new Uint8Array(await blob.arrayBuffer()));
+      addMyStickerTile(id, c);
+      toast('Sticker added and saved to My stickers.');
+    } catch { toast('Sticker added, but it couldn’t be saved to My stickers.'); }
+  } else toast('Sticker added.');
+}
+
+/* My stickers shelf */
+function addMyStickerTile(id, canvas){
+  const wrap = $('#myStickers');
+  const b = document.createElement('div'); b.className = 'stk mine-item'; b.dataset.id = id;
+  const add = document.createElement('button'); add.type = 'button'; add.title = 'Add this sticker';
+  add.style.cssText = 'all:unset;cursor:pointer;width:100%;height:100%;display:block';
+  const img = document.createElement('img'); img.alt = 'My sticker'; img.src = canvas.toDataURL('image/png');
+  add.appendChild(img); add.onclick = () => placeSticker(id);
+  b.appendChild(add);
+  if (desktop){
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.title = 'Delete from My stickers'; del.setAttribute('aria-label', 'Delete from My stickers');
+    del.innerHTML = '<svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>';
+    del.onclick = async () => { if (await window.tinto.stickers.remove(id)) b.remove(); };
+    b.appendChild(del);
+  }
+  wrap.insertBefore(b, $('#importSticker').nextSibling);
+}
+async function loadMyStickers(){
+  if (!desktop) return;
+  try {
+    const list = await window.tinto.stickers.list();
+    for (const s of list){
+      try {
+        const bmp = await createImageBitmap(new Blob([s.data], {type:'image/png'}));
+        const c = mk(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0);
+        STICKER_IMG.set(s.id, c); addMyStickerTile(s.id, c);
+      } catch { /* skip a sticker file that can't be read */ }
+    }
+  } catch { /* no saved stickers */ }
+}
+
+/* Wiring */
+$('#importSticker').onclick = async () => {
+  if (desktop){ const files = await window.tinto.openImages(false); if (files.length) openStickerEditor(nativeToFile(files[0])); }
+  else $('#stickerInput').click();
+};
+$('#stickerInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; openStickerEditor(f); };
+$('#skAi').onclick = skRemoveWithAI;
+$('#skPlain').onclick = () => { if (!SK.busy) skPlainBackground(); };
+$('#skUndo').onclick = () => { if (SK.undo.length && !SK.busy){ SK.mask = SK.undo.pop(); renderSk(); } };
+$('#skReset').onclick = () => { if (SK.busy) return; skPush(); SK.mask = SK.orig.slice(); renderSk(); };
+$('#skCancel').onclick = () => { if (!SK.busy) closeStickerEditor(); };
+$('#skAdd').onclick = skAdd;
+$('#stickerModal').addEventListener('click', e => { if (e.target.id === 'stickerModal' && !SK.busy) closeStickerEditor(); });
+document.querySelectorAll('#skTool button').forEach(b => b.onclick = () => {
+  SK.tool = b.dataset.t;
+  document.querySelectorAll('#skTool button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  $('#skTolRow').hidden = SK.tool !== 'wand'; $('#skBrushRow').hidden = SK.tool === 'wand';
+});
+document.querySelectorAll('#skBorder .chip').forEach(c => c.onclick = () => {
+  SK.border = c.dataset.v;
+  document.querySelectorAll('#skBorder .chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+  $('#skBorderRow').hidden = !SK.border; renderSk();
+});
+(function skSliders(){
+  const paint = (id, min, max) => { const i = $('#'+id); fill(i, +i.value, min, max); $('#'+id+'Out').textContent = i.value; };
+  [['skTol',2,80],['skBrush',2,80],['skBorderW',1,40]].forEach(([id,min,max]) => {
+    paint(id, min, max);
+    $('#'+id).addEventListener('input', () => { paint(id, min, max); if (id === 'skBorderW') renderSk(); });
+  });
+})();
+// While the sticker editor is open, keys act on it, never on the photo behind it.
+window.addEventListener('keydown', e => {
+  if ($('#stickerModal').hidden || e.key === 'Tab') return;
+  e.stopImmediatePropagation();
+  const mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape' && !SK.busy) closeStickerEditor();
+  else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#skUndo').click(); }
+}, true);
+loadMyStickers();

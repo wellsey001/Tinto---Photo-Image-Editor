@@ -137,6 +137,11 @@
 
         <div class="pane" id="pane-stickers" hidden>
           <h2 class="pane-title">Stickers</h2>
+          <div class="group-h">My stickers</div>
+          <div class="stickers mine" id="myStickers">
+            <button class="stk import" id="importSticker" type="button" title="Import an image as a sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Import</span></button>
+          </div>
+          <input type="file" id="stickerInput" accept="image/*" hidden>
           <div class="group-h">Shapes</div>
           <div class="stickers" id="stickerGrid"></div>
           <div class="group-h">Emoji</div>
@@ -225,6 +230,50 @@
     <div class="split">
       <button class="btn ghost" id="exCancel" type="button">Close</button>
       <button class="btn primary" id="exSave" type="button">Save file</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="stickerModal" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="skTitle">
+    <h2 id="skTitle">New sticker</h2>
+    <div class="sk-body">
+      <div class="sk-stage" id="skStage">
+        <canvas id="skCanvas" width="10" height="10" aria-label="Sticker preview"></canvas>
+        <div class="sk-busy" id="skBusy" hidden>
+          <span id="skBusyMsg">Removing background…</span>
+          <div class="upd-track"><div class="upd-fill" id="skBusyFill"></div></div>
+        </div>
+      </div>
+      <div class="sk-tools">
+        <div class="group-h">Remove background</div>
+        <button class="btn primary wide" id="skAi" type="button">✦ Remove background</button>
+        <p class="hint" id="skAiHint">Works best on people and portraits. The first time, Tinto downloads its AI model (about 25 MB).</p>
+        <button class="btn wide" id="skPlain" type="button">Remove plain background</button>
+        <p class="hint">For logos, screenshots and things shot on a plain colour.</p>
+        <div class="group-h">Touch up</div>
+        <div class="seg" id="skTool">
+          <button type="button" data-t="wand" aria-pressed="true">Tap colour</button>
+          <button type="button" data-t="erase" aria-pressed="false">Erase</button>
+          <button type="button" data-t="restore" aria-pressed="false">Restore</button>
+        </div>
+        <div class="row" id="skTolRow"><label for="skTol">Tolerance</label><output id="skTolOut"></output><input type="range" id="skTol" min="2" max="80" value="24"></div>
+        <div class="row" id="skBrushRow" hidden><label for="skBrush">Brush size</label><output id="skBrushOut"></output><input type="range" id="skBrush" min="2" max="80" value="20"></div>
+        <div class="group-h">Sticker border</div>
+        <div class="chips" id="skBorder">
+          <button class="chip" type="button" data-v="" aria-pressed="false">None</button>
+          <button class="chip" type="button" data-v="#ffffff" aria-pressed="true">White</button>
+          <button class="chip" type="button" data-v="#111111" aria-pressed="false">Black</button>
+        </div>
+        <div class="row" id="skBorderRow"><label for="skBorderW">Thickness</label><output id="skBorderWOut"></output><input type="range" id="skBorderW" min="1" max="40" value="12"></div>
+        <label class="check" id="skSaveRow"><input type="checkbox" id="skSave" checked> Save to My stickers</label>
+      </div>
+    </div>
+    <div class="sk-foot">
+      <button class="btn ghost" id="skUndo" type="button">Undo</button>
+      <button class="btn ghost" id="skReset" type="button">Start over</button>
+      <span class="sk-gap"></span>
+      <button class="btn" id="skCancel" type="button">Cancel</button>
+      <button class="btn primary" id="skAdd" type="button">Add sticker</button>
     </div>
   </div>
 </div>
