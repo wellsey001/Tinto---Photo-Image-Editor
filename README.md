@@ -46,12 +46,13 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 
 ## Features
 
-- **Adjust:** exposure, brightness, contrast, highlights, shadows, saturation, warmth, tint, fade, vignette and sharpness, with a live RGB histogram and clipping warning.
-- **Filters:** 12 presets with live thumbnails and a strength slider.
+- **Adjust:** exposure, brightness, contrast, highlights, shadows, saturation, vibrance, warmth, tint, hue, split tone, fade, vignette, grain and sharpness, with a live RGB histogram and clipping warning.
+- **Auto:** one click sets light and colour to suit the photo.
+- **Filters:** 25 presets, from Cinema and Portra to Lomo, Vintage and Silver, with live thumbnails and a strength slider.
 - **Crop and rotate:** free or fixed ratios (1:1, 4:5, 3:2, 16:9, 9:16), rotate 90°, flip horizontal or vertical.
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
-- **Text:** 10 fonts, six quick styles, colour, alignment, bold, outline, shadow and background box.
-- **Stickers:** 12 vector shapes with colour, outline and drop shadow.
+- **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
+- **Stickers:** 25 vector shapes with colour, outline and drop shadow, plus 28 emoji.
 - **Draw:** freehand brush with a highlighter mode.
 - **Layers:** move, resize and rotate on the photo; reorder, hide, duplicate and set opacity.
 - **Collage:** 12 layouts for 2 to 9 photos, five shapes, spacing, rounded corners and background colour.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Tinto - Photo &amp; Image Editor</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&amp;family=Hanken+Grotesk:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Anton&amp;family=Playfair+Display:ital,wght@0,700;1,700&amp;family=Caveat:wght@700&amp;family=Permanent+Marker&amp;family=Pacifico&amp;family=Bebas+Neue&amp;family=Space+Mono:wght@700&amp;family=Lora:wght@600&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&amp;family=Hanken+Grotesk:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Anton&amp;family=Playfair+Display:ital,wght@0,700;1,700&amp;family=Caveat:wght@700&amp;family=Permanent+Marker&amp;family=Pacifico&amp;family=Bebas+Neue&amp;family=Space+Mono:wght@700&amp;family=Lora:wght@600&amp;family=Lobster&amp;family=Righteous&amp;family=Dancing+Script:wght@700&amp;family=Bungee&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -124,7 +124,9 @@
             </div>
             <div class="row"><label for="toutline">Outline</label><output id="toutlineOut"></output><input type="range" id="toutline" min="0" max="100"></div>
             <div class="field" id="toutlineColorF"><span>Outline colour</span><div class="swatches" id="tocolor"></div></div>
+            <div class="row"><label for="tspacing">Letter spacing</label><output id="tspacingOut"></output><input type="range" id="tspacing" min="0" max="60"></div>
             <div class="row"><label for="tshadow">Shadow</label><output id="tshadowOut"></output><input type="range" id="tshadow" min="0" max="100"></div>
+            <div class="field"><span>Neon glow</span><div class="swatches" id="tglow"></div></div>
             <div class="field"><span>Background</span><div class="swatches" id="tbg"></div></div>
             <div class="split">
               <button class="btn" id="tdup" type="button">Duplicate</button>
@@ -135,7 +137,10 @@
 
         <div class="pane" id="pane-stickers" hidden>
           <h2 class="pane-title">Stickers</h2>
+          <div class="group-h">Shapes</div>
           <div class="stickers" id="stickerGrid"></div>
+          <div class="group-h">Emoji</div>
+          <div class="stickers emoji" id="emojiGrid"></div>
           <div class="sub" id="stickerEdit" hidden>
             <div class="group-h">Selected sticker</div>
             <div class="field"><span>Colour</span><div class="swatches" id="scolor"></div></div>

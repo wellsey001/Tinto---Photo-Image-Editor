@@ -12,9 +12,10 @@ const ADJ = [
   {k:'exposure', label:'Exposure'}, {k:'brightness', label:'Brightness'}, {k:'contrast', label:'Contrast'},
   {k:'highlights', label:'Highlights'}, {k:'shadows', label:'Shadows'},
   {g:'Colour'},
-  {k:'saturation', label:'Saturation'}, {k:'warmth', label:'Warmth'}, {k:'tint', label:'Tint'},
+  {k:'saturation', label:'Saturation'}, {k:'vibrance', label:'Vibrance'}, {k:'warmth', label:'Warmth'}, {k:'tint', label:'Tint'},
+  {k:'hue', label:'Hue'}, {k:'split', label:'Split tone'},
   {g:'Effects'},
-  {k:'fade', label:'Fade', min:0}, {k:'vignette', label:'Vignette', min:0}, {k:'sharpness', label:'Sharpness', min:0},
+  {k:'fade', label:'Fade', min:0}, {k:'vignette', label:'Vignette', min:0}, {k:'grain', label:'Grain', min:0}, {k:'sharpness', label:'Sharpness', min:0},
 ];
 const KEYS = ADJ.filter(a => a.k).map(a => a.k);
 const defaults = () => Object.fromEntries(KEYS.map(k => [k, 0]));
@@ -32,11 +33,44 @@ const FILTERS = [
   {id:'sepia', name:'Sepia', d:{fade:15, contrast:5}, mode:'sepia'},
   {id:'fresh', name:'Fresh', d:{exposure:10, saturation:15, warmth:-8, highlights:-15}},
   {id:'dusk', name:'Dusk', d:{tint:25, warmth:15, fade:20, vignette:20}},
+  {id:'cinema', name:'Cinema', d:{split:50, contrast:18, saturation:-8, shadows:-6}},
+  {id:'portra', name:'Portra', d:{warmth:12, fade:15, saturation:-8, highlights:-18, shadows:12, grain:12}},
+  {id:'lomo', name:'Lomo', d:{contrast:35, saturation:30, vignette:60, warmth:6}},
+  {id:'cross', name:'Cross', d:{split:-40, tint:-18, contrast:22, saturation:18}},
+  {id:'rose', name:'Rosé', d:{tint:30, warmth:10, fade:18, exposure:6}},
+  {id:'arctic', name:'Arctic', d:{warmth:-45, exposure:8, saturation:-20, fade:12}},
+  {id:'moody', name:'Moody', d:{exposure:-12, contrast:22, saturation:-25, shadows:-10, vignette:30, warmth:-8}},
+  {id:'bright', name:'Bright', d:{exposure:18, shadows:22, contrast:-6, vibrance:22}},
+  {id:'vintage', name:'Vintage', d:{fade:30, contrast:-10, vignette:25, grain:30}, mode:'sepia', modeAmt:0.55},
+  {id:'faded', name:'Faded', d:{fade:48, saturation:-32, contrast:-15}},
+  {id:'emerald', name:'Emerald', d:{tint:-32, hue:-5, contrast:10, split:-12}},
+  {id:'gold', name:'Gilded', d:{warmth:40, vibrance:25, highlights:-20, split:22}},
+  {id:'silver', name:'Silver', d:{contrast:28, grain:40, fade:10, highlights:-10}, mode:'mono'},
 ];
 
-const FONTS = ['Hanken Grotesk','Anton','Bebas Neue','Playfair Display','Lora','Caveat','Permanent Marker','Pacifico','Space Mono','Sora'];
+const FONTS = ['Hanken Grotesk','Anton','Bebas Neue','Playfair Display','Lora','Caveat','Permanent Marker','Pacifico','Space Mono','Sora','Lobster','Righteous','Dancing Script','Bungee'];
 const COLOURS = ['#ffffff','#111111','#efb34a','#ff5a5f','#ff7ac6','#4da3ff','#3ddc97','#9b6bff'];
 
+function polyPath(n, r, rot = -Math.PI/2){
+  let d = '';
+  for (let i=0;i<n;i++){ const a = rot + i*2*Math.PI/n; d += (i?'L':'M') + (50 + r*Math.cos(a)).toFixed(2) + ' ' + (50 + r*Math.sin(a)).toFixed(2) + ' '; }
+  return d + 'Z';
+}
+const circ = (cx, cy, r) => `M${cx-r} ${cy} a${r} ${r} 0 1 0 ${2*r} 0 a${r} ${r} 0 1 0 ${-2*r} 0Z`;
+const ell = (cx, cy, rx, ry) => `M${cx-rx} ${cy} a${rx} ${ry} 0 1 0 ${2*rx} 0 a${rx} ${ry} 0 1 0 ${-2*rx} 0Z`;
+function sunPath(){
+  let d = circ(50, 50, 21);
+  for (let i=0;i<8;i++){ const a = i*Math.PI/4, c = Math.cos(a), s = Math.sin(a), px = -s, py = c;
+    const p = (r, w) => `${(50 + c*r + px*w).toFixed(2)} ${(50 + s*r + py*w).toFixed(2)}`;
+    d += `M${p(28, 6)} L${p(46, 0)} L${p(28, -6)}Z`; }
+  return d;
+}
+function flowerPath(){
+  // Five separate round petals around a centre, with a small gap so each petal reads on its own.
+  let d = '';
+  for (let i=0;i<5;i++){ const a = -Math.PI/2 + i*2*Math.PI/5; d += circ(+(50 + 29*Math.cos(a)).toFixed(2), +(50 + 29*Math.sin(a)).toFixed(2), 18); }
+  return d + circ(50, 50, 11);
+}
 function starPath(n, inner){
   let d = '';
   for (let i=0;i<n*2;i++){ const r = i%2 ? 48*inner : 48, a = -Math.PI/2 + i*Math.PI/n; d += (i?'L':'M') + (50 + r*Math.cos(a)).toFixed(2) + ' ' + (50 + r*Math.sin(a)).toFixed(2) + ' '; }
@@ -55,8 +89,24 @@ const SHAPES = [
   {id:'banner', name:'Banner', d:'M2 30 H98 L88 50 L98 70 H2 L12 50Z'},
   {id:'square', name:'Rounded square', d:'M18 6 H82 Q94 6 94 18 V82 Q94 94 82 94 H18 Q6 94 6 82 V18 Q6 6 18 6Z'},
   {id:'drop', name:'Drop', d:'M50 4 C66 28 84 46 84 64 C84 83 69 96 50 96 C31 96 16 83 16 64 C16 46 34 28 50 4Z'},
+  {id:'smiley', name:'Smiley', d:circ(50,50,46) + ell(36,38,6,8) + ell(64,38,6,8) + 'M27 58 Q50 86 73 58 Q50 72 27 58Z', rule:'evenodd'},
+  {id:'sun', name:'Sun', d:sunPath()},
+  {id:'moon', name:'Moon', d:'M60 6 A44 44 0 1 0 94 64 A35 35 0 1 1 60 6Z'},
+  {id:'cloud', name:'Cloud', d:'M24 80 H76 A19 19 0 0 0 79 42 A25 25 0 0 0 32 36 A22 22 0 0 0 24 80Z'},
+  {id:'flower', name:'Flower', d:flowerPath()},
+  {id:'note', name:'Music note', d:'M44 24 H49 V78 H44Z M82 14 H87 V70 H82Z M44 22 L87 12 V24 L44 34Z' + ell(36,78,12,9) + ell(74,70,12,9)},
+  {id:'paw', name:'Paw', d:ell(24,42,9,11) + ell(40,24,9,11) + ell(60,24,9,11) + ell(76,42,9,11) + 'M50 48 C70 48 84 68 78 82 C72 93 60 86 50 86 C40 86 28 93 22 82 C16 68 30 48 50 48Z'},
+  {id:'pin', name:'Location pin', d:'M50 96 C50 96 16 60 16 38 A34 34 0 0 1 84 38 C84 60 50 96 50 96Z' + circ(50,38,12), rule:'evenodd'},
+  {id:'check', name:'Tick', d:'M12 52 L25 39 L42 56 L76 21 L89 34 L42 81Z'},
+  {id:'cross', name:'Cross', d:'M22 10 L50 38 L78 10 L90 22 L62 50 L90 78 L78 90 L50 62 L22 90 L10 78 L38 50 L10 22Z'},
+  {id:'gem', name:'Gem', d:'M28 12 H72 L94 38 L50 92 L6 38Z'},
+  {id:'hexagon', name:'Hexagon', d:polyPath(6, 47, 0)},
+  {id:'bow', name:'Bow', d:'M50 50 L8 24 Q2 50 8 76Z M50 50 L92 24 Q98 50 92 76Z' + ell(50,50,11,13)},
 ];
 const PATHS = Object.fromEntries(SHAPES.map(s => [s.id, new Path2D(s.d)]));
+const RULES = Object.fromEntries(SHAPES.map(s => [s.id, s.rule || 'nonzero']));
+const EMOJI = ['😍','😂','😎','🥳','😘','🤩','❤️','🔥','✨','💯','👍','🙌','🎉','🌈','⭐','🌸','🌻','🦋','🐶','🐱','🍕','☕','🎵','📸','🌞','🌙','👑','💎'];
+const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
 
 const TEXT_PRESETS = [
   {label:'HEADLINE', text:'GOLDEN HOUR', font:'Anton', color:'#ffffff', shadow:45, outline:0},
@@ -65,6 +115,12 @@ const TEXT_PRESETS = [
   {label:'Classic', text:'Evening light', font:'Playfair Display', color:'#ffffff', shadow:35, outline:0},
   {label:'Marker', text:'Best day!', font:'Permanent Marker', color:'#ff5a5f', outline:30, ocolor:'#ffffff', shadow:0},
   {label:'Retro', text:'Summer', font:'Pacifico', color:'#ff7ac6', outline:28, ocolor:'#111111', shadow:20},
+  {label:'Neon', text:'Good vibes', font:'Righteous', color:'#ffffff', glow:'#ff4fd8', outline:0, shadow:0},
+  {label:'STICKER', text:'WOW!', font:'Bungee', color:'#ff5a5f', outline:45, ocolor:'#ffffff', shadow:35},
+  {label:'Typewriter', text:'Dear diary…', font:'Space Mono', bold:true, color:'#111111', bg:'#f3ece0', outline:0, shadow:0, sizeK:0.045},
+  {label:'Script', text:'Forever', font:'Dancing Script', bold:true, color:'#ffffff', shadow:40, outline:0},
+  {label:'CAPTION', text:'MONDAY MOOD', font:'Bebas Neue', color:'#ffffff', bg:'#111111', outline:0, shadow:0, sizeK:0.06, spacing:20},
+  {label:'Fancy', text:'Party time', font:'Lobster', color:'#efb34a', outline:25, ocolor:'#111111', shadow:25},
 ];
 
 /* ================= state + history ================= */
@@ -95,8 +151,10 @@ function effective(filterId=S.filter, strength=S.strength, params=S.params){
   const f = FILTERS.find(x => x.id===filterId) || FILTERS[0];
   const t = strength/100, p = {...params};
   for (const k in f.d) p[k] = (p[k]||0) + f.d[k]*t;
-  p.mono = f.mode==='mono' ? t : 0;
-  p.sepia = f.mode==='sepia' ? t : 0;
+  const amt = t * (f.modeAmt ?? 1);
+  p.mono = f.mode==='mono' ? amt : 0;
+  p.sepia = f.mode==='sepia' ? amt : 0;
+  for (const k of KEYS) if (p[k]===undefined) p[k] = 0;
   return p;
 }
 
@@ -114,6 +172,12 @@ function processImage(src, p){
   for (let i=0;i<256;i++){ const v=i/255; lr[i]=curve(v*mR); lg[i]=curve(v*mG); lb[i]=curve(v*mB); }
   const hl = p.highlights/100*0.32, sh = p.shadows/100*0.32, sat = 1 + p.saturation/100;
   const mono = p.mono, sep = p.sepia, fd = Math.max(0,p.fade)/100, vg = Math.max(0,p.vignette)/100;
+  const vib = (p.vibrance||0)/100, spl = (p.split||0)/100, gr = Math.max(0, p.grain||0)/100*0.2;
+  // Hue rotation as a colour matrix (the same one CSS hue-rotate uses).
+  const ha = (p.hue||0)/100*Math.PI, hc = Math.cos(ha), hs = Math.sin(ha), hue = !!p.hue;
+  const h00=.213+hc*.787-hs*.213, h01=.715-hc*.715-hs*.715, h02=.072-hc*.072+hs*.928;
+  const h10=.213-hc*.213+hs*.143, h11=.715+hc*.285+hs*.140, h12=.072-hc*.072-hs*.283;
+  const h20=.213-hc*.213-hs*.787, h21=.715-hc*.715+hs*.715, h22=.072+hc*.928+hs*.072;
   const cx = w/2, cy = h/2, inv = 1/Math.sqrt(cx*cx + cy*cy);
   for (let y=0; y<h; y++){
     const dy = y - cy;
@@ -123,10 +187,14 @@ function processImage(src, p){
       let L = 0.2126*r + 0.7152*g + 0.0722*b;
       if (hl || sh){ const Lc = clamp(L,0,1); const d = hl*Lc*Lc + sh*(1-Lc)*(1-Lc); r+=d; g+=d; b+=d; L+=d; }
       if (sat !== 1){ r = L + (r-L)*sat; g = L + (g-L)*sat; b = L + (b-L)*sat; }
+      if (vib){ const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), k = 1 + vib*(1 - Math.min(1, (mx-mn)*1.6)); r = L + (r-L)*k; g = L + (g-L)*k; b = L + (b-L)*k; }
+      if (hue){ const r0=r, g0=g, b0=b; r = h00*r0+h01*g0+h02*b0; g = h10*r0+h11*g0+h12*b0; b = h20*r0+h21*g0+h22*b0; }
+      if (spl){ const t = (clamp(L,0,1)-0.5)*spl; r += t*0.26; g += t*0.04; b -= t*0.3; }
       if (mono){ r += (L-r)*mono; g += (L-g)*mono; b += (L-b)*mono; }
       if (sep){ r += (L*1.07+0.05 - r)*sep; g += (L*0.95+0.02 - g)*sep; b += (L*0.76 - b)*sep; }
       if (fd){ const k = 1-0.22*fd, a = 0.1*fd; r = r*k+a; g = g*k+a; b = b*k+a*1.1; }
       if (vg){ const dx = x-cx, d = Math.sqrt(dx*dx+dy*dy)*inv; if (d > 0.4){ const t = (d-0.4)/0.6, m = 1 - vg*0.78*t*t*(3-2*t); r*=m; g*=m; b*=m; } }
+      if (gr){ let hsh = (x*374761393 + y*668265263) | 0; hsh = (hsh ^ (hsh >>> 13)) * 1274126177 | 0; const n = (((hsh ^ (hsh >>> 16)) & 1023) / 1023 - 0.5) * gr; r += n; g += n; b += n; }
       o[i] = r*255; o[i+1] = g*255; o[i+2] = b*255; o[i+3] = s[i+3];
     }
   }
@@ -155,17 +223,19 @@ const mctx = mk(4,4).getContext('2d');
 const minSide = () => Math.min(S.base.width, S.base.height);
 const getSel = () => S.layers.find(l => l.id===selId) || null;
 function fontStr(l){ return `${l.bold ? 700 : 400} ${l.size}px "${l.font}", system-ui, sans-serif`; }
+const spacingPx = l => (l.spacing || 0)/100 * l.size * 0.5;
 function textMetrics(l){
-  mctx.font = fontStr(l);
+  mctx.font = fontStr(l); mctx.letterSpacing = spacingPx(l) + 'px';
   const lines = (l.text || ' ').split('\n'), lh = l.size*1.2;
   const widths = lines.map(t => mctx.measureText(t).width);
   const w = Math.max(l.size*0.3, ...widths), h = lines.length*lh;
-  const pad = l.bg ? l.size*0.38 : 0, ow = l.outline/100*l.size*0.22;
+  const pad = l.bg ? l.size*0.38 : (l.glow ? l.size*0.2 : 0), ow = l.outline/100*l.size*0.22;
   return {lines, widths, w, h, lh, pad, ow};
 }
 function bbox(l){
   if (l.type==='text'){ const m = textMetrics(l), e = m.pad + m.ow/2 + 2; return [-m.w/2-e, -m.h/2-e, m.w/2+e, m.h/2+e]; }
   if (l.type==='shape'){ const e = l.outline ? 8 : 0; return [-50-e, -50-e, 50+e, 50+e]; }
+  if (l.type==='emoji') return [-52, -52, 52, 52];
   let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
   for (const st of l.strokes){ const r = st.size/2; for (let i=0;i<st.pts.length;i+=2){ const x=st.pts[i], y=st.pts[i+1]; if (x-r<x0) x0=x-r; if (y-r<y0) y0=y-r; if (x+r>x1) x1=x+r; if (y+r>y1) y1=y+r; } }
   return x0===Infinity ? [-1,-1,1,1] : [x0,y0,x1,y1];
@@ -188,15 +258,16 @@ function drawLayer(ctx, l){
   ctx.translate(l.x, l.y); ctx.rotate(l.rot*RAD); ctx.scale(l.scale*(l.flip?-1:1), l.scale);
   if (l.type==='text') drawText(ctx, l);
   else if (l.type==='shape') drawShape(ctx, l);
+  else if (l.type==='emoji') drawEmoji(ctx, l);
   else drawStrokes(ctx, l);
   ctx.restore();
 }
 function drawText(ctx, l){
   const m = textMetrics(l);
-  ctx.font = fontStr(l); ctx.textBaseline = 'middle'; ctx.textAlign = l.align; ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+  ctx.font = fontStr(l); ctx.letterSpacing = spacingPx(l) + 'px'; ctx.textBaseline = 'middle'; ctx.textAlign = l.align; ctx.lineJoin = 'round'; ctx.miterLimit = 2;
   if (l.bg){
-    ctx.fillStyle = l.bg; ctx.beginPath();
-    const r = l.size*0.25; ctx.roundRect(-m.w/2-m.pad, -m.h/2-m.pad*0.7, m.w+m.pad*2, m.h+m.pad*1.4, r); ctx.fill();
+    ctx.save(); ctx.fillStyle = l.bg; ctx.beginPath();
+    const r = l.size*0.25; ctx.roundRect(-m.w/2-m.pad, -m.h/2-m.pad*0.7, m.w+m.pad*2, m.h+m.pad*1.4, r); ctx.fill(); ctx.restore();
   }
   const ax = l.align==='left' ? -m.w/2 : l.align==='right' ? m.w/2 : 0;
   if (l.shadow){ ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = l.size*0.25*l.shadow/100; ctx.shadowOffsetY = l.size*0.06*l.shadow/100; }
@@ -206,14 +277,25 @@ function drawText(ctx, l){
   });
   if (m.ow > 0) ctx.shadowColor = 'transparent';
   ctx.fillStyle = l.color;
-  m.lines.forEach((t, i) => ctx.fillText(t, ax, -m.h/2 + m.lh*(i+0.5) + l.size*0.04));
+  const fillAll = () => m.lines.forEach((t, i) => ctx.fillText(t, ax, -m.h/2 + m.lh*(i+0.5) + l.size*0.04));
+  if (l.glow){
+    // Neon glow: the text drawn twice with a coloured blur, then once crisp on top.
+    ctx.save(); ctx.shadowColor = l.glow; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    ctx.shadowBlur = l.size*0.5; fillAll(); ctx.shadowBlur = l.size*0.18; fillAll(); ctx.restore();
+  }
+  fillAll();
 }
 function drawShape(ctx, l){
   ctx.translate(-50, -50);
   const p = PATHS[l.shape];
   if (l.shadow){ ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4; }
   if (l.outline){ ctx.lineJoin = 'round'; ctx.lineWidth = 12; ctx.strokeStyle = l.outline; ctx.stroke(p); ctx.shadowColor = 'transparent'; }
-  ctx.fillStyle = l.color; ctx.fill(p);
+  ctx.fillStyle = l.color; ctx.fill(p, RULES[l.shape] || 'nonzero');
+}
+function drawEmoji(ctx, l){
+  ctx.font = `88px ${EMOJI_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (l.shadow){ ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4; }
+  ctx.fillText(l.char, 0, 6);
 }
 function drawStrokes(ctx, l){
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -246,6 +328,7 @@ function hitTest(p){
 function layerName(l){
   if (l.type==='text') return (l.text || 'Text').split('\n')[0].slice(0, 28) || 'Text';
   if (l.type==='shape') return (SHAPES.find(s => s.id===l.shape) || {}).name || 'Sticker';
+  if (l.type==='emoji') return `Emoji ${l.char}`;
   return 'Drawing';
 }
 
@@ -341,7 +424,12 @@ const sliders = {};
   for (const a of ADJ){
     if (a.g){
       const h = document.createElement('div'); h.className = 'group-h'; h.textContent = a.g;
-      if (first){ const rb = document.createElement('button'); rb.className='linkbtn'; rb.type='button'; rb.textContent='Reset all'; rb.onclick = () => { S.params = defaults(); syncUI(); render(); commit(); }; h.appendChild(rb); first = false; }
+      if (first){
+        const wrap = document.createElement('span'); wrap.style.display = 'flex'; wrap.style.gap = '12px';
+        const ab = document.createElement('button'); ab.className='linkbtn'; ab.type='button'; ab.textContent='✦ Auto'; ab.title='Set light and colour for this photo automatically'; ab.onclick = autoEnhance;
+        const rb = document.createElement('button'); rb.className='linkbtn'; rb.type='button'; rb.textContent='Reset all'; rb.onclick = () => { S.params = defaults(); syncUI(); render(); commit(); };
+        wrap.append(ab, rb); h.appendChild(wrap); first = false;
+      }
       pane.appendChild(h); continue;
     }
     const row = document.createElement('div'); row.className = 'row';
@@ -356,6 +444,26 @@ const sliders = {};
   }
   const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Double-click a slider to reset it.'; pane.appendChild(p);
 })();
+/* One-click enhance: reads the photo's brightness spread and sets light and colour to suit it. */
+function autoEnhance(){
+  if (!prevData) return;
+  const d = prevData.data, lumHist = new Uint32Array(256); let n = 0, sum = 0, satSum = 0;
+  for (let i=0; i<d.length; i+=16){
+    const r = d[i], g = d[i+1], b = d[i+2], l = Math.round(0.2126*r + 0.7152*g + 0.0722*b);
+    lumHist[l]++; n++; sum += l; satSum += (Math.max(r,g,b) - Math.min(r,g,b)) / 255;
+  }
+  const pct = q => { let acc = 0; for (let i=0;i<256;i++){ acc += lumHist[i]; if (acc >= q*n) return i/255; } return 1; };
+  const lo = pct(0.02), hi2 = pct(0.98), mean = sum/n/255, sat = satSum/n;
+  const p = defaults();
+  p.exposure = Math.round(clamp(Math.log2(0.47/Math.max(mean, 0.02))/1.5*100*0.8, -45, 45));
+  p.contrast = Math.round(clamp((0.82 - (hi2 - lo))*90, -15, 35));
+  p.highlights = hi2 > 0.96 ? -25 : 0;
+  p.shadows = lo < 0.04 ? 18 : 0;
+  p.vibrance = Math.round(clamp((0.32 - sat)*120, 0, 35));
+  p.sharpness = 15;
+  S.params = p; syncUI(); render(); commit();
+  toast('Auto-adjusted. Fine-tune with the sliders, or Undo to go back.');
+}
 function paintSlider(k){
   const s = sliders[k], v = S.params[k];
   s.inp.value = v; fill(s.inp, v, s.min);
@@ -551,7 +659,8 @@ function addLayer(props){
 }
 function addText(preset = TEXT_PRESETS[0]){
   const l = addLayer({type:'text', text:preset.text, font:preset.font, size:Math.round(minSide()*(preset.sizeK || 0.09)), color:preset.color,
-    bold:!!preset.bold, align:'center', outline:preset.outline||0, ocolor:preset.ocolor||'#111111', shadow:preset.shadow||0, bg:preset.bg||''});
+    bold:!!preset.bold, align:'center', outline:preset.outline||0, ocolor:preset.ocolor||'#111111', shadow:preset.shadow||0, bg:preset.bg||'',
+    glow:preset.glow||'', spacing:preset.spacing||0});
   document.fonts.load(`${l.bold?700:400} 40px "${l.font}"`).then(composite).catch(()=>{});
   setTimeout(() => { const t = $('#txt'); if (!t.closest('[hidden]')) { t.focus(); t.select(); } }, 30);
 }
@@ -569,7 +678,7 @@ function select(id, {switchTab=false} = {}){
   selId = id;
   const l = getSel();
   if (l && switchTab && tab!=='layers'){
-    const t = l.type==='text' ? 'text' : l.type==='shape' ? 'stickers' : null;
+    const t = l.type==='text' ? 'text' : (l.type==='shape' || l.type==='emoji') ? 'stickers' : null;
     if (t && t!==tab) setTab(t);
   }
   refreshLayerUI(); placeSel();
@@ -595,10 +704,12 @@ $('#font').addEventListener('change', e => { const l = selText(); if (!l) return
 const sizeMax = () => Math.round(minSide()*0.4), sizeMin = () => Math.max(6, Math.round(minSide()*0.01));
 const paintTSize = bindRange('tsize', () => { const l = selText(); if (!l) return null; const t = $('#tsize'); t.min = sizeMin(); t.max = sizeMax(); return Math.round(l.size); }, v => { const l = selText(); if (l){ l.size = v; composite(); } }, v => v+' px');
 const paintTOutline = bindRange('toutline', () => selText()?.outline ?? null, v => { const l = selText(); if (l){ l.outline = v; composite(); $('#toutlineColorF').hidden = v===0; } });
+const paintTSpacing = bindRange('tspacing', () => { const l = selText(); return l ? (l.spacing || 0) : null; }, v => { const l = selText(); if (l){ l.spacing = v; composite(); } });
 const paintTShadow = bindRange('tshadow', () => selText()?.shadow ?? null, v => { const l = selText(); if (l){ l.shadow = v; composite(); } });
 const colourPick = (prop, getL) => (c, live, done) => { const l = getL(); if (!l) return; l[prop] = c; composite(); syncPanels(); if (!live || done) commit(); };
 const tColor = makeSwatches($('#tcolor'), COLOURS, colourPick('color', selText));
 const toColor = makeSwatches($('#tocolor'), ['#111111','#ffffff','#efb34a','#ff5a5f','#4da3ff'], colourPick('ocolor', selText));
+const tGlow = makeSwatches($('#tglow'), ['#ff4fd8','#4de1ff','#7dff6a','#efb34a','#ffffff'], colourPick('glow', selText), {none:true});
 const tBg = makeSwatches($('#tbg'), ['#ffffff','#111111','#efb34a','#ff5a5f','#4da3ff'], colourPick('bg', selText), {none:true});
 document.querySelectorAll('#talign button').forEach(b => b.onclick = () => { const l = selText(); if (!l) return; l.align = b.dataset.v; composite(); syncPanels(); commit(); });
 $('#tbold').onclick = () => { const l = selText(); if (!l) return; l.bold = !l.bold; document.fonts.load(`700 40px "${l.font}"`).then(composite).catch(()=>{}); composite(); syncPanels(); commit(); };
@@ -610,9 +721,15 @@ $('#tnew').onclick = () => addText(TEXT_PRESETS[0]);
   const grid = $('#stickerGrid');
   SHAPES.forEach(s => {
     const b = document.createElement('button'); b.type='button'; b.className='stk'; b.title = 'Add ' + s.name.toLowerCase();
-    b.innerHTML = `<svg viewBox="-4 -4 108 108"><path d="${s.d}" fill="currentColor"/></svg>`;
+    b.innerHTML = `<svg viewBox="-4 -4 108 108"><path d="${s.d}" fill="currentColor" fill-rule="${s.rule || 'nonzero'}"/></svg>`;
     b.onclick = () => addLayer({type:'shape', shape:s.id, color:stickerColour, outline:'#ffffff', shadow:true, scale:minSide()*0.22/100});
     grid.appendChild(b);
+  });
+  const eg = $('#emojiGrid');
+  EMOJI.forEach(ch => {
+    const b = document.createElement('button'); b.type='button'; b.className='stk'; b.title = 'Add ' + ch; b.textContent = ch;
+    b.onclick = () => addLayer({type:'emoji', char:ch, shadow:false, scale:minSide()*0.2/100});
+    eg.appendChild(b);
   });
 })();
 let stickerColour = '#ff5a5f';
@@ -649,7 +766,7 @@ function refreshLayerList(){
   for (let i=S.layers.length-1; i>=0; i--){
     const l = S.layers[i], li = document.createElement('li');
     li.className = 'lrow' + (l.id===selId ? ' on' : '') + (l.hidden ? ' hid' : '');
-    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : '✎';
+    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : l.type==='emoji' ? '☺' : '✎';
     li.innerHTML = `<span class="kind" aria-hidden="true">${kind}</span><button class="name" type="button"></button><span><button class="ib" data-a="vis" type="button" title="${l.hidden?'Show':'Hide'}">${l.hidden?ICON.off:ICON.eye}</button><button class="ib" data-a="up" type="button" title="Bring forward" ${i===S.layers.length-1?'disabled':''}>${ICON.up}</button><button class="ib" data-a="down" type="button" title="Send backward" ${i===0?'disabled':''}>${ICON.down}</button></span>`;
     li.querySelector('.name').textContent = layerName(l);
     li.querySelector('.name').onclick = () => select(l.id);
@@ -675,9 +792,9 @@ function syncPanels(){
   $('#textEdit').hidden = !t; $('#textAdd').hidden = !!t;
   if (t){
     if (document.activeElement !== txt) txt.value = t.text;
-    $('#font').value = t.font; paintTSize(); paintTOutline(); paintTShadow();
+    $('#font').value = t.font; paintTSize(); paintTOutline(); paintTShadow(); paintTSpacing();
     $('#toutlineColorF').hidden = t.outline===0;
-    tColor.set(t.color); toColor.set(t.ocolor); tBg.set(t.bg);
+    tColor.set(t.color); toColor.set(t.ocolor); tBg.set(t.bg); tGlow.set(t.glow || '');
     document.querySelectorAll('#talign button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v===t.align)));
     $('#tbold').classList.toggle('on', t.bold); $('#tbold').setAttribute('aria-pressed', String(t.bold));
   }
