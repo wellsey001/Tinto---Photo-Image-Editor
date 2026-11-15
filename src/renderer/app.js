@@ -334,7 +334,7 @@ function layerName(l){
   if (l.type==='text') return (l.text || 'Text').split('\n')[0].slice(0, 28) || 'Text';
   if (l.type==='shape') return (SHAPES.find(s => s.id===l.shape) || {}).name || 'Sticker';
   if (l.type==='emoji') return `Emoji ${l.char}`;
-  if (l.type==='image') return 'My sticker';
+  if (l.type==='image') return l.name || 'My sticker';
   if (l.type==='word') return l.text;
   return 'Drawing';
 }
@@ -2136,6 +2136,56 @@ function skFinish(){
   const bw = skBorderPx();
   return withBorder(trimmed, SK.border, bw, bw ? bw + 2 : 0);
 }
+
+/* ---- illustrated sticker packs: vector art, rasterised on demand with a white die-cut border and soft shadow ---- */
+const PACK = window.STICKER_PACK || [];
+const PACK_CATS = [['all','All'],['food','Food'],['summer','Summer'],['love','Love'],['party','Party'],['dreamy','Dreamy'],['nature','Nature']];
+let packCat = 'all';
+const packURL = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg);
+
+async function packCanvas(s){
+  const key = 'pk-' + s.id;
+  if (STICKER_IMG.has(key)) return key;
+  const img = new Image(); img.src = packURL(s); await img.decode();
+  const N = 900, art = mk(N, N); art.getContext('2d').drawImage(img, 0, 0, N, N);
+  const bw = Math.round(N*0.04), framed = withBorder(art, '#ffffff', bw, Math.round(bw*2.2));
+  // bake a soft shadow under the die-cut so it lifts off any photo
+  const out = mk(framed.width, framed.height), ox = out.getContext('2d');
+  ox.shadowColor = 'rgba(25,10,35,.30)'; ox.shadowBlur = bw*1.1; ox.shadowOffsetY = bw*0.45;
+  ox.drawImage(framed, 0, 0);
+  STICKER_IMG.set(key, out);
+  return key;
+}
+
+function buildPacks(){
+  const tabs = $('#packTabs'), grid = $('#packGrid');
+  if (!tabs || !PACK.length) return;
+  tabs.innerHTML = '';
+  for (const [id, label] of PACK_CATS){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = label;
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-pressed', String(id === packCat));
+    b.onclick = () => { packCat = id; buildPacks(); };
+    tabs.appendChild(b);
+  }
+  grid.innerHTML = '';
+  for (const s of PACK){
+    if (packCat !== 'all' && s.cat !== packCat) continue;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'stk'; b.title = s.name; b.setAttribute('aria-label', s.name);
+    const im = document.createElement('img'); im.src = packURL(s); im.alt = ''; im.draggable = false;
+    b.appendChild(im);
+    b.onclick = async () => {
+      if (!S.base){ toast('Open a photo first.'); return; }
+      try {
+        const key = await packCanvas(s), c = STICKER_IMG.get(key);
+        addLayer({type:'image', ref:key, name:s.name, w:c.width, h:c.height, scale: minSide()*0.35/Math.max(c.width, c.height)});
+      } catch (e) { toast('Could not add that sticker.'); }
+    };
+    grid.appendChild(b);
+  }
+}
+buildPacks();
 
 function placeSticker(id){
   const c = STICKER_IMG.get(id); if (!c) return;
