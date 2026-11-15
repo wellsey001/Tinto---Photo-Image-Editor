@@ -238,6 +238,7 @@ function bbox(l){
   if (l.type==='shape'){ const e = l.outline ? 8 : 0; return [-50-e, -50-e, 50+e, 50+e]; }
   if (l.type==='emoji') return [-52, -52, 52, 52];
   if (l.type==='image') return [-l.w/2, -l.h/2, l.w/2, l.h/2];
+  if (l.type==='word') return wordBox(l);
   let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
   for (const st of l.strokes){ const r = st.size/2; for (let i=0;i<st.pts.length;i+=2){ const x=st.pts[i], y=st.pts[i+1]; if (x-r<x0) x0=x-r; if (y-r<y0) y0=y-r; if (x+r>x1) x1=x+r; if (y+r>y1) y1=y+r; } }
   return x0===Infinity ? [-1,-1,1,1] : [x0,y0,x1,y1];
@@ -262,6 +263,7 @@ function drawLayer(ctx, l){
   else if (l.type==='shape') drawShape(ctx, l);
   else if (l.type==='emoji') drawEmoji(ctx, l);
   else if (l.type==='image'){ const img = STICKER_IMG.get(l.ref); if (img) ctx.drawImage(img, -l.w/2, -l.h/2, l.w, l.h); }
+  else if (l.type==='word') drawWord(ctx, l);
   else drawStrokes(ctx, l);
   ctx.restore();
 }
@@ -333,6 +335,7 @@ function layerName(l){
   if (l.type==='shape') return (SHAPES.find(s => s.id===l.shape) || {}).name || 'Sticker';
   if (l.type==='emoji') return `Emoji ${l.char}`;
   if (l.type==='image') return 'My sticker';
+  if (l.type==='word') return l.text;
   return 'Drawing';
 }
 
@@ -364,6 +367,7 @@ function composite(){
   if (comparing){ vctx.drawImage(rawC,0,0); placeSel(); return; }
   vctx.drawImage(photoC,0,0);
   drawLayers(vctx, view.width / S.base.width);
+  if (WM.on) drawWatermark(vctx, view.width, view.height);
   placeSel();
 }
 function updateInfo(){
@@ -682,7 +686,7 @@ function select(id, {switchTab=false} = {}){
   selId = id;
   const l = getSel();
   if (l && switchTab && tab!=='layers'){
-    const t = l.type==='text' ? 'text' : (l.type==='shape' || l.type==='emoji' || l.type==='image') ? 'stickers' : null;
+    const t = l.type==='text' ? 'text' : (l.type==='shape' || l.type==='emoji' || l.type==='image' || l.type==='word') ? 'stickers' : null;
     if (t && t!==tab) setTab(t);
   }
   refreshLayerUI(); placeSel();
@@ -770,7 +774,7 @@ function refreshLayerList(){
   for (let i=S.layers.length-1; i>=0; i--){
     const l = S.layers[i], li = document.createElement('li');
     li.className = 'lrow' + (l.id===selId ? ' on' : '') + (l.hidden ? ' hid' : '');
-    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : l.type==='emoji' ? '☺' : l.type==='image' ? '▣' : '✎';
+    const kind = l.type==='text' ? 'T' : l.type==='shape' ? '★' : l.type==='emoji' ? '☺' : l.type==='image' ? '▣' : l.type==='word' ? '!' : '✎';
     li.innerHTML = `<span class="kind" aria-hidden="true">${kind}</span><button class="name" type="button"></button><span><button class="ib" data-a="vis" type="button" title="${l.hidden?'Show':'Hide'}">${l.hidden?ICON.off:ICON.eye}</button><button class="ib" data-a="up" type="button" title="Bring forward" ${i===S.layers.length-1?'disabled':''}>${ICON.up}</button><button class="ib" data-a="down" type="button" title="Send backward" ${i===0?'disabled':''}>${ICON.down}</button></span>`;
     li.querySelector('.name').textContent = layerName(l);
     li.querySelector('.name').onclick = () => select(l.id);
@@ -995,6 +999,7 @@ $('#exSave').onclick = async () => {
   try {
     const col = tab==='collage';
     let c = col ? renderCollageFull() : await renderEditorFull();
+    if (WM.on){ await document.fonts.ready; drawWatermark(c.getContext('2d'), c.width, c.height); }
     if (fmt==='jpeg'){ const j = mk(c.width,c.height), x = j.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0,0,j.width,j.height); x.drawImage(c,0,0); c = j; }
     const blob = await new Promise(r => c.toBlob(r, 'image/'+fmt, +q.value/100));
     if (!blob) throw new Error('encode');
@@ -1410,6 +1415,7 @@ function drawCollage(){
   const [W, H] = collageSize();
   if (ccv.width !== W || ccv.height !== H){ ccv.width = W; ccv.height = H; }
   renderCollage(cctx, W, H, true);
+  if (WM.on) drawWatermark(cctx, W, H);
 }
 function renderCollageFull(opts){ const [W, H] = collageSize(), c = mk(W, H); renderCollage(c.getContext('2d'), W, H, false, opts); return c; }
 const usedCells = () => Array.from({length: cellCount()}, (_, i) => C.cells[i]).filter(Boolean).length;
@@ -1605,6 +1611,236 @@ function seedCollage(){
   buildTemplateThumbs();
   loadTemplateFonts().then(() => { buildTemplateThumbs(); if (tab === 'collage') drawCollage(); });
 }
+
+/* ================= cheeky (18+) word stickers ================= */
+// Comic-style word stickers. Hidden until the person chooses to show them; the choice is remembered.
+const CHEEKY = [
+  {text:'FFS', style:'burst', bg:'#ff5a5f', fg:'#ffffff'},
+  {text:'WTF?!', style:'bubble', bg:'#ffffff', fg:'#111111'},
+  {text:'BOLLOCKS', style:'stamp', fg:'#e23b3b'},
+  {text:'OH SHIT', style:'pill', bg:'#111111', fg:'#ffd23f'},
+  {text:'FUCK YEAH!', style:'burst', bg:'#ffd23f', fg:'#111111'},
+  {text:'SOD OFF', style:'bubble', bg:'#ffd23f', fg:'#111111'},
+  {text:'BLOODY HELL', style:'pill', bg:'#e23b3b', fg:'#ffffff'},
+  {text:'HOT MESS', style:'neon', fg:'#ff4fd8'},
+  {text:'NO FUCKS GIVEN', style:'stamp', fg:'#111111'},
+  {text:'BITCH PLEASE', style:'bubble', bg:'#ff7ac6', fg:'#ffffff'},
+  {text:'HUNGOVER', style:'pill', bg:'#3ddc97', fg:'#111111'},
+  {text:'ARSE', style:'burst', bg:'#9b6bff', fg:'#ffffff'},
+  {text:"THAT'S WHAT SHE SAID", style:'bubble', bg:'#ffffff', fg:'#111111'},
+  {text:"WINE O'CLOCK", style:'neon', fg:'#ffb547'},
+  {text:'CHEEKY', style:'pill', bg:'#ff5a5f', fg:'#ffffff'},
+  {text:'OMFG', style:'neon', fg:'#4de1ff'},
+  {text:'DONE WITH THIS SHIT', style:'pill', bg:'#111111', fg:'#ffffff'},
+  {text:'PISSED', style:'burst', bg:'#ff9f1a', fg:'#111111'},
+  {text:'LEGEND', style:'stamp', fg:'#2b6cff'},
+  {text:'KISS MY ASS', style:'bubble', bg:'#e23b3b', fg:'#ffffff'},
+];
+const CHEEKY_EMOJI = ['🖕','🍑','🍆','💩','🤬','🥴','🍺','🍷','🤡','💀','🙄','🥵','😈','🤪','🤭'];
+const WORD_FONT = '"Bungee", "Anton", Impact, system-ui, sans-serif';
+const WORD_SIZE = 60;
+const burstPaths = new Map();
+
+function wordMeasure(l){
+  mctx.font = `400 ${WORD_SIZE}px ${l.style === 'neon' ? '"Righteous", ' + WORD_FONT : WORD_FONT}`; mctx.letterSpacing = '0px';
+  return mctx.measureText(l.text).width;
+}
+/* Box around a word sticker, centred on 0,0, in its own units. */
+function wordBox(l){
+  const tw = wordMeasure(l);
+  if (l.style === 'bubble') return [-(tw+70)/2 - 4, -55 - 4, (tw+70)/2 + 4, 55 + 34];
+  if (l.style === 'burst'){ const rx = (tw/2 + 34)/0.74 + 6; return [-rx, -100, rx, 100]; }
+  if (l.style === 'stamp') return [-(tw+70)/2 - 12, -64, (tw+70)/2 + 12, 64];
+  if (l.style === 'neon') return [-(tw/2 + 30), -55, tw/2 + 30, 55];
+  return [-(tw+64)/2, -50, (tw+64)/2, 50];
+}
+function drawWord(ctx, l){
+  const tw = wordMeasure(l);
+  ctx.font = mctx.font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const ink = '#111111';
+  if (l.style === 'pill'){
+    ctx.fillStyle = l.bg; ctx.beginPath(); ctx.roundRect(-(tw+64)/2, -50, tw+64, 100, 50); ctx.fill();
+    ctx.fillStyle = l.fg; ctx.fillText(l.text, 0, 4);
+  } else if (l.style === 'bubble'){
+    const w = tw + 70, h = 110;
+    ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 30);
+    ctx.moveTo(-w/2 + 34, h/2 - 2); ctx.lineTo(-w/2 + 20, h/2 + 30); ctx.lineTo(-w/2 + 66, h/2 - 2);
+    ctx.fillStyle = l.bg; ctx.strokeStyle = ink; ctx.lineWidth = 6; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = l.bg; ctx.fillRect(-w/2 + 37, h/2 - 7, 26, 8);   // hide the seam where the tail meets the bubble
+    ctx.fillStyle = l.fg; ctx.fillText(l.text, 0, 4);
+  } else if (l.style === 'burst'){
+    const rx = (tw/2 + 34)/0.74, ry = 92, key = Math.round(rx);   // inner points clear the word
+    if (!burstPaths.has(key)){
+      const p = new Path2D(), n = 18;
+      for (let i = 0; i < n*2; i++){ const a = -Math.PI/2 + i*Math.PI/n, k = i % 2 ? 0.74 : 1; const x = Math.cos(a)*rx*k, y = Math.sin(a)*ry*k; i ? p.lineTo(x, y) : p.moveTo(x, y); }
+      p.closePath(); burstPaths.set(key, p);
+    }
+    const p = burstPaths.get(key);
+    ctx.fillStyle = l.bg; ctx.strokeStyle = ink; ctx.lineWidth = 6; ctx.fill(p); ctx.stroke(p);
+    ctx.fillStyle = l.fg; ctx.fillText(l.text, 0, 4);
+  } else if (l.style === 'stamp'){
+    ctx.rotate(-8*RAD);
+    const w = tw + 70, h = 104;
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 14); ctx.fill();
+    ctx.strokeStyle = l.fg; ctx.lineWidth = 7; ctx.stroke();
+    ctx.lineWidth = 2.5; ctx.beginPath(); ctx.roundRect(-w/2 + 11, -h/2 + 11, w - 22, h - 22, 8); ctx.stroke();
+    ctx.fillStyle = l.fg; ctx.fillText(l.text, 0, 4);
+  } else {
+    // Neon: a white core with a coloured glow.
+    ctx.save(); ctx.shadowColor = l.fg; ctx.shadowBlur = 34; ctx.fillStyle = l.fg; ctx.fillText(l.text, 0, 4); ctx.shadowBlur = 14; ctx.fillText(l.text, 0, 4); ctx.restore();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(l.text, 0, 4);
+  }
+}
+function addWordSticker(w){
+  const b = wordBox(w), bw = b[2] - b[0];
+  addLayer({type:'word', text:w.text, style:w.style, bg:w.bg || '', fg:w.fg, shadow:false, scale: minSide()*0.42/bw});
+}
+let cheekyOn = false;
+try { cheekyOn = localStorage.getItem('tinto.cheeky') === '1'; } catch { /* storage unavailable */ }
+function syncCheeky(){
+  $('#cheekyGrid').hidden = $('#cheekyEmoji').hidden = !cheekyOn;
+  $('#cheekyHint').hidden = cheekyOn;
+  $('#cheekyToggle').textContent = cheekyOn ? 'Hide' : 'Show';
+  if (cheekyOn && !$('#cheekyGrid').childElementCount) buildCheeky();
+}
+function buildCheeky(){
+  const grid = $('#cheekyGrid');
+  CHEEKY.forEach(w => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'stk'; b.title = 'Add ' + w.text;
+    const box = wordBox(w), bw = box[2] - box[0], bh = box[3] - box[1], k = Math.min(260/bw, 130/bh);
+    const c = mk(Math.round(bw*k), Math.round(bh*k)), x = c.getContext('2d');
+    x.scale(k, k); x.translate(-box[0], -box[1]); drawWord(x, w);
+    b.appendChild(c); b.onclick = () => addWordSticker(w); grid.appendChild(b);
+  });
+  const eg = $('#cheekyEmoji');
+  CHEEKY_EMOJI.forEach(ch => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'stk'; b.title = 'Add ' + ch; b.textContent = ch;
+    b.onclick = () => addLayer({type:'emoji', char:ch, shadow:false, scale:minSide()*0.2/100});
+    eg.appendChild(b);
+  });
+}
+$('#cheekyToggle').onclick = () => {
+  cheekyOn = !cheekyOn;
+  try { localStorage.setItem('tinto.cheeky', cheekyOn ? '1' : '0'); } catch { /* storage unavailable */ }
+  syncCheeky();
+};
+document.fonts.load(`400 60px "Bungee"`).then(() => { if (cheekyOn){ $('#cheekyGrid').innerHTML = ''; $('#cheekyEmoji').innerHTML = ''; buildCheeky(); } if (S.base) composite(); }).catch(() => {});
+syncCheeky();
+
+/* ================= watermark ================= */
+// Optional watermark in the bottom-right corner, shown live on the photo and added to exports.
+const WM_STYLES = [
+  {id:'pill', name:'Pill'},
+  {id:'minimal', name:'Minimal'},
+  {id:'brand', name:'Logo'},
+  {id:'signature', name:'Signature'},
+  {id:'stamp', name:'Outline'},
+  {id:'corner', name:'Corner ribbon'},
+];
+const WM = {on:false, style:'pill', text:'Made with Tinto', size:100, opacity:90};
+try { Object.assign(WM, JSON.parse(localStorage.getItem('tinto.watermark') || '{}')); } catch { /* defaults */ }
+function saveWM(){ try { localStorage.setItem('tinto.watermark', JSON.stringify(WM)); } catch { /* not remembered */ } }
+
+/* The Tinto mark (amber tile, slider t, eye), drawn at x, y with side s. */
+function drawTintoMark(ctx, x, y, s){
+  ctx.save(); ctx.translate(x, y); ctx.scale(s/100, s/100);
+  ctx.fillStyle = '#efb34a'; ctx.beginPath(); ctx.roundRect(0, 0, 100, 100, 24); ctx.fill();
+  ctx.translate(9, 9); ctx.scale(0.82, 0.82);
+  ctx.fillStyle = 'rgba(18,19,22,.28)'; ctx.beginPath(); ctx.roundRect(16, 37, 68, 9, 4.5); ctx.fill();
+  ctx.strokeStyle = '#121316'; ctx.lineWidth = 13; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(42, 16); ctx.lineTo(42, 66); ctx.quadraticCurveTo(42, 80, 56, 80); ctx.lineTo(62, 80); ctx.stroke();
+  ctx.fillStyle = '#121316'; ctx.beginPath(); ctx.roundRect(16, 37, 52, 9, 4.5); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(42, 25, 4.6, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#121316'; ctx.beginPath(); ctx.arc(43.2, 25, 2.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(68, 41.5, 11.5, 0, Math.PI*2); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 5.5; ctx.stroke();
+  ctx.restore();
+}
+
+function drawWatermark(ctx, W, H, wm = WM){
+  const text = (wm.text || '').trim() || 'Made with Tinto';
+  const base = Math.min(W, H), s = base*0.032*(wm.size/100), m = base*0.03;
+  ctx.save();
+  ctx.globalAlpha = wm.opacity/100;
+  ctx.textBaseline = 'middle'; ctx.letterSpacing = '0px';
+  const soft = () => { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = s*0.5; ctx.shadowOffsetY = s*0.08; };
+  if (wm.style === 'minimal'){
+    ctx.font = `600 ${s}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textAlign = 'right'; soft();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(text, W - m, H - m - s*0.5);
+  } else if (wm.style === 'pill'){
+    ctx.font = `600 ${s}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textAlign = 'left';
+    const tw = ctx.measureText(text).width, ph = s*2.1, icon = s*1.35, pw = s*0.8 + icon + s*0.55 + tw + s*0.9;
+    const x = W - m - pw, y = H - m - ph;
+    ctx.fillStyle = 'rgba(14,15,19,.6)'; ctx.beginPath(); ctx.roundRect(x, y, pw, ph, ph/2); ctx.fill();
+    drawTintoMark(ctx, x + s*0.8, y + (ph - icon)/2, icon);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(text, x + s*0.8 + icon + s*0.55, y + ph/2 + s*0.04);
+  } else if (wm.style === 'brand'){
+    ctx.font = `700 ${s*1.05}px "Sora", "Hanken Grotesk", system-ui, sans-serif`; ctx.textAlign = 'right';
+    const icon = s*2.1, x = W - m - icon, y = H - m - icon;
+    ctx.save(); soft(); drawTintoMark(ctx, x, y, icon); ctx.restore();
+    soft(); ctx.fillStyle = '#ffffff'; ctx.fillText(text, x - s*0.6, y + icon/2);
+  } else if (wm.style === 'signature'){
+    ctx.font = `700 ${s*1.7}px "Dancing Script", "Caveat", cursive`; ctx.textAlign = 'right'; soft();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(text, W - m, H - m - s*0.8);
+  } else if (wm.style === 'stamp'){
+    const t = text.toUpperCase(), sp = s*0.22;
+    ctx.font = `700 ${s*0.85}px "Hanken Grotesk", system-ui, sans-serif`; ctx.letterSpacing = sp + 'px'; ctx.textAlign = 'center';
+    const tw = ctx.measureText(t).width, bw = tw + s*1.6, bh = s*2;
+    const x = W - m - bw, y = H - m - bh;
+    soft(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s*0.09); ctx.beginPath(); ctx.roundRect(x, y, bw, bh, s*0.3); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(t, x + bw/2 + sp/2, y + bh/2 + s*0.04);
+  } else if (wm.style === 'corner'){
+    // A ribbon across the corner, cut off by the edges like a sash.
+    const band = s*1.9, r = s*4.6, len = r*4;
+    ctx.translate(W - r, H - r); ctx.rotate(-Math.PI/4);
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = s*0.6;
+    const g = ctx.createLinearGradient(-len/2, 0, len/2, 0); g.addColorStop(0, '#f9c867'); g.addColorStop(1, '#ff8f5a');
+    ctx.fillStyle = g; ctx.fillRect(-len/2, -band/2, len, band); ctx.restore();
+    ctx.font = `700 ${s*0.78}px "Hanken Grotesk", system-ui, sans-serif`; ctx.letterSpacing = (s*0.12) + 'px'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#1c1206'; ctx.fillText(text.toUpperCase(), 0, s*0.04, r*2.2);
+  }
+  ctx.restore();
+}
+
+/* Watermark options in the Export dialog */
+function wmPreviewSource(){
+  // The photo (or collage) being exported, shrunk, for the style tiles.
+  const src = tab === 'collage' ? ccv : view, w = 300, h = 200, c = mk(w, h), x = c.getContext('2d');
+  const k = Math.max(w/src.width, h/src.height);
+  x.drawImage(src, (w - src.width*k)/2, (h - src.height*k)/2, src.width*k, src.height*k);
+  return c;
+}
+function redrawPreview(){ if (!S.base) return; if (tab === 'collage') drawCollage(); else composite(); }
+function buildWmTiles(){
+  const wrap = $('#wmStyles'); wrap.innerHTML = '';
+  if (!S.base) return;
+  const was = WM.on; WM.on = false; redrawPreview();   // tiles start from the clean picture
+  const srcCanvas = wmPreviewSource();
+  WM.on = was; redrawPreview();
+  WM_STYLES.forEach(st => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', String(WM.style === st.id));
+    const c = mk(300, 200), x = c.getContext('2d'); x.drawImage(srcCanvas, 0, 0);
+    drawWatermark(x, 300, 200, {...WM, style: st.id, size: Math.max(WM.size, 130), opacity: Math.max(WM.opacity, 80)});
+    const n = document.createElement('span'); n.textContent = st.name;
+    b.append(c, n);
+    b.onclick = () => { WM.style = st.id; saveWM(); syncWM(); };
+    wrap.appendChild(b);
+  });
+}
+function syncWM(){
+  $('#wmOn').checked = WM.on; $('#wmOpts').hidden = !WM.on;
+  if (document.activeElement !== $('#wmText')) $('#wmText').value = WM.text;
+  document.querySelectorAll('#wmStyles button').forEach((b, i) => b.setAttribute('aria-pressed', String(WM_STYLES[i].id === WM.style)));
+  ['wmSize','wmOpacity'].forEach(id => { const i = $('#'+id), v = id === 'wmSize' ? WM.size : WM.opacity; i.value = v; fill(i, v, +i.min, +i.max); $('#'+id+'Out').textContent = v + '%'; });
+  redrawPreview();
+}
+$('#wmOn').addEventListener('change', e => { WM.on = e.target.checked; saveWM(); if (WM.on) buildWmTiles(); syncWM(); });
+$('#wmText').addEventListener('input', e => { WM.text = e.target.value; saveWM(); syncWM(); });
+$('#wmText').addEventListener('change', () => buildWmTiles());
+$('#wmSize').addEventListener('input', e => { WM.size = +e.target.value; saveWM(); syncWM(); });
+$('#wmOpacity').addEventListener('input', e => { WM.opacity = +e.target.value; saveWM(); syncWM(); });
+$('#exportBtn').addEventListener('click', () => { if (WM.on) buildWmTiles(); syncWM(); });
+document.fonts.load('700 40px "Dancing Script"').catch(() => {});
+syncWM();
 
 /* ================= toast ================= */
 let tt = 0;

@@ -146,6 +146,10 @@
           <div class="stickers" id="stickerGrid"></div>
           <div class="group-h">Emoji</div>
           <div class="stickers emoji" id="emojiGrid"></div>
+          <div class="group-h">Cheeky <span class="tag18">18+</span><button class="linkbtn" id="cheekyToggle" type="button">Show</button></div>
+          <p class="hint" id="cheekyHint">Swear words and adult jokes. Hidden until you choose to show them.</p>
+          <div class="cheeky" id="cheekyGrid" hidden></div>
+          <div class="stickers emoji" id="cheekyEmoji" hidden></div>
           <div class="sub" id="stickerEdit" hidden>
             <div class="group-h">Selected sticker</div>
             <div class="field"><span>Colour</span><div class="swatches" id="scolor"></div></div>
@@ -231,6 +235,15 @@
       <input type="range" id="quality" min="40" max="100" value="90">
     </div>
     <div class="readout" id="exportInfo"></div>
+    <div class="wm">
+      <label class="check"><input type="checkbox" id="wmOn"> Add a watermark in the bottom-right corner</label>
+      <div class="sub" id="wmOpts" hidden>
+        <div class="wm-styles" id="wmStyles"></div>
+        <label class="field"><span>Watermark text</span><input class="input" type="text" id="wmText" maxlength="40" placeholder="Made with Tinto"></label>
+        <div class="row"><label for="wmSize">Size</label><output id="wmSizeOut"></output><input type="range" id="wmSize" min="60" max="180" value="100"></div>
+        <div class="row"><label for="wmOpacity">Opacity</label><output id="wmOpacityOut"></output><input type="range" id="wmOpacity" min="30" max="100" value="90"></div>
+      </div>
+    </div>
     <div class="fallback" id="fallback" hidden>
       <p class="hint">Saving isn't available in this view. Right-click (or long-press) the image below and choose “Save image”.</p>
       <img id="fallbackImg" alt="Exported photo">
