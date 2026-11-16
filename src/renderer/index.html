@@ -51,6 +51,7 @@
       <button class="tool" role="tab" data-tab="filters" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="10" r="5"/><circle cx="12" cy="15" r="5"/></svg>Filters</button>
       <button class="tool" role="tab" data-tab="background" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="3 2.5"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/></svg>Background</button>
       <button class="tool" role="tab" data-tab="retouch" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 4l5 5-9.5 9.5a3 3 0 0 1-4.2 0l-.8-.8a3 3 0 0 1 0-4.2z"/><path d="M12.5 6.5l5 5"/><path d="M4 20l2.5-2.5"/></svg>Retouch</button>
+      <button class="tool" role="tab" data-tab="effects" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L15.5 8.5"/><path d="M13.5 6.5l4 4"/><path d="M18 3v3M16.5 4.5h3M7 4v2M6 5h2M19.5 14v2M18.5 15h2"/></svg>Effects</button>
       <button class="tool" role="tab" data-tab="crop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2v16h16M2 6h16v16"/></svg>Crop</button>
       <button class="tool" role="tab" data-tab="resize" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="9" width="12" height="12" rx="1"/><path d="M13 3h8v8M21 3l-8 8"/></svg>Resize</button>
       <button class="tool" role="tab" data-tab="text" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</button>
@@ -110,6 +111,33 @@
           <div class="row"><label for="rtSize">Brush size</label><output id="rtSizeOut"></output><input type="range" id="rtSize" min="1" max="100" value="25"></div>
           <div class="row" id="rtStrengthRow"><label for="rtStrength">Strength</label><output id="rtStrengthOut"></output><input type="range" id="rtStrength" min="10" max="100" value="60"></div>
           <p class="hint">Zoom in for fine work: scroll, pinch, or Ctrl +. Undo takes back a stroke at a time.</p>
+        </div>
+
+        <div class="pane" id="pane-effects" hidden>
+          <h2 class="pane-title">Effects</h2>
+          <div class="frames fx-grid" id="fxGrid"></div>
+          <div class="sub" id="fxOpts" hidden>
+            <p class="hint" id="fxHint"></p>
+            <div class="seg" id="fxTex" data-for="double">
+              <button type="button" data-v="forest">Forest</button><button type="button" data-v="clouds">Clouds</button><button type="button" data-v="city">City lights</button><button type="button" data-v="own">Your photo…</button>
+            </div>
+            <div class="seg" id="fxShape" data-for="focus"><button type="button" data-v="circle">Circle</button><button type="button" data-v="band">Band</button></div>
+            <div class="seg" id="fxMode" data-for="brush"><button type="button" data-v="pixel">Pixelate</button><button type="button" data-v="blur">Blur</button></div>
+            <div class="row"><label for="fxAmt" id="fxAmtLabel">Strength</label><output id="fxAmtOut"></output><input type="range" id="fxAmt" min="0" max="100" value="60"></div>
+            <div class="row" data-for="motion"><label for="fxAngle">Direction</label><output id="fxAngleOut"></output><input type="range" id="fxAngle" min="-90" max="90" value="0"></div>
+            <div class="row" data-for="focus"><label for="fxSize">Sharp area</label><output id="fxSizeOut"></output><input type="range" id="fxSize" min="5" max="100" value="40"></div>
+            <div class="row" data-for="brush"><label for="fxBsize">Brush size</label><output id="fxBsizeOut"></output><input type="range" id="fxBsize" min="1" max="100" value="30"></div>
+            <label class="check fx-ai" data-for="double"><input type="checkbox" id="fxInside"> Only inside the person</label>
+            <label class="check fx-ai" data-for="motion"><input type="checkbox" id="fxKeep"> Keep the person sharp</label>
+            <div class="fx-btns">
+              <button class="btn" type="button" id="fxShuffle" data-for="glitch leak dust">Shuffle</button>
+              <button class="btn" type="button" id="fxClear" data-for="brush">Clear brushing</button>
+              <button class="btn" type="button" id="fxApply">Apply and add another</button>
+              <button class="btn" type="button" id="fxRemove">Remove</button>
+            </div>
+          </div>
+          <input type="file" id="fxFile" accept="image/*" hidden>
+          <p class="hint">One effect at a time. Apply it to lock it into the photo, then pick another to stack them.</p>
         </div>
 
         <div class="pane" id="pane-crop" hidden>

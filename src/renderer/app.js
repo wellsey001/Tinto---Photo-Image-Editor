@@ -133,9 +133,9 @@ const TEXT_PRESETS = [
 /* ================= state + history ================= */
 const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30};
 const FRAME_DEFAULT = {style:'none', colour:'', size:40};
-let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, name:'photo', label:''};
+let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:null, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
-const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame), frame:{...S.frame}});
+const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null});
 function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && a.bj===b.bj && KEYS.every(k => a.params[k]===b.params[k]); }
 function commit(){
   const s = snap();
@@ -148,8 +148,8 @@ function commit(){
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
-  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)};
-  if (!getSel()) selId = null; syncBg(); syncFrame();
+  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)}; S.fx = st.fx ? clone(st.fx) : {...FX_DEFAULT};
+  if (!getSel()) selId = null; syncBg(); syncFrame(); syncFx();
   syncUI();
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
@@ -432,14 +432,14 @@ function rebuildPreview(zoomOnly){
   prevData = scaleCanvas(b, w, h).getContext('2d').getImageData(0,0,w,h);
   for (const c of [view, photoC, rawC]){ c.width = w; c.height = h; }
   rawX.putImageData(prevData, 0, 0);
-  if (!zoomOnly) buildThumbs();
+  if (!zoomOnly){ buildThumbs(); if (typeof tab !== 'undefined' && tab === 'effects') drawFxThumbs(); }
   draw(); updateInfo();
   if (tab==='crop') requestAnimationFrame(placeOverlay);
 }
 function render(){ if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
 function draw(){
   if (!prevData) return;
-  const out = processImage(prevData, effective());
+  const out = processImage(fxPreviewData(), effective());
   photoX.putImageData(out, 0, 0); drawHisto(out);
   if (S.bg.mode !== 'original'){
     const m = bgMaskFor(S.base);
@@ -1056,7 +1056,9 @@ function setTab(name){
   if ((name === 'crop' || name === 'collage') && zoomLevel !== 1) resetZoom();
   zoomUI.hidden = name === 'collage';
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
-  ['adjust','filters','background','retouch','crop','resize','text','stickers','draw','frames','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  ['adjust','filters','background','retouch','effects','crop','resize','text','stickers','draw','frames','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  if (name === 'effects') drawFxThumbs();
+  syncFx();
   stage.classList.toggle('retouching', name==='retouch'); if (name!=='retouch') rtCursor.hidden = true;
   $('#cropLayer').hidden = name!=='crop';
   stage.classList.toggle('drawing', name==='draw');
@@ -1519,6 +1521,325 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { if (e.key === ' '){ spaceHeld = false; stage.classList.remove('can-pan'); } });
 window.addEventListener('blur', () => { spaceHeld = false; stage.classList.remove('can-pan'); });
 
+
+/* ================= Effects ================= */
+// One effect at a time, drawn onto the photo before Adjust and Filters. "Apply" bakes it in so another can go on top.
+const FX_DEFAULT = {id:'none', amt:60, angle:0, cx:0.5, cy:0.5, size:40, shape:'circle', mode:'pixel', bsize:30, strokes:[], tex:'forest', inside:false, keep:false, seed:1};
+const FX = [
+  {id:'none', name:'None'},
+  {id:'glitch', name:'Glitch', amt:55, hint:'Shifted colour channels and torn scan lines. Shuffle for a different tear.'},
+  {id:'double', name:'Double exposure', amt:75, hint:'Blends a second picture into yours. Dark parts of it show your photo, light parts fade it out.'},
+  {id:'motion', name:'Motion blur', amt:45, hint:'Streaks the photo in one direction, like a fast pan.'},
+  {id:'focus', name:'Focus blur', amt:55, hint:'Tap or drag on the photo to choose what stays sharp. Everything else melts away.'},
+  {id:'leak', name:'Light leak', amt:70, hint:'Warm film light bleeding in from the edges. Shuffle for another one.'},
+  {id:'dust', name:'Film dust', amt:55, hint:'Specks, hairs and scratches, like an old scanned negative. Shuffle to scatter them again.'},
+  {id:'brush', name:'Pixelate brush', amt:60, hint:'Brush over faces, number plates or anything you want hidden.'},
+];
+const FX_BY_ID = Object.fromEntries(FX.map(f => [f.id, f]));
+const FX_IMG = new Map();     // double-exposure photos the person picked
+const fxRng = s => () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+S.fx = {...FX_DEFAULT};
+
+function fxBlur(src, r){
+  const W = src.width, H = src.height, p = Math.ceil(r*2.5);
+  const b = mk(W + p*2, H + p*2), bx = b.getContext('2d');
+  bx.drawImage(src, 0, 0, W + p*2, H + p*2); bx.drawImage(src, p, p);      // stretched edges stop the blur going dark
+  const o = mk(W, H), ox = o.getContext('2d');
+  ox.filter = `blur(${r.toFixed(1)}px)`; ox.drawImage(b, -p, -p); ox.filter = 'none';
+  return o;
+}
+function fxSoftMask(m, W, H, feather){
+  const c = mk(W, H), x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high'; if (feather > 0.3) x.filter = `blur(${feather.toFixed(1)}px)`;
+  x.drawImage(m, 0, 0, W, H); return c;
+}
+function fxCover(img, W, H){
+  const c = mk(W, H), x = c.getContext('2d'), k = Math.max(W / img.width, H / img.height);
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(img, (W - img.width*k)/2, (H - img.height*k)/2, img.width*k, img.height*k); return c;
+}
+/* the built-in pictures for double exposure, drawn at whatever size is needed */
+const texCache = new Map();
+function fxTexture(name, W, H){
+  if (name !== 'forest' && name !== 'clouds' && name !== 'city'){ const img = FX_IMG.get(name); return img ? fxCover(img, W, H) : fxTexture('forest', W, H); }
+  const key = name + W + 'x' + H; if (texCache.has(key)) return texCache.get(key);
+  const c = mk(W, H), x = c.getContext('2d'), K = Math.max(W, H), R = fxRng(name.length * 977 + 3);
+  if (name === 'forest'){
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#f6f3ee'); g.addColorStop(0.55, '#d9dfe3'); g.addColorStop(1, '#aab6bf');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const rows = [[0.55, '#9aa7b0', 0.16], [0.68, '#5d6c76', 0.22], [0.82, '#28343c', 0.3]];
+    for (const [base, col, ht] of rows){
+      x.fillStyle = col; let px = -K*0.03;
+      while (px < W + K*0.03){
+        const h = H*ht*(0.55 + R()*0.6), w = h*0.36, y = H*base + R()*H*0.05;
+        x.beginPath(); x.moveTo(px, y - h);
+        for (let s=1; s<=5; s++){ const yy = y - h + h*s/5, ww = w*s/5*0.55 + w*0.12; x.lineTo(px + ww, yy); x.lineTo(px + ww*0.45, yy); }
+        for (let s=5; s>=1; s--){ const yy = y - h + h*s/5, ww = w*s/5*0.55 + w*0.12; x.lineTo(px - ww*0.45, yy); x.lineTo(px - ww, yy); }
+        x.closePath(); x.fill(); x.fillRect(px - w*0.05, y - 1, w*0.1, H);
+        px += w*(0.45 + R()*0.5);
+      }
+      x.fillRect(0, H*base + H*0.04, W, H);
+    }
+  } else if (name === 'clouds'){
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#3d6f9e'); g.addColorStop(1, '#a9c9e3');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    for (let i=0; i<46; i++){
+      const cx = R()*W, cy = R()*H*0.95, r = K*(0.05 + R()*0.11);
+      for (let j=0; j<5; j++){
+        const bx = cx + (R()-0.5)*r*1.6, by = cy + (R()-0.5)*r*0.5, br = r*(0.5 + R()*0.6);
+        const rg = x.createRadialGradient(bx, by, 0, bx, by, br); rg.addColorStop(0, 'rgba(255,255,255,.85)'); rg.addColorStop(0.6, 'rgba(255,255,255,.35)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = rg; x.fillRect(bx - br, by - br, br*2, br*2);
+      }
+    }
+  } else {
+    x.fillStyle = '#0b0d1a'; x.fillRect(0, 0, W, H);
+    const cols = ['255,190,90', '255,120,80', '255,230,170', '120,200,255', '255,110,180'];
+    for (let i=0; i<140; i++){
+      const bx = R()*W, by = R()*H, br = K*(0.008 + R()*R()*0.05), col = cols[Math.floor(R()*cols.length)], a = 0.25 + R()*0.6;
+      const rg = x.createRadialGradient(bx, by, 0, bx, by, br); rg.addColorStop(0, `rgba(${col},${a})`); rg.addColorStop(0.75, `rgba(${col},${a*0.8})`); rg.addColorStop(1, `rgba(${col},0)`);
+      x.fillStyle = rg; x.beginPath(); x.arc(bx, by, br, 0, Math.PI*2); x.fill();
+    }
+  }
+  if (texCache.size > 8) texCache.clear();
+  texCache.set(key, c); return c;
+}
+const fxLayerCache = new WeakMap();
+/* draw effect fx onto a copy of src (any size); base is the full photo, for its person mask */
+function fxApply(src, fx, base, tag){
+  const W = src.width, H = src.height, K = Math.max(W, H), t = fx.amt / 100;
+  const out = mk(W, H), o = out.getContext('2d', {willReadFrequently: fx.id === 'glitch'}); o.drawImage(src, 0, 0);
+  const mask = base ? bgMaskFor(base) : null;
+  if (fx.id === 'glitch'){
+    const id = o.getImageData(0, 0, W, H), sd = id.data, od = new Uint8ClampedArray(sd.length), R = fxRng(fx.seed*7919 + 11);
+    const shift = Math.round(t * K * 0.012), rowOff = new Int32Array(H), tint = new Int8Array(H);
+    const bands = Math.round(3 + t*16);
+    for (let b=0; b<bands; b++){
+      const y0 = Math.floor(R()*H), bh = Math.max(1, Math.round((R()*0.05 + 0.004) * H * (0.4 + t))), off = Math.round((R()-0.5) * 2 * t * K * 0.07), tn = R() < 0.3 ? (R() < 0.5 ? 1 : 2) : 0;
+      for (let y=y0; y<Math.min(H, y0+bh); y++){ rowOff[y] = off; tint[y] = tn; }
+    }
+    const gap = Math.max(2, Math.round(K/450)), dark = 1 - 0.18*t;
+    for (let y=0; y<H; y++){
+      const ro = rowOff[y], row = y*W*4, sl = y % gap === 0 ? dark : 1, tn = tint[y];
+      for (let x=0; x<W; x++){
+        const sx = x - ro, rx = Math.min(W-1, Math.max(0, sx + shift)), gx = Math.min(W-1, Math.max(0, sx)), bx = Math.min(W-1, Math.max(0, sx - shift));
+        const i = row + x*4;
+        let r = sd[row + rx*4], g = sd[row + gx*4 + 1], b = sd[row + bx*4 + 2];
+        if (tn === 1){ const tmp = r; r = b; b = tmp; } else if (tn === 2){ r = 255 - r; g = Math.min(255, g*1.2); }
+        od[i] = r*sl; od[i+1] = g*sl; od[i+2] = b*sl; od[i+3] = 255;
+      }
+    }
+    id.data.set(od); o.putImageData(id, 0, 0);
+  } else if (fx.id === 'double'){
+    const tex = fxTexture(fx.tex, W, H);
+    if (mask && fx.inside){
+      const m = fxSoftMask(mask, W, H, K*0.003);
+      const subj = mk(W, H), sx = subj.getContext('2d'); sx.drawImage(src, 0, 0); sx.globalCompositeOperation = 'destination-in'; sx.drawImage(m, 0, 0);
+      const inner = mk(W, H), ix = inner.getContext('2d'); ix.drawImage(tex, 0, 0); ix.globalCompositeOperation = 'destination-in'; ix.drawImage(m, 0, 0);
+      o.globalAlpha = 0.35 + t*0.6; o.fillStyle = '#f3efe9'; o.fillRect(0, 0, W, H); o.globalAlpha = 1;
+      o.drawImage(subj, 0, 0);
+      o.globalCompositeOperation = 'screen'; o.globalAlpha = t; o.drawImage(inner, 0, 0);
+    } else {
+      o.globalCompositeOperation = 'screen'; o.globalAlpha = t*0.95; o.drawImage(tex, 0, 0);
+    }
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  } else if (fx.id === 'motion'){
+    const L = t * K * 0.09, a = fx.angle * RAD, dx = Math.cos(a), dy = Math.sin(a), n = 30;
+    for (let i=1; i<=n; i++){ const off = (i/n - 0.5) * L; o.globalAlpha = 1/(i+1); o.drawImage(src, dx*off, dy*off); }
+    o.globalAlpha = 1;
+    if (mask && fx.keep){
+      const subj = mk(W, H), sx = subj.getContext('2d'); sx.drawImage(src, 0, 0);
+      sx.globalCompositeOperation = 'destination-in'; sx.drawImage(fxSoftMask(mask, W, H, K*0.004), 0, 0);
+      o.drawImage(subj, 0, 0);
+    }
+  } else if (fx.id === 'focus'){
+    const b = fxBlur(src, (0.003 + t*0.03) * K), bx = b.getContext('2d'), cx = fx.cx*W, cy = fx.cy*H;
+    let g;
+    if (fx.shape === 'band'){
+      const half = (fx.size/100) * H * 0.32, fe = H*0.14;
+      g = bx.createLinearGradient(0, cy - half - fe, 0, cy + half + fe);
+      const tot = 2*(half + fe), s1 = fe/tot, s2 = (fe + 2*half)/tot;
+      g.addColorStop(0, '#000'); g.addColorStop(s1, 'rgba(0,0,0,0)'); g.addColorStop(s2, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000');
+    } else {
+      const r0 = (fx.size/100) * K * 0.32, r1 = r0*1.7 + K*0.06;
+      g = bx.createRadialGradient(cx, cy, r0, cx, cy, r1); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000');
+    }
+    bx.globalCompositeOperation = 'destination-in'; bx.fillStyle = g; bx.fillRect(0, 0, W, H);
+    o.drawImage(b, 0, 0);
+  } else if (fx.id === 'leak'){
+    const R = fxRng(fx.seed*104729 + 7), L = mk(W, H), lx = L.getContext('2d');
+    const pals = [['255,96,20', '255,190,80'], ['255,40,110', '255,150,60'], ['255,205,100', '255,110,40'], ['255,70,200', '130,90,255'], ['255,130,50', '90,210,255'], ['255,60,40', '255,220,120']];
+    const pal = pals[Math.floor(R()*pals.length)], n = 2 + Math.floor(R()*2);
+    for (let i=0; i<n; i++){
+      const side = Math.floor(R()*4), along = R();
+      const px = side === 0 ? -K*0.05 : side === 1 ? W + K*0.05 : along*W, py = side < 2 ? along*H : side === 2 ? -K*0.05 : H + K*0.05;
+      const r = K*(0.35 + R()*0.4), col = pal[i % 2];
+      const rg = lx.createRadialGradient(px, py, 0, px, py, r);
+      rg.addColorStop(0, `rgba(${col},.95)`); rg.addColorStop(0.35, `rgba(${col},.55)`); rg.addColorStop(1, `rgba(${col},0)`);
+      lx.fillStyle = rg; lx.fillRect(0, 0, W, H);
+    }
+    const sx = R() < 0.5 ? W*(0.05 + R()*0.2) : W*(0.75 + R()*0.2), sw = K*(0.04 + R()*0.08);
+    const lg = lx.createLinearGradient(sx - sw, 0, sx + sw, 0); lg.addColorStop(0, `rgba(${pal[1]},0)`); lg.addColorStop(0.5, `rgba(${pal[1]},.5)`); lg.addColorStop(1, `rgba(${pal[1]},0)`);
+    lx.fillStyle = lg; lx.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'screen'; o.globalAlpha = t; o.drawImage(L, 0, 0);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  } else if (fx.id === 'dust'){
+    const R = fxRng(fx.seed*7907 + 5), L = mk(W, H), lx = L.getContext('2d');
+    const specks = Math.round(60 + 420*t);
+    for (let i=0; i<specks; i++){
+      const x = R()*W, y = R()*H, r = K*(0.0005 + Math.pow(R(), 3)*0.003), light = R() < 0.35, a = 0.3 + R()*0.55;
+      lx.fillStyle = light ? `rgba(255,252,242,${a})` : `rgba(22,16,10,${a})`;
+      lx.beginPath(); lx.ellipse(x, y, r, r*(0.6 + R()*0.5), R()*Math.PI, 0, Math.PI*2); lx.fill();
+    }
+    lx.lineCap = 'round';
+    const hairs = Math.round(3 + 12*t);
+    for (let i=0; i<hairs; i++){
+      const x = R()*W, y = R()*H, len = K*(0.012 + R()*0.035), a = R()*Math.PI*2, light = R() < 0.4;
+      lx.strokeStyle = light ? 'rgba(255,250,240,.6)' : 'rgba(20,14,10,.6)'; lx.lineWidth = Math.max(0.6, K*0.0008);
+      lx.beginPath(); lx.moveTo(x, y);
+      lx.bezierCurveTo(x + Math.cos(a)*len*0.4 + (R()-0.5)*len*0.6, y + Math.sin(a)*len*0.4 + (R()-0.5)*len*0.6, x + Math.cos(a)*len*0.8 + (R()-0.5)*len*0.6, y + Math.sin(a)*len*0.8 + (R()-0.5)*len*0.6, x + Math.cos(a)*len, y + Math.sin(a)*len);
+      lx.stroke();
+    }
+    const scr = Math.round(1 + 4*t);
+    for (let i=0; i<scr; i++){
+      let x = R()*W; const y0 = R()*H*0.4, y1 = H - R()*H*0.3;
+      lx.strokeStyle = `rgba(255,250,240,${0.18 + R()*0.25})`; lx.lineWidth = Math.max(0.5, K*0.0006);
+      lx.beginPath(); lx.moveTo(x, y0);
+      for (let y=y0; y<y1; y+=H/30){ x += (R()-0.5)*K*0.002; lx.lineTo(x, y); }
+      lx.stroke();
+    }
+    o.globalAlpha = Math.min(1, 0.45 + t*0.7); o.drawImage(L, 0, 0); o.globalAlpha = 1;
+  } else if (fx.id === 'brush' && fx.strokes.length){
+    const key = `${fx.mode}|${fx.amt}|${W}x${H}`;
+    let E = tag && fxLayerCache.get(tag);
+    if (!E || E.key !== key){
+      let c;
+      if (fx.mode === 'blur') c = fxBlur(src, (0.006 + t*0.03) * K);
+      else {
+        const bs = Math.max(3, Math.round(K * (0.006 + t*0.03))), sw = Math.max(1, Math.round(W/bs)), sh = Math.max(1, Math.round(H/bs));
+        const s = scaleCanvas(src, sw, sh); c = mk(W, H); const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false; cx.drawImage(s, 0, 0, W, H);
+      }
+      E = {key, c}; if (tag) fxLayerCache.set(tag, E);
+    }
+    const M = mk(W, H), mx = M.getContext('2d');
+    mx.strokeStyle = mx.fillStyle = '#fff'; mx.lineCap = mx.lineJoin = 'round';
+    for (const st of fx.strokes){
+      const r = st.r * K, p = st.pts; mx.lineWidth = r*2;
+      if (p.length <= 2){ mx.beginPath(); mx.arc(p[0]*W, p[1]*H, r, 0, Math.PI*2); mx.fill(); continue; }
+      mx.beginPath(); mx.moveTo(p[0]*W, p[1]*H); for (let i=2; i<p.length; i+=2) mx.lineTo(p[i]*W, p[i+1]*H); mx.stroke();
+    }
+    const L = mk(W, H), lx = L.getContext('2d'); lx.drawImage(E.c, 0, 0);
+    lx.globalCompositeOperation = 'destination-in'; lx.filter = `blur(${Math.max(0.5, K*0.0015).toFixed(1)}px)`; lx.drawImage(M, 0, 0); lx.filter = 'none';
+    o.drawImage(L, 0, 0);
+  }
+  return out;
+}
+let fxCache = {key:'', src:null, out:null};
+function fxPreviewData(){
+  if (!S.fx || S.fx.id === 'none' || !prevData) return prevData;
+  const key = JSON.stringify(S.fx) + (bgMaskFor(S.base) ? 'm' : '');
+  if (fxCache.src === prevData && fxCache.key === key) return fxCache.out;
+  const c = mk(prevData.width, prevData.height); c.getContext('2d').putImageData(prevData, 0, 0);
+  const r = fxApply(c, S.fx, S.base, prevData);
+  fxCache = {key, src:prevData, out:r.getContext('2d').getImageData(0, 0, c.width, c.height)};
+  return fxCache.out;
+}
+function fxFull(b){
+  if (!S.fx || S.fx.id === 'none') return b.getContext('2d').getImageData(0, 0, b.width, b.height);
+  const r = fxApply(b, S.fx, b); return r.getContext('2d').getImageData(0, 0, b.width, b.height);
+}
+
+/* panel */
+const fxThumbs = [];
+(function buildFx(){
+  const grid = $('#fxGrid');
+  for (const f of FX){
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = f.id; b.setAttribute('aria-pressed', 'false');
+    const c = mk(150, 112), lab = document.createElement('span'); lab.textContent = f.name;
+    b.append(c, lab); grid.appendChild(b); fxThumbs.push({c, f});
+    b.onclick = () => setFx(f.id);
+  }
+})();
+function drawFxThumbs(){
+  if (!S.base) return;
+  const src = fxCover(rawC.width > 10 ? rawC : S.base, 150, 112);
+  for (const {c, f} of fxThumbs){
+    const fx = {...FX_DEFAULT, id:f.id, amt:f.amt || 60, tex:'forest', strokes: f.id === 'brush' ? [{r:0.12, pts:[0.3, 0.35, 0.5, 0.5, 0.7, 0.62]}] : []};
+    c.getContext('2d').drawImage(f.id === 'none' ? src : fxApply(src, fx, null), 0, 0);
+  }
+}
+function setFx(id){
+  if (!S.base) return;
+  const f = FX_BY_ID[id];
+  S.fx = id === 'none' ? {...FX_DEFAULT} : {...FX_DEFAULT, id, amt: f.amt || 60, tex: S.fx.tex, inside: S.fx.inside, keep: S.fx.keep, seed: S.fx.seed};
+  if ((S.fx.inside && id === 'double') || (S.fx.keep && id === 'motion')) ensureBgMask();
+  commit(); render(); syncFx();
+}
+const fxChanged = () => render();
+const paintFxAmt = bindRange('fxAmt', () => S.fx.amt, v => { S.fx.amt = v; fxChanged(); });
+const paintFxAngle = bindRange('fxAngle', () => S.fx.angle, v => { S.fx.angle = v; fxChanged(); }, v => v + '°');
+const paintFxSize = bindRange('fxSize', () => S.fx.size, v => { S.fx.size = v; fxChanged(); });
+const paintFxBsize = bindRange('fxBsize', () => S.fx.bsize, v => { S.fx.bsize = v; });
+function fxSeg(id, key){
+  document.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => {
+    if (key === 'tex' && b.dataset.v === 'own'){ $('#fxFile').click(); return; }
+    S.fx[key] = b.dataset.v; commit(); fxChanged(); syncFx();
+  });
+}
+fxSeg('fxTex', 'tex'); fxSeg('fxShape', 'shape'); fxSeg('fxMode', 'mode');
+$('#fxFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const img = await loadImageFile(f); const ref = 'img-' + Date.now().toString(36); FX_IMG.set(ref, img); S.fx.tex = ref; commit(); fxChanged(); syncFx(); }
+  catch { toast('That picture couldn’t be read. Try a JPG or PNG.'); }
+});
+$('#fxInside').onchange = e => { S.fx.inside = e.target.checked; if (S.fx.inside) ensureBgMask(); commit(); fxChanged(); };
+$('#fxKeep').onchange = e => { S.fx.keep = e.target.checked; if (S.fx.keep) ensureBgMask(); commit(); fxChanged(); };
+$('#fxShuffle').onclick = () => { S.fx.seed = (S.fx.seed % 9973) + 1 + Math.floor(Math.random()*500); commit(); fxChanged(); };
+$('#fxClear').onclick = () => { S.fx.strokes = []; commit(); fxChanged(); };
+$('#fxRemove').onclick = () => setFx('none');
+$('#fxApply').onclick = () => {
+  if (!S.base || S.fx.id === 'none') return;
+  const b = S.base, out = fxApply(b, S.fx, b), m = bgMaskFor(b);
+  if (m) bgMasks.set(out, m);
+  S.base = out; S.fx = {...FX_DEFAULT, seed: S.fx.seed}; commit(); rebuildPreview(); syncFx();
+  toast('Effect applied. Pick another to add on top.');
+};
+function syncFx(){
+  const fx = S.fx, on = fx.id !== 'none', f = FX_BY_ID[fx.id] || FX[0];
+  document.querySelectorAll('#fxGrid button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === fx.id)));
+  $('#fxOpts').hidden = !on;
+  $('#fxHint').textContent = f.hint || '';
+  const ai = !!(window.tinto && window.tinto.removeBackground);
+  document.querySelectorAll('#fxOpts [data-for]').forEach(el => { el.hidden = !el.dataset.for.split(' ').includes(fx.id) || (el.classList.contains('fx-ai') && !ai); });
+  $('#fxAmtLabel').textContent = fx.id === 'brush' ? (fx.mode === 'blur' ? 'Blur amount' : 'Block size') : 'Strength';
+  const own = !['forest','clouds','city'].includes(fx.tex);
+  document.querySelectorAll('#fxTex button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.tex || (own && b.dataset.v === 'own'))));
+  document.querySelectorAll('#fxShape button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.shape)));
+  document.querySelectorAll('#fxMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.mode)));
+  $('#fxInside').checked = !!fx.inside; $('#fxKeep').checked = !!fx.keep;
+  paintFxAmt(); paintFxAngle(); paintFxSize(); paintFxBsize();
+  stage.classList.toggle('fx-brush', tab === 'effects' && fx.id === 'brush');
+  stage.classList.toggle('fx-focus', tab === 'effects' && fx.id === 'focus');
+}
+/* brushing and choosing the focus point on the photo */
+let fxDrag = null;
+function fxPointerDown(e){
+  const id = S.fx.id; if (id !== 'brush' && id !== 'focus') return false;
+  const p = clientToImg(e), nx = p.x / S.base.width, ny = p.y / S.base.height;
+  if (id === 'focus'){ S.fx.cx = clamp(nx, 0, 1); S.fx.cy = clamp(ny, 0, 1); fxDrag = {focus:true}; }
+  else {
+    const st = {r: (0.006 + S.fx.bsize/100*0.07) * Math.min(S.base.width, S.base.height) / Math.max(S.base.width, S.base.height), pts:[nx, ny]};
+    S.fx.strokes = [...S.fx.strokes, st]; fxDrag = {st};
+  }
+  fxChanged(); return true;
+}
+function fxPointerMove(e){
+  const p = clientToImg(e), nx = p.x / S.base.width, ny = p.y / S.base.height;
+  if (fxDrag.focus){ S.fx.cx = clamp(nx, 0, 1); S.fx.cy = clamp(ny, 0, 1); }
+  else { const q = fxDrag.st.pts; if (Math.hypot(nx - q[q.length-2], ny - q[q.length-1]) < fxDrag.st.r * 0.3) return; q.push(nx, ny); }
+  fxChanged();
+}
+syncFx();
+
 /* ================= stage pointer: select, move, scale, rotate, draw ================= */
 let ldrag = null;
 function clientToImg(e){
@@ -1532,6 +1853,7 @@ function layerCentreClient(l){
 stage.addEventListener('pointerdown', e => {
   if (tab!=='collage' && S.base && (e.button === 1 || spaceHeld)){ startPan(e); return; }
   if (tab==='crop' || tab==='collage' || e.button > 0) return;
+  if (tab==='effects' && S.base && fxPointerDown(e)){ e.preventDefault(); stage.setPointerCapture(e.pointerId); return; }
   const sh = e.target.dataset && e.target.dataset.sh;
   if (sh==='del'){ if (selId) deleteLayer(selId); return; }
   const p = clientToImg(e);
@@ -1559,6 +1881,7 @@ stage.addEventListener('pointerdown', e => {
 });
 stage.addEventListener('pointermove', e => {
   if (tab==='retouch'){ rtMoveCursor(e); if (RT.stroke) rtMove(clientToImg(e)); return; }
+  if (fxDrag){ fxPointerMove(e); return; }
   if (!ldrag) return;
   const l = ldrag.l;
   if (ldrag.type==='move'){ const p = clientToImg(e); l.x = ldrag.x0 + p.x - ldrag.p0.x; l.y = ldrag.y0 + p.y - ldrag.p0.y; ldrag.moved = true; }
@@ -1580,6 +1903,7 @@ stage.addEventListener('pointermove', e => {
 });
 function endLDrag(){
   if (RT.stroke){ rtEnd(); return; }
+  if (fxDrag){ fxDrag = null; commit(); return; }
   if (!ldrag) return;
   const t = ldrag.type, moved = ldrag.moved; ldrag = null;
   if (t!=='move' || moved){ commit(); syncPanels(); }
@@ -1687,7 +2011,7 @@ function openFile(file, path){
   img.onload = () => {
     const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
+    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:{...FX_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
     projectPath = null;
     selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
   };
@@ -1722,7 +2046,8 @@ async function buildProject(){
     format: PROJECT_FORMAT, version: 1, app: 'Tinto', appVersion: (typeof appVer === 'string' ? appVer : ''), saved: new Date().toISOString(),
     name: S.name, label: S.label, width: S.base.width, height: S.base.height,
     photo: await canvasToDataURL(S.base),
-    params: S.params, filter: S.filter, strength: S.strength, bg: S.bg, frame: S.frame,
+    params: S.params, filter: S.filter, strength: S.strength, bg: S.bg, frame: S.frame, fx: S.fx,
+    fxImages: S.fx && FX_IMG.has(S.fx.tex) ? {[S.fx.tex]: await canvasToDataURL(FX_IMG.get(S.fx.tex))} : {},
     layers: S.layers, images,
     mask: mask ? await canvasToDataURL(mask) : null,
   };
@@ -1772,15 +2097,16 @@ async function openProject(file, path){
       const s = STK_BY_ID.get(l.ref.slice(3)); if (s) await packCanvas(s);
     }
     if (doc.mask) bgMasks.set(base, await dataURLToCanvas(doc.mask));
+    for (const [ref, url] of Object.entries(doc.fxImages || {})) FX_IMG.set(ref, await dataURLToCanvas(url));
     const layers = Array.isArray(doc.layers) ? doc.layers.filter(l => l && typeof l === 'object' && typeof l.type === 'string') : [];
     S = {base, params:{...defaults(), ...(doc.params || {})}, filter: FILTERS.some(f => f.id === doc.filter) ? doc.filter : 'none',
-         strength: Number.isFinite(doc.strength) ? doc.strength : 100, layers, bg:{...BG_DEFAULT, ...(doc.bg || {})}, frame:{...FRAME_DEFAULT, ...(doc.frame || {})},
+         strength: Number.isFinite(doc.strength) ? doc.strength : 100, layers, bg:{...BG_DEFAULT, ...(doc.bg || {})}, frame:{...FRAME_DEFAULT, ...(doc.frame || {})}, fx:{...FX_DEFAULT, ...(doc.fx || {})},
          name: String(doc.name || file.name.replace(/\.tinto$/i, '') || 'project'), label: file.name};
     nextId = Math.max(nextId, ...layers.map(l => +l.id || 0)) + 1;
     projectPath = path || null;
     if (tab === 'collage') setTab('adjust');
     selId = null; drawSession = null; hist = []; hi = -1; commit(); savedAt = hist[hi];
-    syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    syncUI(); syncBg(); syncFrame(); syncFx(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
     const missing = layers.filter(l => l.type === 'image' && !STICKER_IMG.has(l.ref)).length;
     toast(missing ? `Project opened. ${missing} sticker${missing>1?'s':''} couldn’t be found.` : 'Project opened. Everything is still editable.');
   } catch (e) { toast('That project couldn’t be opened. It may be damaged.'); }
@@ -1886,7 +2212,7 @@ $('#exSave').onclick = async () => {
 async function renderEditorFull(){
   await document.fonts.ready;
   const b = S.base;
-  const out = processImage(b.getContext('2d').getImageData(0,0,b.width,b.height), effective());
+  const out = processImage(fxFull(b), effective());
   const c = mk(b.width, b.height), cx = c.getContext('2d'); cx.putImageData(out, 0, 0);
   if (S.bg.mode !== 'original'){ const m = bgMaskFor(b); if (m) applyBackground(c, m, S.bg); }
   if (S.frame.style !== 'none') drawFrame(cx, c.width, c.height, S.frame);
@@ -2395,7 +2721,7 @@ $('#cAddCurrent').onclick = async () => {
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
   const [W, H] = collageSize(), tpl = C.tpl;
-  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; syncBg(); syncFrame();
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; syncBg(); syncFrame(); syncFx();
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
   // Template titles arrive as text layers, so they stay editable in the editor.
   const fitSize = d => {   // the same shrink-to-fit the collage uses
@@ -3431,10 +3757,11 @@ stage.addEventListener('pointerdown', e => {
   }
   if (touchPts.size === 2){
     clearTimeout(longPress && longPress.t); longPress = null;
-    const l = tab === 'retouch' || tab === 'draw' ? null : (ldrag && ldrag.l) || getSel();
+    const l = tab === 'retouch' || tab === 'draw' || fxDrag ? null : (ldrag && ldrag.l) || getSel();
     if (!l){
       // two fingers on the photo itself zoom and move the view; a brush stroke the first finger began is dropped
       if (RT.stroke){ RT.stroke = null; rebuildPreview(true); }
+      if (fxDrag){ if (fxDrag.st) S.fx.strokes = S.fx.strokes.filter(s => s !== fxDrag.st); fxDrag = null; render(); }
       if (ldrag && ldrag.type === 'stroke'){ const i = ldrag.l.strokes.indexOf(ldrag.st); if (i >= 0) ldrag.l.strokes.splice(i, 1); if (!ldrag.l.strokes.length){ S.layers = S.layers.filter(x => x !== ldrag.l); drawSession = null; selId = null; } composite(); }
       ldrag = null; panDrag = null;
       const info = pinchInfo();

@@ -440,3 +440,11 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 #stage.can-pan{cursor:grab}
 #stage.panning{cursor:grabbing}
 @media (max-width:640px){ .zoom-ui{right:8px;bottom:22px} }
+
+/* Effects */
+.fx-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.fx-btns .btn{flex:1 1 auto}
+#pane-effects .seg{margin-bottom:12px}
+#stage.fx-brush{cursor:crosshair}
+#stage.fx-focus{cursor:crosshair}
+#fxTex{grid-auto-flow:row;grid-template-columns:1fr 1fr;gap:2px}
