@@ -5,6 +5,8 @@
 <h1 align="center">Tinto</h1>
 <p align="center"><strong>Photo &amp; Image Editor</strong> for Windows and Linux, built with Electron.</p>
 
+<p align="center"><a href="https://wellsey001.github.io/Tinto---Photo-Image-Editor/"><strong>Website</strong></a></p>
+
 <p align="center">
   <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest"><img src="https://img.shields.io/github/v/release/wellsey001/Tinto---Photo-Image-Editor?label=Download&amp;color=efb34a" alt="Download the latest release"></a>
 </p>
@@ -178,7 +180,7 @@ tinto/
 │       ├── gif.js         Animated GIF writer
 │       └── app.js         Editor: image processing, layers, collage, export
 ├── scripts/             Sticker pack generator and the AI checks (desktop and in-page)
-├── docs/                  The animated logo at the top of this page
+├── docs/                  The website (GitHub Pages) and the animated logo
 ├── .github/workflows/     GitHub Actions build
 └── package.json           Scripts and electron-builder settings
 ```

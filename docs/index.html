@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Tinto is a free photo editor for Windows, Linux and Android. Swap the sky, erase objects, add stickers, text and effects, and export a picture, GIF or video. AI runs on your device.">
+<meta property="og:title" content="Tinto - Photo &amp; Image Editor">
+<meta property="og:description" content="A free, friendly photo editor for Windows, Linux and Android.">
+<meta property="og:image" content="https://wellsey001.github.io/Tinto---Photo-Image-Editor/img/hero.webp">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="icon.png">
+<title>Tinto - free photo editor for Windows, Linux and Android</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the app's own dark studio look. A wide hero with the real editor, then features in alternating
+   picture/text rows, a compare slider whose knob is the logo's knob, and three download cards. */
+:root{
+  --bg:#f6f5f2; --surface:#ffffff; --raise:#eeece7; --line:#e2dfd8; --fg:#17171a; --muted:#64646d;
+  --accent:#efb34a; --accent-ink:#9a6410; --on-accent:#17120a; --glow:rgba(239,179,74,.28);
+  --shot-shadow:0 30px 70px -30px rgba(40,30,10,.35), 0 0 0 1px rgba(0,0,0,.06);
+  --f-display:"Sora", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --maxw:1180px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1013; --surface:#17181c; --raise:#1e2025; --line:#2a2c32; --fg:#f1f0ec; --muted:#9a9ca5;
+  --accent:#efb34a; --accent-ink:#f3c56f; --on-accent:#17120a; --glow:rgba(239,179,74,.22);
+  --shot-shadow:0 40px 90px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.07);
+  color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f1013; --surface:#17181c; --raise:#1e2025; --line:#2a2c32; --fg:#f1f0ec; --muted:#9a9ca5;
+  --accent:#efb34a; --accent-ink:#f3c56f; --on-accent:#17120a; --glow:rgba(239,179,74,.22);
+  --shot-shadow:0 40px 90px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.07);
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:400 17px/1.6 var(--f-body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+a{color:inherit}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.02em}
+p{margin:0}
+.wrap{max-width:var(--maxw);margin:0 auto;padding-left:max(20px, env(safe-area-inset-left,0px));padding-right:max(20px, env(safe-area-inset-right,0px))}
+.eyebrow{font:500 12.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-ink)}
+.muted{color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb, var(--bg) 82%, transparent);backdrop-filter:blur(14px);border-bottom:1px solid color-mix(in srgb, var(--line) 70%, transparent)}
+.top .wrap{display:flex;align-items:center;gap:20px;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:700 19px/1 var(--f-display)}
+.brand svg{width:34px;height:34px;flex:none}
+.nav{display:flex;gap:22px;margin-left:auto;font-weight:500;font-size:15px}
+.nav a{text-decoration:none;color:var(--muted)}
+.nav a:hover{color:var(--fg)}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 18px;border-radius:12px;font:600 15.5px/1 var(--f-body);text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);transition:transform .15s, box-shadow .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn svg{width:18px;height:18px;flex:none}
+.btn.primary{background:linear-gradient(180deg,#f6c46a,var(--accent));border-color:transparent;color:var(--on-accent);box-shadow:0 10px 26px -10px var(--glow)}
+.btn.small{padding:9px 14px;font-size:14.5px;border-radius:10px}
+@media (max-width:760px){ .nav{display:none} .top .btn.small{margin-left:auto} }
+
+/* hero */
+.hero{padding-block:64px 40px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;width:900px;height:600px;left:50%;top:-260px;translate:-50% 0;background:radial-gradient(closest-side, var(--glow), transparent);pointer-events:none}
+.hero .wrap{position:relative;display:grid;gap:44px}
+.hero-copy{max-width:760px;display:grid;gap:22px}
+.hero h1{font-size:clamp(40px, 6.4vw, 76px);line-height:1.02;font-weight:800}
+.hero h1 em{font-style:normal;color:var(--accent-ink)}
+.hero .lede{font-size:clamp(17px, 2vw, 20px);color:var(--muted);max-width:640px}
+.ctas{display:flex;flex-wrap:wrap;gap:10px}
+.meta{font:400 13px/1.5 var(--f-mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px}
+.meta span::before{content:"✓ ";color:var(--accent-ink)}
+.shot{border-radius:16px;overflow:hidden;box-shadow:var(--shot-shadow);background:#121316;display:block;width:100%;height:auto}
+.window{border-radius:18px;padding:10px 10px 10px;background:linear-gradient(180deg,#24252b,#18191d);box-shadow:var(--shot-shadow)}
+.window .dots{display:flex;gap:7px;padding:2px 6px 10px}
+.window .dots i{width:11px;height:11px;border-radius:50%;background:#3a3c43}
+.window img{border-radius:9px;display:block;width:100%;height:auto}
+
+/* feature rows */
+section{scroll-margin-top:72px}
+.band{padding-block:84px}
+.band + .band{border-top:1px solid var(--line)}
+.section-head{display:grid;gap:12px;max-width:720px;margin-bottom:48px}
+.section-head h2{font-size:clamp(30px,4.2vw,48px);line-height:1.08;font-weight:700}
+.section-head p{color:var(--muted);font-size:18px}
+.row{display:grid;grid-template-columns:1.25fr 1fr;gap:48px;align-items:center}
+.row + .row{margin-top:80px}
+.row.flip{grid-template-columns:1fr 1.25fr}
+.row.flip .media{order:2}
+.row .copy{display:grid;gap:14px;min-width:0}
+.row h3{font-size:clamp(23px,2.6vw,30px);line-height:1.15;font-weight:700}
+.row .copy > p{color:var(--muted)}
+.ticks{list-style:none;padding:0;margin:4px 0 0;display:grid;gap:9px}
+.ticks li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start}
+.ticks li::before{content:"";width:9px;height:9px;margin-top:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--glow)}
+.ticks b{font-weight:600;color:var(--fg)}
+@media (max-width:860px){ .row, .row.flip{grid-template-columns:1fr;gap:26px} .row.flip .media{order:0} .band{padding-block:64px} }
+
+/* compare slider (the knob is the logo's knob) */
+.compare{position:relative;border-radius:16px;overflow:hidden;box-shadow:var(--shot-shadow);aspect-ratio:640/427;max-width:100%;touch-action:none;user-select:none;cursor:ew-resize;background:#121316}
+.compare img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.compare .after{clip-path:inset(0 0 0 var(--pos,50%))}
+.compare .bar{position:absolute;top:0;bottom:0;left:var(--pos,50%);width:4px;margin-left:-2px;background:#121316}
+.compare .knob{position:absolute;top:50%;left:var(--pos,50%);width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:#fff;border:6px solid #121316;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.compare .tag{position:absolute;top:14px;padding:5px 10px;border-radius:8px;font:500 12px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;background:rgba(18,19,22,.72);color:#fff}
+.compare .tag.l{left:14px} .compare .tag.r{right:14px}
+.compare input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:ew-resize;margin:0}
+.compare input:focus-visible + .knob{outline:3px solid var(--accent);outline-offset:3px}
+
+/* privacy strip */
+.private{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;margin-top:56px;padding:22px 24px;border-radius:16px;background:var(--raise);border:1px solid var(--line)}
+.private svg{width:30px;height:30px;color:var(--accent-ink)}
+.private p{color:var(--muted)} .private b{color:var(--fg)}
+
+/* numbers that are true */
+.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:56px}
+.facts div{background:var(--surface);padding:22px 20px;display:grid;gap:4px}
+.facts b{font:700 34px/1 var(--f-display);letter-spacing:-.02em}
+.facts span{color:var(--muted);font-size:14.5px;line-height:1.4}
+@media (max-width:760px){ .facts{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+/* phone */
+.phone-row{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:56px;align-items:center}
+.phone{width:100%;max-width:340px;justify-self:center;border-radius:42px;padding:12px;background:#0a0a0c;box-shadow:var(--shot-shadow), inset 0 0 0 2px #2a2b30}
+.phone img{width:100%;height:auto;border-radius:31px;display:block}
+@media (max-width:860px){ .phone-row{grid-template-columns:1fr} .phone{max-width:300px} }
+
+/* the little things */
+.small-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.small-grid div{padding:20px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:grid;gap:6px;align-content:start}
+.small-grid h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.small-grid p{color:var(--muted);font-size:15px;line-height:1.5}
+@media (max-width:860px){ .small-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:520px){ .small-grid{grid-template-columns:1fr} }
+
+/* download */
+.dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.dl article{padding:26px;border-radius:18px;background:var(--surface);border:1px solid var(--line);display:grid;gap:14px;align-content:start}
+.dl .os{display:flex;align-items:center;gap:12px}
+.dl .os svg{width:30px;height:30px;color:var(--accent-ink);flex:none}
+.dl h3{font-size:21px;font-weight:700}
+.dl .file{font:500 13px/1.4 var(--f-mono);color:var(--muted);word-break:break-all}
+.dl ol{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--muted);font-size:15px;line-height:1.5}
+.dl ol b{color:var(--fg);font-weight:600}
+.dl code{font:500 13px var(--f-mono);background:var(--raise);padding:2px 6px;border-radius:5px;color:var(--fg)}
+.dl .btn{justify-self:start}
+@media (max-width:900px){ .dl{grid-template-columns:1fr} }
+
+footer{border-top:1px solid var(--line);padding-block:36px;color:var(--muted);font-size:14.5px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}
+footer .brand{color:var(--fg)}
+footer nav{display:flex;flex-wrap:wrap;gap:18px;margin-left:auto}
+
+/* the logo, on a loop (from the app's splash screen) */
+.lg .t-knob,.lg .t-fill,.lg .t-eye,.lg .t-pupil{transform-box:view-box}
+.lg .t-fill{transform-origin:16px 41.5px;animation:t-fill 1.6s cubic-bezier(.45,0,.25,1) .7s infinite}
+.lg .t-knob{animation:t-slide 1.6s cubic-bezier(.45,0,.25,1) .7s infinite}
+.lg .t-pupil{animation:t-look 1.6s ease-in-out .7s infinite}
+.lg .t-eye{transform-origin:42px 25px;animation:t-blink 1.6s ease-in-out .7s infinite}
+@keyframes t-slide{0%,100%{transform:translateX(0)}50%{transform:translateX(-44px)}}
+@keyframes t-fill{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.154)}}
+@keyframes t-look{0%,100%{transform:translateX(0)}30%,65%{transform:translateX(-2.4px)}}
+@keyframes t-blink{0%,9%,21%,100%{transform:scaleY(1)}15%{transform:scaleY(.1)}}
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="logo" viewBox="0 0 100 100">
+      <rect width="100" height="100" rx="23" fill="#efb34a"/>
+      <g transform="translate(9 9) scale(.82)">
+        <rect x="16" y="37" width="68" height="9" rx="4.5" fill="#121316" opacity=".28"/>
+        <path d="M42 16 V66 Q42 80 56 80 H62" fill="none" stroke="#121316" stroke-width="13" stroke-linecap="round"/>
+        <rect class="t-fill" x="16" y="37" width="52" height="9" rx="4.5" fill="#121316"/>
+        <g class="t-eye"><circle cx="42" cy="25" r="4.6" fill="#fff"/><circle class="t-pupil" cx="43.2" cy="25" r="2.1" fill="#121316"/></g>
+        <circle class="t-knob" cx="68" cy="41.5" r="11.5" fill="#fff" stroke="#121316" stroke-width="5.5"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand lg" href="#top"><svg aria-hidden="true"><use href="#logo"/></svg>Tinto</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#ai">AI tools</a><a href="#style">Look</a><a href="#decorate">Decorate</a><a href="#android">Android</a><a href="#download">Download</a>
+    </nav>
+    <a class="btn small primary" href="#download">Download free</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="eyebrow">Free photo editor · Windows, Linux &amp; Android</span>
+        <h1>Make every photo <em>yours</em>.</h1>
+        <p class="lede">Tinto is a friendly photo editor with the fun stuff built in. Fix the light, swap the sky, erase what you don't want, then pile on stickers, text and effects. Export a picture, a GIF or a video.</p>
+        <div class="ctas">
+          <a class="btn primary" href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>Download Tinto</a>
+          <a class="btn" href="#download">Choose your system</a>
+        </div>
+        <p class="meta"><span>Free and open source</span><span>No account</span><span>AI runs on your device</span><span>Updates itself</span></p>
+      </div>
+      <div class="window"><div class="dots"><i></i><i></i><i></i></div><img src="img/hero.webp" width="1800" height="1125" alt="The Tinto editor with the Birthday card template: a sunset photo in a tilted white frame on pink, with Happy Birthday lettering, balloon, party popper and cake stickers, and the Templates panel open on the right."></div>
+    </div>
+  </section>
+
+  <section class="band" id="ai">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">AI tools</span>
+        <h2>The clever bits, done on your device.</h2>
+        <p>Tinto's AI finds the person and the sky in your photo, and fills in whatever you erase. Your photos never leave your computer or phone.</p>
+      </div>
+
+      <div class="row">
+        <div class="media">
+          <div class="compare" id="cmp" style="--pos:52%">
+            <img src="img/erase_before.webp" width="640" height="427" alt="Before: a rocket on the launch pad at dusk, with a thin lightning tower on each side of it.">
+            <img class="after" src="img/erase_after.webp" width="640" height="427" alt="After: both towers are gone and the evening sky is filled in behind them.">
+            <span class="tag l">Before</span><span class="tag r">After</span>
+            <div class="bar"></div>
+            <input type="range" id="cmpRange" min="0" max="100" value="52" aria-label="Drag to compare before and after">
+            <div class="knob" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="copy">
+          <h3>Object eraser</h3>
+          <p>Paint over a stranger in the background, a bin or a power line and let go. Tinto rebuilds the space from the rest of the photo, matching the light and grain around it. Here, two towers have been brushed out of the sky. Drag the knob to compare.</p>
+          <ul class="ticks">
+            <li><span>Works on any part of the photo, not just people</span></li>
+            <li><span>Paint again to erase more, undo a stroke at a time</span></li>
+            <li><span>Also in Retouch: <b>Blemish</b>, <b>Smooth skin</b> and <b>Whiten</b></span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="row flip">
+        <div class="media"><img class="shot" src="img/sky.webp" width="1400" height="875" alt="The sunset photo with its sky swapped for pink cotton-candy clouds, and the Sky choices in the Background panel."></div>
+        <div class="copy">
+          <h3>New sky, one tap</h3>
+          <p>Pick Blue sky, Sunset, Golden hour, Cotton candy, Storm, Starry night, Aurora, or a photo of your own. The edges around trees and rooftops are tidied using your photo's colours, and the rest of the picture takes on the new light.</p>
+          <ul class="ticks">
+            <li><span><b>Background:</b> blur behind the person like portrait mode, swap it for a colour or gradient, or remove it for a see-through PNG</span></li>
+            <li><span><b>Sticker cutout:</b> turn any picture into a sticker with its background removed</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="private">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <p><b>Private by design.</b> Each AI model downloads once, the first time you use it, then runs on your own computer or phone. Nothing you edit is uploaded anywhere.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="style">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Light, colour and mood</span>
+        <h2>Get the look you're after.</h2>
+        <p>Start with Auto, nudge the sliders, then add a filter or an effect.</p>
+      </div>
+      <div class="row">
+        <div class="media"><img class="shot" src="img/effects.webp" width="1400" height="875" alt="The Effects panel with Light leak chosen, adding a warm streak of light across the lakeside photo."></div>
+        <div class="copy">
+          <h3>Effects that stack</h3>
+          <p>Glitch, Double exposure, Motion blur, Focus blur, Light leak, Film dust and a Pixelate brush for hiding faces or number plates. Apply one, then add another on top.</p>
+          <ul class="ticks">
+            <li><span><b>Adjust:</b> 15 sliders from exposure to grain, with a live histogram</span></li>
+            <li><span><b>25 filters</b> with a strength slider, from Cinema and Portra to Lomo and Silver</span></li>
+            <li><span><b>Crop</b> to any ratio or straight to Instagram, Story, YouTube and more</span></li>
+            <li><span><b>11 frames</b>, from Polaroid and Film to Neon and Gold</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="decorate">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Stickers, text and templates</span>
+        <h2>Then make it fun.</h2>
+        <p>Everything you add stays editable. Move it, resize it, spin it, change it later.</p>
+      </div>
+      <div class="row flip">
+        <div class="media"><img class="shot" src="img/stickers.webp" width="1400" height="875" alt="The lakeside photo with heart-eyes, smiling sun and red heart emoji stickers, and the Stickers panel showing the emoji tabs."></div>
+        <div class="copy">
+          <h3>Hundreds of stickers</h3>
+          <p>186 Microsoft Fluent emoji and 80 hand-made illustrated stickers, all sharp at any size, with search, Recent and Favourites.</p>
+          <ul class="ticks">
+            <li><span><b>Text</b> in 15 fonts, with curves, gradients, 3D depth, outlines and neon glow</span></li>
+            <li><span><b>Layers</b> with opacity and 16 blend modes, like Multiply and Screen</span></li>
+            <li><span><b>Draw</b> freehand, or with a highlighter</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="media"><img class="shot" src="img/templates.webp" width="1600" height="653" alt="Nine template designs filled with the same photo: Birthday card, Quote post, YouTube thumbnail, Weekend story, Polaroid note, Event poster, Save the date, Postcard and Magazine cover."></div>
+        <div class="copy">
+          <h3>Templates and collages</h3>
+          <p>Drop a photo into a Birthday card, Quote post, YouTube thumbnail, Event poster and more, then tap the words to make it yours. Or put up to nine photos together in a collage.</p>
+          <ul class="ticks">
+            <li><span><b>9 single-photo templates</b></span></li>
+            <li><span><b>20 styled collages</b>, like Film strip, Scrapbook and Photo booth, plus 12 grids</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="row flip">
+        <div class="media"><img class="shot" src="img/gif.gif" width="600" height="400" alt="An exported GIF: a red heart sticker bouncing over the lakeside sunset."></div>
+        <div class="copy">
+          <h3>Make it move</h3>
+          <p>Give a sticker or some text an animation (Pop in, Slide in, Type on, Bounce, Float, Wiggle, Spin and more) and export a looping GIF or video, ready for a story or a group chat.</p>
+          <ul class="ticks">
+            <li><span>2, 3 or 5 seconds, looping without a jump</span></li>
+            <li><span><b>GIF</b> up to 600 px, <b>MP4 video</b> up to 1080 px</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="facts" aria-label="Tinto in numbers">
+        <div><b>266</b><span>emoji and stickers</span></div>
+        <div><b>25</b><span>filters</span></div>
+        <div><b>29</b><span>templates and collages</span></div>
+        <div><b>15</b><span>fonts, built in</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="android">
+    <div class="wrap phone-row">
+      <div class="copy" style="display:grid;gap:16px;min-width:0">
+        <span class="eyebrow">Android</span>
+        <h2 style="font-size:clamp(30px,4.2vw,48px);line-height:1.08">The same editor, in your pocket.</h2>
+        <p class="muted" style="font-size:18px">Every tool from the desktop app, laid out for a phone. Your photo sits at the top, the tools are a thumb's reach away, and the controls fold away when you need the room.</p>
+        <ul class="ticks">
+          <li><span>Pinch and twist to resize and rotate stickers and text</span></li>
+          <li><span>Pinch the photo to zoom in for fine work</span></li>
+          <li><span>Save to your gallery, or share straight to WhatsApp, Instagram and the rest</span></li>
+          <li><span>Tells you when there's a new version</span></li>
+        </ul>
+      </div>
+      <div class="phone"><img src="img/phone.webp" width="600" height="1230" alt="Tinto on an Android phone: the lakeside photo with the Golden hour text selected, and the Text controls below."></div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">The little things</span>
+        <h2>Built so you don't lose your work.</h2>
+      </div>
+      <div class="small-grid">
+        <div><h3>Autosave</h3><p>Your edits are saved as you go. If Tinto closes without saving, it offers to carry on where you left off.</p></div>
+        <div><h3>Projects</h3><p>Save a <code style="font:500 13px var(--f-mono)">.tinto</code> project and every sticker and word stays editable next time.</p></div>
+        <div><h3>Recent files</h3><p>Your last photos and projects are one click away.</p></div>
+        <div><h3>Zoom and pan</h3><p>Zoom up to 800% with scroll or pinch, and the view redraws sharper.</p></div>
+        <div><h3>Undo everything</h3><p>Every edit can be undone, and you can hold Compare to see the original.</p></div>
+        <div><h3>Works offline</h3><p>Fonts are built in, and the AI keeps working once its model is downloaded.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="download">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Download</span>
+        <h2>Free, for your computer and your phone.</h2>
+        <p>Get the newest version from the Releases page. On Windows and Linux, Tinto keeps itself up to date after that.</p>
+      </div>
+      <div class="dl">
+        <article>
+          <div class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg><h3>Windows</h3></div>
+          <p class="file">Tinto-Setup-&lt;version&gt;.exe</p>
+          <ol>
+            <li>Download the installer and run it.</li>
+            <li>If Windows shows a SmartScreen warning, choose <b>More info</b>, then <b>Run anyway</b>.</li>
+            <li>Right-click any photo and choose <b>Open with › Tinto</b>.</li>
+          </ol>
+          <a class="btn primary" href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest" target="_blank" rel="noopener">Download for Windows</a>
+        </article>
+        <article>
+          <div class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><ellipse cx="12" cy="8" rx="4" ry="5"/><path d="M8 11c-2 3-4 6-3 9h14c1-3-1-6-3-9"/><circle cx="10.5" cy="7" r=".8" fill="currentColor"/><circle cx="13.5" cy="7" r=".8" fill="currentColor"/></svg><h3>Linux</h3></div>
+          <p class="file">Tinto-&lt;version&gt;.AppImage</p>
+          <ol>
+            <li>Download the AppImage. It runs on most distributions.</li>
+            <li>Make it runnable: Properties › <b>Allow executing as a program</b>, or <code>chmod +x Tinto-*.AppImage</code>.</li>
+            <li>Double-click to open.</li>
+          </ol>
+          <a class="btn primary" href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest" target="_blank" rel="noopener">Download for Linux</a>
+        </article>
+        <article>
+          <div class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 11a7 7 0 0 1 14 0v7H5z"/><path d="M7.5 5 6 3M16.5 5 18 3"/><circle cx="9.5" cy="8.5" r=".8" fill="currentColor"/><circle cx="14.5" cy="8.5" r=".8" fill="currentColor"/></svg><h3>Android</h3></div>
+          <p class="file">Tinto-&lt;version&gt;.apk</p>
+          <ol>
+            <li>On your phone, open Releases and tap the <b>.apk</b> file.</li>
+            <li>Allow your browser to <b>install unknown apps</b> when Android asks.</li>
+            <li>Tap <b>Install</b>, then find Tinto in your apps.</li>
+          </ol>
+          <a class="btn primary" href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest" target="_blank" rel="noopener">Download for Android</a>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand lg" href="#top"><svg aria-hidden="true"><use href="#logo"/></svg>Tinto</a>
+    <span>Free and open source under the MIT licence. Emoji: Microsoft Fluent Emoji (MIT).</span>
+    <nav aria-label="Links">
+      <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases" target="_blank" rel="noopener">All releases</a>
+      <a href="https://github.com/wellsey001/Tinto---Photo-Image-Editor/issues" target="_blank" rel="noopener">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // before/after: the range input sets where the line sits
+  (function(){
+    const box = document.getElementById('cmp'), r = document.getElementById('cmpRange');
+    const set = v => box.style.setProperty('--pos', v + '%');
+    r.addEventListener('input', () => set(r.value));
+    set(r.value);
+  })();
+</script>
+
+</body>
+</html>
