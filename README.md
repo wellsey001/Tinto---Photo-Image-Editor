@@ -51,7 +51,7 @@ The AI background tools (Background, and the AI cutout for custom stickers) are 
 
 ### Updates
 
-From version 1.1.0, Tinto keeps itself up to date. It checks for a new version a few seconds after opening and every few hours after that, and downloads it in the background. This works on Windows and with the Linux AppImage. When it's ready, a bar appears in the bottom-right corner: choose **Restart and update** to install it straight away, or carry on and it installs the next time you close Tinto. You can also check at any time from **Help › Check for Updates…**.
+From version 1.1.0, Tinto keeps itself up to date. It checks for a new version a few seconds after opening and every few hours after that, and downloads it in the background. This works on Windows and with the Linux AppImage. When it's ready, a bar appears in the bottom-right corner: choose **Restart and update** to install it straight away (the Tinto splash plays while it installs, and the new version opens by itself with "Updated to version …"), or carry on and it installs the next time you close Tinto. You can also check at any time from **Help › Check for Updates…**.
 
 If you have version 1.0.0 on Windows, download and run the newest installer once. It installs over the old version, and updates are automatic from then on.
 

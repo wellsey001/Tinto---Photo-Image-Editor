@@ -30,7 +30,7 @@ let splash = null;
 let splashShownAt = 0;
 let editorWaiting = false;
 
-function createSplash() {
+function createSplash(query) {
   splash = new BrowserWindow({
     width: 460,
     height: 340,
@@ -48,7 +48,7 @@ function createSplash() {
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  splash.loadFile(path.join(__dirname, 'splash.html'));
+  splash.loadFile(path.join(__dirname, 'splash.html'), query ? { query } : undefined);
   splash.once('ready-to-show', () => {
     if (!splash || splash.isDestroyed()) return;
     if (win && !win.isDestroyed() && win.isVisible()) { splash.destroy(); return; } // the editor beat it
@@ -438,6 +438,55 @@ ipcMain.handle('update:check', async () => {
   return updateState;
 });
 
+const updateMarkerPath = () => path.join(app.getPath('userData'), 'update-installing.json');
+
+/* The splash with its logo animation on a loop and "Updating to version …", over everything,
+   while the editor closes for the update. */
+function showUpdatingSplash(version) {
+  const s = new BrowserWindow({
+    width: 460, height: 340, frame: false, transparent: true, resizable: false, maximizable: false, minimizable: false,
+    fullscreenable: false, skipTaskbar: true, center: true, show: false, alwaysOnTop: true, backgroundColor: '#00000000',
+    title: 'Updating Tinto', icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  s.loadFile(path.join(__dirname, 'splash.html'), { query: { mode: 'updating', v: version } });
+  s.once('ready-to-show', () => {
+    if (s.isDestroyed()) return;
+    s.show();
+    if (win && !win.isDestroyed()) win.hide();
+  });
+}
+
+/* Windows: Tinto must be fully closed while the installer replaces it, so a small PowerShell
+   window shows the same animation (update-splash.ps1 + assets/updating.gif) until the new
+   version starts. Its files are copied out of the app first, because the app folder is replaced. */
+async function startUpdateHelper() {
+  try {
+    const dir = path.join(app.getPath('temp'), 'tinto-update');
+    await fs.mkdir(dir, { recursive: true });
+    const gif = path.join(dir, 'updating.gif'), ps1 = path.join(dir, 'update-splash.ps1');
+    await fs.writeFile(gif, await fs.readFile(path.join(__dirname, 'assets', 'updating.gif')));
+    await fs.writeFile(ps1, await fs.readFile(path.join(__dirname, 'update-splash.ps1')));
+    const exe = path.basename(process.execPath, path.extname(process.execPath));
+    const child = require('node:child_process').spawn('powershell.exe', [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-WindowStyle', 'Hidden',
+      '-File', ps1, '-Gif', gif, '-OldPid', String(process.pid), '-ExeName', exe,
+    ], { detached: true, stdio: 'ignore', windowsHide: true });
+    child.on('error', () => { /* no stand-in splash; the update still installs */ });
+    child.unref();
+  } catch { /* no stand-in splash; the update still installs */ }
+}
+
+/* On the first start after an update: which version did we just update to? (and tidy up) */
+async function takeUpdateMarker() {
+  try {
+    const m = JSON.parse(await fs.readFile(updateMarkerPath(), 'utf8'));
+    await fs.unlink(updateMarkerPath()).catch(() => {});
+    if (m && m.to === app.getVersion() && Date.now() - (m.at || 0) < 30 * 60 * 1000) return m.to;
+  } catch { /* no update just happened */ }
+  return null;
+}
+
 // Installing: the installer runs silently with the choices made the first time
 // (where Tinto is installed), then the new version opens by itself.
 let installingUpdate = false;
@@ -455,7 +504,13 @@ ipcMain.handle('update:install', async (_e, opts) => {
     if (choice === 1) return { ok: false, cancelled: true };
   }
   installingUpdate = true;
-  autoUpdater.quitAndInstall(true, true);
+  const to = updateState.version || '';
+  // remember the update, so the new version can say "Updated to version …" when it opens
+  try { await fs.writeFile(updateMarkerPath(), JSON.stringify({ from: app.getVersion(), to, at: Date.now() })); } catch { /* just no message */ }
+  showUpdatingSplash(to);
+  if (process.platform === 'win32') startUpdateHelper();
+  // let the splash be seen before Tinto closes to install
+  setTimeout(() => autoUpdater.quitAndInstall(true, true), 1700);
   return { ok: true };
 });
 
@@ -473,10 +528,11 @@ if (!app.requestSingleInstanceLock()) {
     if (f) sendFileToWindow(f);
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     if (process.env.TINTO_SELFTEST === 'cutout') { runCutoutSelfTest(); return; }
     buildMenu();
-    createSplash();
+    const updatedTo = await takeUpdateMarker();
+    createSplash(updatedTo ? { mode: 'updated', v: updatedTo } : undefined);
     createWindow();
     setupUpdates();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

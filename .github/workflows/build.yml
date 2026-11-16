@@ -57,6 +57,28 @@ jobs:
           cat selftest.json
           grep -q '"ok":true' selftest.json
 
+      - name: Check the "Updating" splash window (shown while the installer runs)
+        shell: powershell
+        run: |
+          $ps1 = Join-Path $PWD 'src\update-splash.ps1'; $gif = Join-Path $PWD 'src\assets\updating.gif'
+          $p = Start-Process powershell.exe -PassThru -RedirectStandardError err.txt -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-STA','-File',"`"$ps1`"",'-Gif',"`"$gif`"",'-OldPid','0','-ExeName','NoSuchApp','-TimeoutSec','8'
+          Start-Sleep -Seconds 4
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          try {
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap 420, 300
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen([int]($b.Width / 2 - 210), [int]($b.Height / 2 - 150), 0, 0, $bmp.Size)
+            $yellow = 0
+            for ($x = 0; $x -lt 420; $x += 3) { for ($y = 0; $y -lt 300; $y += 3) { $c = $bmp.GetPixel($x, $y); if ($c.R -gt 200 -and $c.G -gt 140 -and $c.B -lt 120) { $yellow++ } } }
+            Write-Host "Logo-yellow pixels in the middle of the screen: $yellow"
+            if ($yellow -lt 150) { Write-Host "::warning::The updating splash wasn't seen on screen (the build machine may have no visible desktop)." }
+          } catch { Write-Host "::warning::Couldn't capture the screen: $_" }
+          if (-not $p.WaitForExit(20000)) { $p.Kill(); throw 'The updating splash did not close by itself.' }
+          $err = Get-Content err.txt -Raw
+          if ($err) { Write-Host $err; throw 'The updating splash script reported errors.' }
+          Write-Host "Updating splash closed by itself (exit code $($p.ExitCode))."
+
       - name: Upload installer
         uses: actions/upload-artifact@v5
         with:

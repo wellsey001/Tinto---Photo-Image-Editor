@@ -58,6 +58,16 @@
   @keyframes shine { from { background-position: 100% 0; } to { background-position: 0% 0; } }
   @keyframes load { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  /* Updating: the logo keeps playing its slide-and-blink on a loop, and the bar slides back and forth. */
+  body.updating .t-fill { animation: t-fill 1.6s cubic-bezier(.45, 0, .25, 1) .6s infinite; }
+  body.updating .t-knob { animation: t-slide 1.6s cubic-bezier(.45, 0, .25, 1) .6s infinite; }
+  body.updating .t-pupil { animation: t-look 1.6s ease-in-out .6s infinite; }
+  body.updating .t-eye { animation: t-blink-loop 1.6s ease-in-out .6s infinite; }
+  body.updating .bar { width: 38%; transform-origin: center; animation: sweep 1.6s ease-in-out infinite alternate; }
+  body.updating.waiting .logo { animation: pop .55s cubic-bezier(.3, 1.6, .5, 1) .1s both; }
+  @keyframes t-blink-loop { 0%, 9%, 21%, 100% { transform: scaleY(1); } 15% { transform: scaleY(.1); } }
+  @keyframes sweep { from { transform: translateX(-10%); } to { transform: translateX(173%); } }
+  .sub b { color: #efb34a; font-weight: 600; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; animation-delay: 0s !important; } }
 </style>
 </head>
@@ -85,6 +95,17 @@
   <script>
     // After the animation, keep breathing until the editor shows (the main process closes this window).
     setTimeout(() => document.body.classList.add('waiting'), 1900);
+    // ?mode=updating&v=2.3.0 while an update installs; ?mode=updated&v=2.3.0 on the first start afterwards.
+    const q = new URLSearchParams(location.search), mode = q.get('mode'), v = (q.get('v') || '').replace(/[^\w.\-]/g, '');
+    const sub = document.querySelector('.sub'), card = document.querySelector('.card');
+    if (mode === 'updating'){
+      document.body.classList.add('updating');
+      sub.textContent = v ? `Updating to version ${v}…` : 'Updating Tinto…';
+      card.setAttribute('aria-label', 'Tinto is updating');
+    } else if (mode === 'updated' && v){
+      sub.innerHTML = 'Updated to version <b></b>'; sub.querySelector('b').textContent = v;
+      card.setAttribute('aria-label', `Tinto updated to version ${v}`);
+    }
   </script>
 </body>
 </html>
