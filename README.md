@@ -62,7 +62,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Adjust:** exposure, brightness, contrast, highlights, shadows, saturation, vibrance, warmth, tint, hue, split tone, fade, vignette, grain and sharpness, with a live RGB histogram and clipping warning.
 - **Auto:** one click sets light and colour to suit the photo.
 - **Filters:** 33 presets, from Cinema and Portra to Lomo, Vintage and Silver, with live thumbnails and a strength slider.
-- **Hex it:** one tap gives the photo a dark, alternative look (a filter, an effect and a frame that go together), picked to suit the photo. Tap again for another.
+- **Hex it:** one tap gives the photo a dark, alternative colour grade, picked to suit the photo, the way a colourist would do it: skin kept natural, shadows and highlights tinted, film-style blacks. Tap again for another of the eight.
 - **Your looks:** save the adjustments, filter, effect and frame you've set as a named look and put it on any photo in one tap. Handy for keeping a whole shoot consistent.
 - **Dark & alternative pack:** for goths, emos, metalheads and the people who photograph, tattoo and promote them.
   - Filters: Crypt, Bloodmoon, Noir Lace, Scene Kid, Cassette, Doom, Witch House, Ghost and Ink.

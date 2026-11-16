@@ -47,15 +47,16 @@ const FILTERS = [
   {id:'gold', name:'Gilded', d:{warmth:40, vibrance:25, highlights:-20, split:22}},
   {id:'silver', name:'Silver', d:{contrast:28, grain:40, fade:10, highlights:-10}, mode:'mono'},
   // the alternative scene: goth, emo, metal, witch house
-  {id:'crypt', name:'Crypt', d:{contrast:28, saturation:-60, shadows:-18, warmth:-30, tint:-8, vignette:50}, tone:{s:[0.02,0.1,0.14], h:[0.74,0.85,0.92], a:0.55}, crush:0.07},
-  {id:'bloodmoon', name:'Bloodmoon', d:{contrast:30, shadows:-20, vignette:40, exposure:-8, saturation:30}, keep:{hue:0, a:0.88}, crush:0.05},
-  {id:'noirlace', name:'Noir Lace', d:{contrast:40, highlights:12, shadows:-15, vignette:30}, mode:'mono', glow:0.45, tone:{s:[0.02,0.02,0.04], h:[0.92,0.94,1], a:0.2}},
-  {id:'scenekid', name:'Scene Kid', d:{exposure:22, contrast:22, highlights:25, saturation:-10, warmth:-45, fade:12}, tone:{s:[0.05,0.1,0.25], h:[0.9,0.97,1], a:0.4}, glow:0.5},
-  {id:'cassette', name:'Cassette', d:{fade:40, contrast:-12, saturation:-10, grain:25}, tone:{s:[0.3,0.08,0.3], h:[0.85,0.95,0.7], a:0.5}},
-  {id:'doom', name:'Doom', d:{contrast:45, shadows:-25, grain:45, vignette:55, exposure:-10}, mode:'sepia', modeAmt:0.7, crush:0.08},
-  {id:'witchhouse', name:'Witch House', d:{fade:30, contrast:8, saturation:-40, vignette:35}, tone:{s:[0.25,0.04,0.34], h:[0.5,0.95,0.9], a:0.65}, glow:0.3},
-  {id:'ghost', name:'Ghost', d:{exposure:15, saturation:-72, highlights:15, fade:15, contrast:-5}, tone:{s:[0.05,0.15,0.18], h:[0.96,0.96,0.98], a:0.3}, glow:0.2},
-  {id:'ink', name:'Ink', d:{sharpness:45, contrast:18, vibrance:10, highlights:-10, shadows:-5}},
+  // the dark looks: colour grades rather than overlays, so they hold up on a real portrait
+  {id:'crypt', name:'Crypt', d:{exposure:-6, vignette:32, grain:8}, g:{sat:0.3, skin:0.8, skinSat:0.55, hsl:{green:[30,0.3,-0.15], yellow:[-10,0.35,-0.08], orange:[0,0.7,-0.04], aqua:[0,0.9,-0.1], blue:[-6,0.8,-0.12]}, shadows:[205,0.2], highs:[38,0.04], balance:0.5, contrast:0.45, lift:0.04, roll:0.035}},
+  {id:'bloodmoon', name:'Bloodmoon', d:{exposure:-8, vignette:34, grain:6}, g:{sat:0.1, skin:0.85, skinSat:0.42, hsl:{red:[-6,9,-0.12], scarlet:[-10,2.2,-0.08], orange:[0,0.6,0], magenta:[14,4,-0.1]}, shadows:[352,0.06], highs:[20,0.02], balance:0.45, contrast:0.48, lift:0.03, roll:0.03}},
+  {id:'noirlace', name:'Noir Lace', d:{vignette:24, grain:10}, g:{mono:[0.42,0.45,0.13], shadows:[220,0.025], highs:[40,0.015], contrast:0.6, lift:0.025, roll:0.02, pivot:0.42}, glow:0.18},
+  {id:'scenekid', name:'Scene Kid', d:{exposure:10}, g:{sat:0.95, skin:0.7, skinSat:0.85, hsl:{red:[18,1.3,0.02], orange:[0,0.8,0.02], magenta:[0,1.5,0.05], blue:[10,1.35,0.03], aqua:[20,1.2,0], green:[45,0.45,0], yellow:[-20,0.4,0.05]}, shadows:[265,0.17], highs:[185,0.06], balance:0.45, contrast:0.2, lift:0.06, roll:0.02}, glow:0.22},
+  {id:'cassette', name:'Cassette', d:{grain:18}, g:{sat:0.7, skin:0.7, skinSat:0.9, hsl:{green:[-14,0.7,0], blue:[-12,0.75,0], red:[5,0.95,0]}, shadows:[168,0.12], highs:[38,0.08], balance:0.5, contrast:0.22, lift:0.1, roll:0.07}},
+  {id:'doom', name:'Doom', d:{exposure:-5, vignette:38, grain:14, sharpness:22}, g:{sat:0.2, skin:0.6, skinSat:0.35, hsl:{red:[0,2,-0.08]}, shadows:[205,0.05], highs:[34,0.1], balance:0.5, contrast:0.75, lift:0.02, roll:0.02}},
+  {id:'witchhouse', name:'Witch House', d:{exposure:-4, vignette:26, grain:6}, g:{sat:0.42, skin:0.75, skinSat:0.55, hsl:{green:[50,0.2,-0.12], yellow:[0,0.25,0], orange:[0,0.6,0], aqua:[35,0.6,-0.06], blue:[30,1.1,-0.05], purple:[0,1.3,0], magenta:[-12,1.1,0]}, shadows:[272,0.24], highs:[320,0.025], balance:0.42, contrast:0.32, lift:0.05, roll:0.03}, glow:0.12},
+  {id:'ghost', name:'Ghost', d:{exposure:8}, g:{sat:0.2, skin:0.75, skinSat:0.38, hsl:{yellow:[0,0.4,0.05], green:[20,0.4,0]}, shadows:[205,0.1], highs:[195,0.025], balance:0.5, contrast:0.06, lift:0.14, roll:0.04}, glow:0.14},
+  {id:'ink', name:'Ink', d:{sharpness:35, vibrance:6}, g:{sat:1.05, skin:0.9, skinSat:0.95, hsl:{red:[0,1.2,-0.05], blue:[0,1.15,-0.06], green:[0,1.08,-0.05]}, contrast:0.32}},
 ];
 
 const FONTS = ['Hanken Grotesk','Anton','Bebas Neue','Playfair Display','Lora','Caveat','Permanent Marker','Pacifico','Space Mono','Sora','Lobster','Righteous','Dancing Script','Bungee','UnifrakturMaguntia','Metal Mania','Creepster','Nosifer'];
@@ -182,10 +183,87 @@ function effective(filterId=S.filter, strength=S.strength, params=S.params){
   p.tone = f.tone ? {s:f.tone.s, h:f.tone.h, a:f.tone.a*t} : null;
   p.keep = f.keep ? {hue:f.keep.hue, a:f.keep.a*t} : null;
   p.crush = (f.crush || 0)*t; p.glow = (f.glow || 0)*t;
+  p.grade = f.g ? gradeFor(f.g, t) : null;
   for (const k of KEYS) if (p[k]===undefined) p[k] = 0;
   return p;
 }
 
+
+/* ================= colour grades (the dark looks) =================
+   Worked like a colourist would in Lightroom: colour by colour hue/saturation/lightness, skin kept natural,
+   shadows and highlights tinted without changing brightness, then a film-style curve with lifted blacks
+   and soft highlights. Everything is baked into small tables so it stays fast. */
+const HUE_BANDS = ['red','scarlet','orange','yellow','green','aqua','blue','purple','magenta'], HUE_AT = [0, 14, 30, 60, 120, 180, 225, 270, 320];
+function gradeFor(g, a){
+  if (a <= 0) return null;
+  const G = {a, sat: g.sat ?? 1, skin: g.skin || 0, skinSat: g.skinSat ?? 1, mono: g.mono || null};
+  // per-hue adjustments as 360-entry tables, each band fading into its neighbours
+  const dh = new Float32Array(360), ds = new Float32Array(360), dl = new Float32Array(360);
+  for (let h = 0; h < 360; h++){
+    let k = HUE_AT.length - 1; for (let i = 0; i < HUE_AT.length; i++){ if (HUE_AT[i] <= h) k = i; }
+    const k2 = (k + 1) % HUE_AT.length, h0 = HUE_AT[k], h1 = k2 === 0 ? 360 : HUE_AT[k2], t = (h - h0)/(h1 - h0), w = t*t*(3 - 2*t);
+    const A = (g.hsl && g.hsl[HUE_BANDS[k]]) || [0,1,0], B = (g.hsl && g.hsl[HUE_BANDS[k2]]) || [0,1,0];
+    dh[h] = A[0] + (B[0] - A[0])*w; ds[h] = A[1] + (B[1] - A[1])*w; dl[h] = A[2] + (B[2] - A[2])*w;
+  }
+  G.dh = dh; G.ds = ds; G.dl = dl; G.hsl = !!g.hsl;
+  // split tone colours, as offsets that add no brightness of their own
+  const tint = (hue, s) => { const c = hslToRgb(hue, 1, 0.5).map(v => v/255), L = 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; return c.map(v => (v - L)*s); };
+  G.sh = g.shadows ? tint(g.shadows[0], g.shadows[1]) : [0,0,0];
+  G.hi = g.highs ? tint(g.highs[0], g.highs[1]) : [0,0,0];
+  G.bal = g.balance ?? 0.5;
+  // film curve: contrast around a pivot, lifted blacks, softened whites
+  const c = g.contrast || 0, lift = g.lift || 0, top = 1 - (g.roll || 0), piv = g.pivot ?? 0.45, cur = new Float32Array(1025);
+  for (let i = 0; i <= 1024; i++){
+    const v = i/1024, e = 1 + c;
+    let y = v < piv ? piv*Math.pow(v/piv, e) : 1 - (1 - piv)*Math.pow((1 - v)/(1 - piv), e);
+    cur[i] = lift + y*(top - lift);
+  }
+  G.cur = cur;
+  return G;
+}
+function rgbHue(r, g, b){
+  const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), d = mx - mn;
+  if (d < 1e-5) return [0, 0, mx, mn];
+  let h; if (mx === r) h = ((g - b)/d + 6) % 6; else if (mx === g) h = (b - r)/d + 2; else h = (r - g)/d + 4;
+  return [h*60, d, mx, mn];
+}
+/* grade one pixel (values 0..1), returns into out[] */
+function gradePixel(G, r, g, b, out){
+  const r0 = r, g0 = g, b0 = b;
+  let L = 0.2126*r + 0.7152*g + 0.0722*b;
+  if (G.mono){
+    const m = G.mono; L = clamp(r*m[0] + g*m[1] + b*m[2], 0, 1); r = g = b = L;
+  } else {
+    const [h, d, mx] = rgbHue(r, g, b), S = mx > 0 ? d/mx : 0;
+    // how much this pixel looks like skin: warm hues, moderate saturation, not too dark
+    const skin = G.skin ? G.skin * clamp(1 - Math.abs(h - 22)/20, 0, 1) * clamp((S - 0.1)/0.08, 0, 1) * clamp((0.68 - S)/0.14, 0, 1) * clamp((L - 0.15)/0.12, 0, 1) * clamp((0.92 - L)/0.1, 0, 1) : 0;
+    if (G.hsl && d > 1e-4){
+      const hi = Math.round(h) % 360, sw = clamp(d*5, 0, 1);   // greys and near-black noise barely move
+      let shift = G.dh[hi]*sw*(1 - skin), sat = 1 + (G.ds[hi] - 1)*sw*(1 - skin), lum = G.dl[hi]*sw*(1 - skin);
+      if (shift){
+        // rotate the colour around its own grey
+        const a = shift*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a);
+        const h00=.213+cs*.787-sn*.213, h01=.715-cs*.715-sn*.715, h02=.072-cs*.072+sn*.928;
+        const h10=.213-cs*.213+sn*.143, h11=.715+cs*.285+sn*.140, h12=.072-cs*.072-sn*.283;
+        const h20=.213-cs*.213-sn*.787, h21=.715-cs*.715+sn*.715, h22=.072+cs*.928+sn*.072;
+        const a0 = r, a1 = g, a2 = b; r = h00*a0+h01*a1+h02*a2; g = h10*a0+h11*a1+h12*a2; b = h20*a0+h21*a1+h22*a2;
+      }
+      r = L + (r - L)*sat; g = L + (g - L)*sat; b = L + (b - L)*sat;
+      if (lum){ const f = 1 + lum; r *= f; g *= f; b *= f; }
+    }
+    // overall saturation, with skin given its own amount so faces don't go grey or blotchy
+    const sAll = G.sat + (G.skinSat - G.sat)*skin;
+    L = 0.2126*r + 0.7152*g + 0.0722*b;
+    r = L + (r - L)*sAll; g = L + (g - L)*sAll; b = L + (b - L)*sAll;
+  }
+  // split tone, keeping brightness where it was
+  const t = clamp(L, 0, 1), bal = G.bal, sw = Math.pow(clamp(1 - t/ (bal*1.6 + 0.2), 0, 1), 1.4), hw = Math.pow(clamp((t - bal*0.6)/(1 - bal*0.6), 0, 1), 1.4);
+  r += G.sh[0]*sw + G.hi[0]*hw; g += G.sh[1]*sw + G.hi[1]*hw; b += G.sh[2]*sw + G.hi[2]*hw;
+  // film curve, per channel like a tone curve: lifted blacks stay neutral and nothing bands
+  const C = G.cur; r = C[(clamp(r,0,1)*1024 + 0.5) | 0]; g = C[(clamp(g,0,1)*1024 + 0.5) | 0]; b = C[(clamp(b,0,1)*1024 + 0.5) | 0];
+  const A = G.a;
+  out[0] = r0 + (r - r0)*A; out[1] = g0 + (g - g0)*A; out[2] = b0 + (b - b0)*A;
+}
 /* ================= image processing ================= */
 function processImage(src, p){
   const w = src.width, h = src.height, s = src.data;
@@ -208,6 +286,7 @@ function processImage(src, p){
   const h20=.213-hc*.213-hs*.787, h21=.715-hc*.715+hs*.715, h22=.072+hc*.928+hs*.072;
   const cx = w/2, cy = h/2, inv = 1/Math.sqrt(cx*cx + cy*cy);
   // colour grade: shadows drift toward one colour and highlights toward another
+  const gd = p.grade || null, gq = [0,0,0];
   const tn = p.tone && p.tone.a > 0 ? p.tone : null, kp = p.keep && p.keep.a > 0 ? p.keep : null, cr = p.crush || 0;
   for (let y=0; y<h; y++){
     const dy = y - cy;
@@ -220,6 +299,7 @@ function processImage(src, p){
       if (vib){ const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), k = 1 + vib*(1 - Math.min(1, (mx-mn)*1.6)); r = L + (r-L)*k; g = L + (g-L)*k; b = L + (b-L)*k; }
       if (hue){ const r0=r, g0=g, b0=b; r = h00*r0+h01*g0+h02*b0; g = h10*r0+h11*g0+h12*b0; b = h20*r0+h21*g0+h22*b0; }
       if (spl){ const t = (clamp(L,0,1)-0.5)*spl; r += t*0.26; g += t*0.04; b -= t*0.3; }
+      if (gd){ gradePixel(gd, r, g, b, gq); r = gq[0]; g = gq[1]; b = gq[2]; L = 0.2126*r + 0.7152*g + 0.0722*b; }
       if (kp){
         // keep one colour (reds for Bloodmoon) and drain the rest
         const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), d = mx - mn;
@@ -623,6 +703,7 @@ const thumbs = {};
 (function buildFilters(){
   const grid = $('#filterGrid');
   for (const f of FILTERS){
+    if (f.id === 'crypt'){ const hd = document.createElement('div'); hd.className = 'fgroup'; hd.textContent = 'Dark & alternative'; grid.appendChild(hd); }
     const b = document.createElement('button'); b.type='button'; b.className='fbtn'; b.setAttribute('aria-pressed','false');
     const c = mk(96,96); b.appendChild(c); const sp = document.createElement('span'); sp.textContent = f.name; b.appendChild(sp);
     b.onclick = () => { S.filter = f.id; if (f.id!=='none' && S.strength===0) S.strength=100; syncUI(); render(); commit(); };
@@ -1687,34 +1768,34 @@ $('#tdup').onclick = duplicateSel;
 $('#tnew').onclick = () => addText(TEXT_PRESETS[0]);
 
 /* ---------- Hex it: a dark look picked for this photo, a different one each tap ---------- */
+// Hex it is colour only: a proper grade, no textures or frames over the face. Effects and frames are there if you want them.
 const HEX_LOOKS = [
-  {filter:'crypt', frame:'ornate', name:'Crypt with a gothic frame'},
-  {filter:'bloodmoon', fx:{id:'grunge', amt:40}, name:'Bloodmoon, a little worn'},
-  {filter:'noirlace', frame:'cameo', name:'Noir Lace in a cameo'},
-  {filter:'witchhouse', fx:{id:'smoke', amt:45}, name:'Witch House in the smoke'},
-  {filter:'doom', fx:{id:'grunge', amt:65}, frame:'burn', name:'Doom, burnt at the edges'},
-  {filter:'ghost', fx:{id:'infrared', amt:45}, name:'Ghost, glowing'},
-  {filter:'scenekid', fx:{id:'vhs', amt:50}, name:'Scene Kid on tape'},
-  {filter:'cassette', fx:{id:'chroma', amt:35}, frame:'barbed', name:'Cassette with barbed wire'},
+  {filter:'crypt', name:'Crypt: cold and moody'},
+  {filter:'bloodmoon', name:'Bloodmoon: everything muted but the reds'},
+  {filter:'noirlace', name:'Noir Lace: deep black and white'},
+  {filter:'witchhouse', name:'Witch House: violet shadows'},
+  {filter:'ghost', name:'Ghost: pale and washed out'},
+  {filter:'doom', name:'Doom: hard, gritty and bleached'},
+  {filter:'cassette', name:'Cassette: faded 90s film'},
+  {filter:'scenekid', name:'Scene Kid: bright, cool and pink'},
 ];
 let hexTurn = -1;
 function hexIt(){
   if (!S.base || tab === 'collage') return;
   if (hexTurn < 0){
-    // the first look suits the photo: pale photos go ghostly, reds go Bloodmoon, cool or purple ones Witch House, dark ones Noir Lace
+    // the first look suits the photo: pale photos go ghostly, strong reds go Bloodmoon, cool or purple ones Witch House, dark ones Noir Lace
     let start = 0;
     try {
-      const P = readPhoto(), red = P.palette.some(p => (p.hsl[0] < 15 || p.hsl[0] > 340) && p.hsl[1] > 0.4 && p.share > 0.08), hue = (P.palette.find(p => p.hsl[1] > 0.25) || P.palette[0]).hsl[0];
-      start = P.L > 0.62 ? 5 : red ? 1 : (hue > 190 && hue < 300) ? 3 : P.L < 0.3 ? 2 : 0;
+      const P = readPhoto(), red = P.palette.some(p => (p.hsl[0] < 12 || p.hsl[0] > 345) && p.hsl[1] > 0.45 && p.share > 0.08), hue = (P.palette.find(p => p.hsl[1] > 0.25) || P.palette[0]).hsl[0];
+      start = P.L > 0.65 ? 4 : red ? 1 : (hue > 190 && hue < 300) ? 3 : P.L < 0.3 ? 2 : 0;
     } catch {}
     hexTurn = start;
   } else hexTurn = (hexTurn + 1) % HEX_LOOKS.length;
   const L = HEX_LOOKS[hexTurn];
   S.filter = L.filter; S.strength = 100;
-  S.fx = L.fx ? {...FX_DEFAULT, ...L.fx, seed: Math.floor(Math.random()*999) + 1} : {...FX_DEFAULT};
-  S.frame = L.frame ? {...FRAME_DEFAULT, style: L.frame, colour: '', size: 35} : {...FRAME_DEFAULT};
-  syncUI(); syncFx(); syncFrame(); render(); commit();
-  toast(`${L.name}. Tap Hex it again for another.`);
+  syncUI(); render(); commit();
+  const t = thumbs[L.filter]; if (t) t.b.scrollIntoView({block:'nearest', behavior:'smooth'});
+  toast(`${L.name}. Tap Hex it again for another, or use Filter strength to soften it.`);
 }
 $('#hexIt').onclick = hexIt;
 

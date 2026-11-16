@@ -515,3 +515,5 @@ select option{background-color:#1e2025;color:#f1f0ec}
 .look-use{flex:1;min-width:0;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis}
 .look-save{display:flex;gap:6px}
 .look-save .input{flex:1;min-width:0}
+
+.fgroup{grid-column:1/-1;margin:10px 0 2px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#9aa0aa)}
