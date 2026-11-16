@@ -58,6 +58,7 @@
       <button class="tool" role="tab" data-tab="stickers" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>Stickers</button>
       <button class="tool" role="tab" data-tab="draw" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20c3 0 4-2 4-4l9-9-3-3-9 9c-2 0-4 1-4 4z"/></svg>Draw</button>
       <button class="tool" role="tab" data-tab="frames" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>Frames</button>
+      <button class="tool" role="tab" data-tab="templates" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><rect x="7" y="6" width="10" height="7" rx="1"/><path d="M7 16.5h10M9 19h6"/></svg>Templates</button>
       <button class="tool" role="tab" data-tab="layers" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>Layers</button>
       <button class="tool" role="tab" data-tab="collage" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="11" rx="1"/><rect x="13" y="3" width="8" height="6" rx="1"/><rect x="13" y="11" width="8" height="10" rx="1"/><rect x="3" y="16" width="8" height="5" rx="1"/></svg>Collage</button>
     </nav>
@@ -279,6 +280,20 @@
             <div class="field" id="frameColourF"><span>Colour</span><div class="swatches" id="frameColour"></div></div>
           </div>
           <p class="hint">Frames sit over the edges of your photo. Filters don't tint them, and text and stickers can go on top.</p>
+        </div>
+
+        <div class="pane" id="pane-templates" hidden>
+          <h2 class="pane-title">Templates</h2>
+          <p class="hint">Pick a design and your photo drops into it. The words and stickers stay editable, so tap them to make it yours.</p>
+          <div class="frames tpl-grid" id="tplGrid"></div>
+          <div class="sub" id="tplOpts" hidden>
+            <div class="group-h">Your photo in the design</div>
+            <div class="row"><label for="tplZoom">Zoom</label><output id="tplZoomOut"></output><input type="range" id="tplZoom" min="100" max="300" value="100"></div>
+            <div class="row"><label for="tplX">Left and right</label><output id="tplXOut"></output><input type="range" id="tplX" min="-100" max="100" value="0"></div>
+            <div class="row"><label for="tplY">Up and down</label><output id="tplYOut"></output><input type="range" id="tplY" min="-100" max="100" value="0"></div>
+            <button class="btn wide" id="tplSwap" type="button">Use a different photo</button>
+          </div>
+          <input type="file" id="tplFile" accept="image/*" hidden>
         </div>
 
         <div class="pane" id="pane-layers" hidden>

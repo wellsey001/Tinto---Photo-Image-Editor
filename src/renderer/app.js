@@ -135,7 +135,7 @@ const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30}
 const FRAME_DEFAULT = {style:'none', colour:'', size:40};
 let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:null, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
-const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null});
+const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx) + JSON.stringify(S.tpl || null), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null, tpl:S.tpl ? {...S.tpl} : null});
 function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && a.bj===b.bj && KEYS.every(k => a.params[k]===b.params[k]); }
 function commit(){
   const s = snap();
@@ -148,8 +148,8 @@ function commit(){
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
-  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)}; S.fx = st.fx ? clone(st.fx) : {...FX_DEFAULT};
-  if (!getSel()) selId = null; syncBg(); syncFrame(); syncFx();
+  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)}; S.fx = st.fx ? clone(st.fx) : {...FX_DEFAULT}; S.tpl = st.tpl ? {...st.tpl} : null;
+  if (!getSel()) selId = null; syncBg(); syncFrame(); syncFx(); syncTpl();
   syncUI();
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
@@ -1056,8 +1056,9 @@ function setTab(name){
   if ((name === 'crop' || name === 'collage') && zoomLevel !== 1) resetZoom();
   zoomUI.hidden = name === 'collage';
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
-  ['adjust','filters','background','retouch','effects','crop','resize','text','stickers','draw','frames','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  ['adjust','filters','background','retouch','effects','crop','resize','text','stickers','draw','frames','templates','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
   if (name === 'effects') drawFxThumbs();
+  if (name === 'templates') syncTpl();
   syncFx();
   stage.classList.toggle('retouching', name==='retouch'); if (name!=='retouch') rtCursor.hidden = true;
   $('#cropLayer').hidden = name!=='crop';
@@ -1840,6 +1841,189 @@ function fxPointerMove(e){
 }
 syncFx();
 
+
+/* ================= Templates: ready-made designs around one photo ================= */
+// The design's background and photo become the photo you edit; its words and stickers arrive as
+// ordinary layers, so everything stays editable. Positions are fractions of the width (x, size) and height (y).
+const DESIGNS = [
+  {id:'birthday', name:'Birthday card', w:1600, h:2000, bg:{type:'dots', color:'#ffe6ee', dot:'#ffcadb'},
+    cell:{x:.12, y:.2, w:.76, h:.52, rad:.03, frame:'border', shadow:true, rot:-2},
+    layers:[
+      {t:'text', text:'Happy Birthday!', font:'Pacifico', size:.105, color:'#ff5a8a', outline:22, ocolor:'#ffffff', shadow:25, x:.5, y:.1},
+      {t:'text', text:'Have the best day ever', font:'Caveat', bold:true, size:.075, color:'#7a4b5c', x:.5, y:.84, rot:-2},
+      {t:'sticker', id:'fe-balloon', x:.13, y:.22, size:.2, rot:-12},
+      {t:'sticker', id:'fe-party-popper', x:.87, y:.21, size:.16, rot:12},
+      {t:'sticker', id:'fe-birthday-cake', x:.83, y:.72, size:.2, rot:8},
+      {t:'sticker', id:'fe-confetti-ball', x:.15, y:.75, size:.13, rot:-8},
+    ]},
+  {id:'quote', name:'Quote post', w:1080, h:1080, bg:{type:'solid', color:'#111111'},
+    cell:{x:0, y:0, w:1, h:1}, deco:[{type:'rect', x:0, y:0, w:1, h:1, color:'rgba(12,10,16,.5)'}],
+    layers:[
+      {t:'text', text:'“', font:'Playfair Display', bold:true, size:.32, color:'#f6b443', x:.5, y:.3},
+      {t:'text', text:'Do more of\nwhat makes\nyou happy.', font:'Playfair Display', bold:true, size:.095, color:'#ffffff', shadow:30, x:.5, y:.53},
+      {t:'text', text:'— YOUR NAME', font:'Hanken Grotesk', bold:true, size:.032, spacing:25, color:'#f6b443', x:.5, y:.79},
+    ]},
+  {id:'youtube', name:'YouTube thumbnail', w:1280, h:720, bg:{type:'solid', color:'#ffd400'},
+    cell:{x:.4, y:0, w:.6, h:1, shape:'slant', slantL:true},
+    layers:[
+      {t:'text', text:'I TRIED\nTHIS!', font:'Anton', size:.12, color:'#ffffff', outline:30, ocolor:'#111111', depth:45, dcolor:'#d6233f', x:.23, y:.53, rot:-4},
+      {t:'shape', shape:'arrow', color:'#ff2b2b', outline:'#ffffff', shadow:true, x:.47, y:.8, size:.15, rot:-18},
+      {t:'shape', shape:'burst', color:'#ff2b2b', outline:'', x:.09, y:.15, size:.14, rot:0},
+      {t:'text', text:'NEW', font:'Anton', size:.038, color:'#ffffff', x:.09, y:.15, rot:-10},
+      {t:'sticker', id:'fe-exploding-head', x:.9, y:.2, size:.14, rot:10},
+    ]},
+  {id:'story', name:'Weekend story', w:1080, h:1920, bg:{type:'paper', color:'#f3ece0'},
+    cell:{x:.1, y:.1, w:.8, h:.6, shape:'arch', shadow:true},
+    layers:[
+      {t:'text', text:'Weekend mood', font:'Playfair Display', bold:true, size:.105, color:'#3b3530', x:.5, y:.79},
+      {t:'text', text:'SAT · SUN · REPEAT', font:'Hanken Grotesk', bold:true, size:.034, spacing:30, color:'#a0715a', x:.5, y:.85},
+      {t:'sticker', id:'fe-sun-with-face', x:.85, y:.11, size:.22, rot:10},
+      {t:'shape', shape:'sparkle', color:'#e8a33d', outline:'', x:.15, y:.71, size:.09, rot:0},
+    ]},
+  {id:'polaroid', name:'Polaroid note', w:1600, h:2000, bg:{type:'paper', color:'#e9e1d3'},
+    cell:{x:.15, y:.11, w:.7, sq:true, rot:-4, frame:'polaroid', shadow:true},
+    deco:[{type:'tape', x:.5, y:.1, w:.22, h:.05, rot:-3}],
+    layers:[
+      {t:'text', text:'best day ever', font:'Caveat', bold:true, size:.09, color:'#3b3530', x:.5, y:.75, rot:-4},
+      {t:'sticker', id:'fe-red-heart', x:.84, y:.86, size:.12, rot:12},
+      {t:'sticker', id:'fe-sparkles', x:.16, y:.88, size:.1, rot:-10},
+    ]},
+  {id:'event', name:'Event poster', w:1600, h:2000, bg:{type:'solid', color:'#14213d'},
+    cell:{x:0, y:0, w:1, h:.62},
+    layers:[
+      {t:'text', text:'SUMMER\nPARTY', font:'Anton', size:.15, color:'#ffd166', spacing:4, x:.5, y:.76},
+      {t:'text', text:'SAT 20 JUNE · 8PM', font:'Hanken Grotesk', bold:true, size:.04, spacing:25, color:'#ffffff', x:.5, y:.9},
+      {t:'text', text:'The Garden Bar', font:'Caveat', bold:true, size:.06, color:'#ef476f', x:.5, y:.95},
+      {t:'shape', shape:'burst', color:'#ef476f', outline:'', x:.84, y:.6, size:.21, rot:0},
+      {t:'text', text:'FREE\nENTRY', font:'Anton', size:.04, color:'#ffffff', x:.84, y:.6, rot:12},
+    ]},
+  {id:'savedate', name:'Save the date', w:1600, h:2000, bg:{type:'solid', color:'#fbf8f3'},
+    cell:{x:.12, y:.06, w:.76, h:.62, shape:'arch'},
+    layers:[
+      {t:'text', text:'Save the Date', font:'Dancing Script', bold:true, size:.1, color:'#8a6d4a', x:.5, y:.77},
+      {t:'text', text:'EMMA & JAMES', font:'Playfair Display', bold:true, size:.05, spacing:15, color:'#3b3530', x:.5, y:.86},
+      {t:'text', text:'14 · 08 · 2027', font:'Hanken Grotesk', bold:true, size:.034, spacing:30, color:'#8a7f72', x:.5, y:.91},
+    ]},
+  {id:'postcard', name:'Postcard', w:1800, h:1200, bg:{type:'paper', color:'#f7f1e6'},
+    cell:{x:.05, y:.08, w:.52, h:.84, rad:.01, shadow:true},
+    deco:[{type:'lines', x:.63, w:.29, y:.66, gap:.085, count:3, color:'#cdbfa6'}],
+    layers:[
+      {t:'text', text:'Greetings from', font:'Dancing Script', bold:true, size:.05, color:'#c0503c', x:.775, y:.33},
+      {t:'text', text:'THE LAKES', font:'Anton', size:.085, spacing:4, color:'#2b3a55', x:.775, y:.46},
+      {t:'sticker', id:'fe-sunflower', x:.9, y:.15, size:.09, rot:8},
+    ]},
+  {id:'cover', name:'Magazine cover', w:1600, h:2000, bg:{type:'solid', color:'#111111'},
+    cell:{x:0, y:0, w:1, h:1}, deco:[{type:'shade', y0:0, y1:.35, alpha:.55}, {type:'shade', y0:.62, y1:1, alpha:.65, rev:true}],
+    layers:[
+      {t:'text', text:'WANDER', font:'Anton', size:.25, spacing:4, color:'#ffffff', x:.5, y:.13},
+      {t:'text', text:'The quiet issue', font:'Playfair Display', bold:true, size:.075, color:'#ffffff', shadow:40, x:.5, y:.85},
+      {t:'text', text:'SLOW TRAVEL · 24 PAGES OF CALM', font:'Hanken Grotesk', bold:true, size:.028, spacing:20, color:'#f6b443', x:.5, y:.91},
+    ]},
+];
+const DESIGN_BY_ID = Object.fromEntries(DESIGNS.map(d => [d.id, d]));
+const TPL_SRC = new Map();     // the photo each applied design was built around
+function designTpl(d){ return {cells:[d.cell], deco:d.deco || [], bg:d.bg, text:{}}; }
+/* the design's background with the photo placed in it, at width W */
+function renderDesign(d, img, W, pos = {zoom:1, fx:0, fy:0}){
+  const H = Math.round(W * d.h / d.w), c = mk(W, H), keep = C.bg; C.bg = null;
+  try { renderCollage(c.getContext('2d'), W, H, false, {tpl: designTpl(d), cells: [{img, zoom: pos.zoom, fx: pos.fx, fy: pos.fy}]}); }
+  finally { C.bg = keep; }
+  return c;
+}
+async function designLayers(d, W, H){
+  const out = [];
+  for (const s of d.layers){
+    const base = {x: s.x*W, y: s.y*H, rot: s.rot || 0, scale: 1, opacity: 1, flip: false, hidden: false};
+    if (s.t === 'text') out.push({...base, type:'text', text:s.text, font:s.font, size:Math.round(s.size*W), color:s.color, bold:!!s.bold, align:'center',
+      outline:s.outline || 0, ocolor:s.ocolor || '#111111', shadow:s.shadow || 0, bg:'', glow:'', spacing:s.spacing || 0, curve:s.curve || 0, grad:'', depth:s.depth || 0, dcolor:s.dcolor || '#111111'});
+    else if (s.t === 'shape') out.push({...base, type:'shape', shape:s.shape, color:s.color, outline:s.outline || '', shadow:!!s.shadow, scale: s.size*W/100});
+    else if (s.t === 'sticker'){
+      const st = STK_BY_ID.get(s.id); if (!st) continue;
+      try { const key = await packCanvas(st), c = STICKER_IMG.get(key); out.push({...base, type:'image', ref:key, name:st.name, w:c.width, h:c.height, scale: s.size*W/Math.max(c.width, c.height)}); } catch {}
+    }
+  }
+  return out;
+}
+/* the photo a design goes around: the one you're editing, with its edits but without text or stickers */
+function tplPhoto(){
+  if (S.tpl && TPL_SRC.has(S.tpl.ref)) return TPL_SRC.get(S.tpl.ref);
+  const b = S.base, out = processImage(fxFull(b), effective()), c = mk(b.width, b.height); c.getContext('2d').putImageData(out, 0, 0);
+  if (S.bg.mode !== 'original'){ const m = bgMaskFor(b); if (m) applyBackground(c, m, S.bg); }
+  return shrinkTo(c, 2400);
+}
+async function applyDesign(id, img){
+  const d = DESIGN_BY_ID[id]; if (!d || !S.base) return;
+  if (tab === 'collage') return;
+  const photo = img || tplPhoto(), fresh = !S.tpl || img;
+  await document.fonts.ready;
+  const ref = fresh ? 'tp-' + Date.now().toString(36) : S.tpl.ref;
+  TPL_SRC.set(ref, photo);
+  const pos = {zoom:1, fx:0, fy:0};
+  const base = renderDesign(d, photo, d.w, pos);
+  const layers = await designLayers(d, base.width, base.height);
+  for (const l of layers){ l.id = nextId++; if (l.type === 'text') document.fonts.load(`${l.bold ? 700 : 400} 40px "${l.font}"`).then(composite).catch(() => {}); }
+  S.base = base; S.layers = layers; S.tpl = {id, ref, ...pos};
+  if (fresh){ S.params = defaults(); S.filter = 'none'; S.strength = 100; }
+  S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT};
+  selId = null; drawSession = null;
+  syncUI(); syncBg(); syncFrame(); syncFx(); commit(); rebuildPreview(); syncResize(); setSocial(null); refreshLayerUI(); syncTpl();
+  toast('Tap any words to change them. Undo goes back to your photo.');
+}
+/* moving and zooming the photo inside the design */
+let tplTimer = 0;
+const tplFits = () => { const d = S.tpl && DESIGN_BY_ID[S.tpl.id]; return !!(d && S.base && TPL_SRC.has(S.tpl.ref) && Math.abs(S.base.width/S.base.height - d.w/d.h) < 0.01); };
+function rerenderDesign(){
+  if (!tplFits()) return;
+  const d = DESIGN_BY_ID[S.tpl.id], img = TPL_SRC.get(S.tpl.ref);
+  S.base = renderDesign(d, img, S.base.width, S.tpl); rebuildPreview();
+}
+function tplPos(key, v){ if (!S.tpl) return; S.tpl[key] = v; clearTimeout(tplTimer); tplTimer = setTimeout(rerenderDesign, 60); }
+function tplRange(id, key, k, fmt = v => String(v)){
+  const inp = $('#'+id), out = $('#'+id+'Out');
+  const paint = () => { const v = S.tpl ? Math.round(S.tpl[key]*k) : +inp.defaultValue; inp.value = v; fill(inp, v, +inp.min, +inp.max); out.textContent = fmt(v); };
+  inp.addEventListener('input', () => { tplPos(key, +inp.value / k); paint(); });
+  inp.addEventListener('change', () => { clearTimeout(tplTimer); rerenderDesign(); commit(); });
+  return paint;
+}
+const paintTplZoom = tplRange('tplZoom', 'zoom', 100, v => v + '%'), paintTplX = tplRange('tplX', 'fx', 100), paintTplY = tplRange('tplY', 'fy', 100);
+$('#tplSwap').onclick = () => $('#tplFile').click();
+$('#tplFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !S.tpl) return;
+  try { const img = await loadImageFile(f); const ref = 'tp-' + Date.now().toString(36); TPL_SRC.set(ref, img); S.tpl = {...S.tpl, ref, zoom:1, fx:0, fy:0}; rerenderDesign(); commit(); syncTpl(); }
+  catch { toast('That photo couldn’t be read. Try a JPG or PNG.'); }
+});
+const tplThumbs = [];
+(function buildDesigns(){
+  const grid = $('#tplGrid');
+  for (const d of DESIGNS){
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = d.id; b.setAttribute('aria-pressed', 'false');
+    const c = mk(150, 150), lab = document.createElement('span'); lab.textContent = d.name;
+    b.append(c, lab); grid.appendChild(b); tplThumbs.push({c, d});
+    b.onclick = () => applyDesign(d.id);
+  }
+})();
+let tplThumbFor = null, tplThumbJob = 0;
+async function drawTplThumbs(){
+  if (!S.base) return;
+  const photo = S.tpl && TPL_SRC.get(S.tpl.ref) || rawC;
+  if (tplThumbFor === photo) return; tplThumbFor = photo;
+  const job = ++tplThumbJob; await document.fonts.ready;
+  const small = shrinkTo(photo, 400);
+  for (const {c, d} of tplThumbs){
+    if (job !== tplThumbJob) return;
+    const k = Math.min(150 / d.w, 150 / d.h), W = Math.round(d.w*k), H = Math.round(d.h*k);
+    c.width = W; c.height = H;
+    const x = c.getContext('2d'); x.drawImage(renderDesign(d, small, W), 0, 0);
+    for (const l of await designLayers(d, W, H)) drawLayer(x, l);
+  }
+}
+function syncTpl(){
+  document.querySelectorAll('#tplGrid button').forEach(b => b.setAttribute('aria-pressed', String(!!S.tpl && b.dataset.id === S.tpl.id)));
+  $('#tplOpts').hidden = !tplFits();
+  paintTplZoom(); paintTplX(); paintTplY();
+  if (tab === 'templates') drawTplThumbs();
+}
+
 /* ================= stage pointer: select, move, scale, rotate, draw ================= */
 let ldrag = null;
 function clientToImg(e){
@@ -2545,7 +2729,7 @@ function paintDeco(ctx, d, W, H, tpl, withText){
     ctx.fillStyle = d.color;
     for (let y = step*0.4; y < H - hh; y += step){ ctx.beginPath(); ctx.roundRect(x + w*0.18, y, w*0.64, hh, w*0.12); ctx.fill(); }
   } else if (d.type === 'shade'){
-    const g = ctx.createLinearGradient(0, d.y0*H, 0, d.y1*H); g.addColorStop(0, `rgba(0,0,0,${d.alpha})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    const g = ctx.createLinearGradient(0, d.y0*H, 0, d.y1*H); g.addColorStop(d.rev ? 1 : 0, `rgba(0,0,0,${d.alpha})`); g.addColorStop(d.rev ? 0 : 1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, d.y0*H, W, (d.y1 - d.y0)*H);
   } else if (d.type === 'lines'){
     ctx.strokeStyle = d.color; ctx.lineWidth = Math.max(2, W*0.0025);
@@ -2721,7 +2905,7 @@ $('#cAddCurrent').onclick = async () => {
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
   const [W, H] = collageSize(), tpl = C.tpl;
-  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; syncBg(); syncFrame(); syncFx();
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; S.tpl = null; syncBg(); syncFrame(); syncFx();
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
   // Template titles arrive as text layers, so they stay editable in the editor.
   const fitSize = d => {   // the same shrink-to-fit the collage uses
