@@ -1,7 +1,7 @@
 {
   "name": "tinto",
   "productName": "Tinto",
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "Tinto - Photo & Image Editor. A desktop photo editor for Windows and Linux with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
   "homepage": "https://github.com/wellsey001/Tinto---Photo-Image-Editor",
   "main": "src/main.js",

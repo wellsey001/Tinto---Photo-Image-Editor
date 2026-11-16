@@ -504,3 +504,14 @@ select option{background-color:#1e2025;color:#f1f0ec}
 
 .fx-eyes{grid-template-columns:repeat(5,minmax(0,1fr))}
 .fx-eyes button{padding-left:2px;padding-right:2px;font-size:12px}
+
+/* Hex it and saved looks */
+.hex-btn{width:100%;justify-content:center;gap:8px;padding:10px;background:linear-gradient(135deg,#2a1838,#120d14)!important;border-color:#5a3d78!important;color:#e8d6ff;font-weight:600}
+.hex-btn svg{width:18px;height:18px}
+.hex-btn:hover{border-color:#9b6bff!important}
+.looks{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.looks-list{display:grid;gap:6px;margin:8px 0}
+.look-row{display:flex;gap:6px;align-items:center}
+.look-use{flex:1;min-width:0;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis}
+.look-save{display:flex;gap:6px}
+.look-save .input{flex:1;min-width:0}

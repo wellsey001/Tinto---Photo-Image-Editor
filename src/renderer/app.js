@@ -1686,6 +1686,76 @@ $('#tbold').onclick = () => { const l = selText(); if (!l) return; l.bold = !l.b
 $('#tdup').onclick = duplicateSel;
 $('#tnew').onclick = () => addText(TEXT_PRESETS[0]);
 
+/* ---------- Hex it: a dark look picked for this photo, a different one each tap ---------- */
+const HEX_LOOKS = [
+  {filter:'crypt', frame:'ornate', name:'Crypt with a gothic frame'},
+  {filter:'bloodmoon', fx:{id:'grunge', amt:40}, name:'Bloodmoon, a little worn'},
+  {filter:'noirlace', frame:'cameo', name:'Noir Lace in a cameo'},
+  {filter:'witchhouse', fx:{id:'smoke', amt:45}, name:'Witch House in the smoke'},
+  {filter:'doom', fx:{id:'grunge', amt:65}, frame:'burn', name:'Doom, burnt at the edges'},
+  {filter:'ghost', fx:{id:'infrared', amt:45}, name:'Ghost, glowing'},
+  {filter:'scenekid', fx:{id:'vhs', amt:50}, name:'Scene Kid on tape'},
+  {filter:'cassette', fx:{id:'chroma', amt:35}, frame:'barbed', name:'Cassette with barbed wire'},
+];
+let hexTurn = -1;
+function hexIt(){
+  if (!S.base || tab === 'collage') return;
+  if (hexTurn < 0){
+    // the first look suits the photo: pale photos go ghostly, reds go Bloodmoon, cool or purple ones Witch House, dark ones Noir Lace
+    let start = 0;
+    try {
+      const P = readPhoto(), red = P.palette.some(p => (p.hsl[0] < 15 || p.hsl[0] > 340) && p.hsl[1] > 0.4 && p.share > 0.08), hue = (P.palette.find(p => p.hsl[1] > 0.25) || P.palette[0]).hsl[0];
+      start = P.L > 0.62 ? 5 : red ? 1 : (hue > 190 && hue < 300) ? 3 : P.L < 0.3 ? 2 : 0;
+    } catch {}
+    hexTurn = start;
+  } else hexTurn = (hexTurn + 1) % HEX_LOOKS.length;
+  const L = HEX_LOOKS[hexTurn];
+  S.filter = L.filter; S.strength = 100;
+  S.fx = L.fx ? {...FX_DEFAULT, ...L.fx, seed: Math.floor(Math.random()*999) + 1} : {...FX_DEFAULT};
+  S.frame = L.frame ? {...FRAME_DEFAULT, style: L.frame, colour: '', size: 35} : {...FRAME_DEFAULT};
+  syncUI(); syncFx(); syncFrame(); render(); commit();
+  toast(`${L.name}. Tap Hex it again for another.`);
+}
+$('#hexIt').onclick = hexIt;
+
+/* ---------- your saved looks ---------- */
+const LOOKS_KEY = 'tinto.looks';
+function readLooks(){ try { const v = JSON.parse(localStorage.getItem(LOOKS_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+function writeLooks(v){ try { localStorage.setItem(LOOKS_KEY, JSON.stringify(v)); } catch { toast('Your looks couldn’t be saved on this device.'); } }
+function currentLook(name){
+  const fx = S.fx && S.fx.id !== 'none' ? {...S.fx, strokes: [], eyes: []} : null;   // brushing and eye spots belong to one photo
+  return {name, params: {...S.params}, filter: S.filter, strength: S.strength, fx, frame: S.frame && S.frame.style !== 'none' ? {...S.frame} : null};
+}
+function applyLook(L){
+  if (!S.base) return;
+  S.params = {...defaults(), ...(L.params || {})}; S.filter = L.filter || 'none'; S.strength = L.strength ?? 100;
+  S.fx = L.fx ? {...FX_DEFAULT, ...L.fx} : {...FX_DEFAULT};
+  if (L.frame) S.frame = {...FRAME_DEFAULT, ...L.frame};
+  syncUI(); syncFx(); syncFrame(); render(); commit();
+  toast(`“${L.name}” applied.`);
+}
+function renderLooks(){
+  const list = $('#looksList'), looks = readLooks(); list.textContent = '';
+  if (!looks.length){ const p = document.createElement('p'); p.className = 'hint looks-empty'; p.textContent = 'No saved looks yet.'; list.appendChild(p); return; }
+  looks.forEach((L, i) => {
+    const row = document.createElement('div'); row.className = 'look-row';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn look-use'; b.textContent = L.name;
+    const f = FILTERS.find(x => x.id === L.filter); b.title = [f && f.id !== 'none' ? f.name : '', L.fx ? (FX_BY_ID[L.fx.id] || {}).name : '', L.frame ? (FRAMES.find(x => x.id === L.frame.style) || {}).name : ''].filter(Boolean).join(' + ') || 'Adjustments';
+    b.onclick = () => applyLook(L);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'ib'; x.title = `Delete “${L.name}”`; x.setAttribute('aria-label', x.title);
+    x.innerHTML = '<svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>';
+    x.onclick = () => { const v = readLooks(); v.splice(i, 1); writeLooks(v); renderLooks(); };
+    row.append(b, x); list.appendChild(row);
+  });
+}
+$('#lookSave').onclick = () => {
+  const name = $('#lookName').value.trim() || `Look ${readLooks().length + 1}`;
+  const v = readLooks().filter(L => L.name !== name); v.push(currentLook(name)); writeLooks(v);
+  $('#lookName').value = ''; renderLooks(); toast(`Saved “${name}”. It’s here for every photo.`);
+};
+$('#lookName').addEventListener('keydown', e => { if (e.key === 'Enter') $('#lookSave').click(); });
+renderLooks();
+
 /* ---------- text made for this photo ---------- */
 // Tinto looks at the photo (its main colours, how warm or cool, light or dark and bright it is, and where
 // the quiet, plain areas are) and suggests text styles to match: fonts that suit the mood, colours taken
@@ -1776,7 +1846,10 @@ function photoTextStyles(text){
   const main = P.palette.find(p => p.hsl[1] > 0.25 && p.hsl[2] > 0.2 && p.hsl[2] < 0.85) || P.palette[0];
   const hue = main.hsl[0];
   const mood = P.L < 0.32 ? 'dark' : P.L > 0.62 && P.sat < 0.28 ? 'pastel' : hue >= 300 || hue < 15 ? (P.L > 0.5 ? 'pink' : 'warm') : hue < 70 ? 'warm' : hue < 170 ? 'green' : P.sat < 0.12 ? 'plain' : 'cool';
-  const words = MOOD_WORDS[mood];
+  // edits in the alt pack get the scene's own words and fonts
+  const ALT_F = ['crypt','bloodmoon','noirlace','scenekid','cassette','doom','witchhouse','ghost'], ALT_FX = ['grunge','xerox','vhs','smoke','infrared','chroma','blood','eyeglow'], ALT_FR = ['ornate','barbed','burn','cracked','coffin','cameo'];
+  const alt = ALT_F.includes(S.filter) || ALT_FX.includes(S.fx && S.fx.id) || ALT_FR.includes(S.frame && S.frame.style) || S.layers.some(l => l.type === 'image' && typeof l.ref === 'string' && (STK_BY_ID.get(l.ref.replace(/^pk-/, '')) || {}).cat === 'dark');
+  const words = alt ? ['Nevermore', 'Stay spooky', 'Dead inside', 'Forever black', 'After midnight', 'Hex appeal'] : MOOD_WORDS[mood];
   // colours from the photo, made bolder: the accent at full strength, a light and a dark of the same hue
   const vivid = P.palette.map(p => hslToRgb(p.hsl[0], Math.min(1, Math.max(0.55, p.hsl[1]*1.4)), Math.min(0.62, Math.max(0.45, p.hsl[2])))).slice(0, 4);
   const light = hslToRgb(hue, Math.min(0.5, main.hsl[1]), 0.94), dark = hslToRgb(hue, Math.min(0.5, main.hsl[1]), 0.12);
@@ -1792,6 +1865,7 @@ function photoTextStyles(text){
     return {c: lum(bg) > 0.4 ? dark : light, ok:false};
   };
   const fontsFor = {
+    alt: [['UnifrakturMaguntia', false], ['Metal Mania', false], ['Creepster', false], ['Playfair Display', true], ['Bebas Neue', false], ['Nosifer', false]],
     dark: [['Bebas Neue', false], ['Playfair Display', true], ['Righteous', false], ['Caveat', true], ['Anton', false], ['Sora', true]],
     pastel: [['Dancing Script', true], ['Playfair Display', true], ['Lora', true], ['Caveat', true], ['Sora', true], ['Pacifico', false]],
     pink: [['Pacifico', false], ['Dancing Script', true], ['Playfair Display', true], ['Lobster', false], ['Sora', true], ['Caveat', true]],
@@ -1799,8 +1873,8 @@ function photoTextStyles(text){
     green: [['Permanent Marker', false], ['Bebas Neue', false], ['Lora', true], ['Caveat', true], ['Sora', true], ['Dancing Script', true]],
     cool: [['Bebas Neue', false], ['Sora', true], ['Playfair Display', true], ['Caveat', true], ['Space Mono', true], ['Righteous', false]],
     plain: [['Anton', false], ['Playfair Display', true], ['Caveat', true], ['Sora', true], ['Bebas Neue', false], ['Pacifico', false]],
-  }[mood];
-  const caps = f => ['Bebas Neue', 'Anton', 'Bungee', 'Righteous'].includes(f);
+  }[alt ? 'alt' : mood];
+  const caps = f => ['Bebas Neue', 'Anton', 'Bungee', 'Righteous', 'Metal Mania', 'Nosifer'].includes(f);
   const out = [], used = [];
   fontsFor.forEach(([font, bold], i) => {
     // spread the suggestions over the two or three calmest spots
@@ -2605,6 +2679,74 @@ const DESIGNS = [
       {t:'text', text:'SLOW TRAVEL · 24 PAGES OF CALM', font:'Hanken Grotesk', bold:true, size:.028, spacing:20, color:'#f6b443', x:.5, y:.91},
     ]},
 ];
+// for bands, promoters, tattoo artists and alt models
+DESIGNS.push(
+  {id:'gigmetal', name:'Metal gig poster', w:1600, h:2000, bg:{type:'solid', color:'#0b0a0c'},
+    cell:{x:0, y:0, w:1, h:.7}, deco:[{type:'shade', y0:.45, y1:.7, alpha:.95, rev:true}, {type:'shade', y0:0, y1:.22, alpha:.7}],
+    layers:[
+      {t:'text', text:'NIGHTSHADE', font:'Metal Mania', size:.16, color:'#ffffff', shadow:40, x:.5, y:.11},
+      {t:'text', text:'+ SPECIAL GUESTS', font:'Hanken Grotesk', bold:true, size:.03, spacing:30, color:'#c9c4cf', x:.5, y:.2},
+      {t:'text', text:'THE CRYPT · SAT 31 OCT', font:'Bebas Neue', size:.085, spacing:4, color:'#d6142f', x:.5, y:.79},
+      {t:'text', text:'Doors 7pm · £12 advance · 18+', font:'Hanken Grotesk', bold:true, size:.032, color:'#e8e4ec', x:.5, y:.87},
+      {t:'text', text:'TICKETS: yourvenue.co.uk', font:'Space Mono', bold:true, size:.026, color:'#8f8a96', x:.5, y:.93},
+      {t:'sticker', id:'skull', x:.12, y:.79, size:.1, rot:-10},
+      {t:'sticker', id:'skull', x:.88, y:.79, size:.1, rot:10},
+    ]},
+  {id:'punkzine', name:'Punk zine flyer', w:1600, h:2000, bg:{type:'paper', color:'#efece4'},
+    cell:{x:.08, y:.2, w:.84, h:.5, rot:-2, frame:'border', shadow:true}, deco:[{type:'tape', x:.5, y:.19, w:.26, h:.05, rot:3}],
+    layers:[
+      {t:'text', text:'NO FUTURE FEST', font:'Permanent Marker', size:.11, color:'#111111', x:.5, y:.1, rot:-3},
+      {t:'text', text:'LIVE AT THE BASEMENT', font:'Space Mono', bold:true, size:.036, color:'#111111', bg:'#ffd400', x:.5, y:.78, rot:2},
+      {t:'text', text:'SAT 14 MAR · £5 ON THE DOOR', font:'Bebas Neue', size:.07, spacing:3, color:'#c4162f', x:.5, y:.87},
+      {t:'text', text:'all ages · no bigots', font:'Permanent Marker', size:.04, color:'#111111', x:.5, y:.94},
+      {t:'sticker', id:'safetypin', x:.86, y:.24, size:.16, rot:20},
+    ]},
+  {id:'gothclub', name:'Goth club night', w:1600, h:2000, bg:{type:'solid', color:'#120d14'},
+    cell:{x:.17, y:.16, w:.66, h:.5, shape:'arch', shadow:true},
+    layers:[
+      {t:'text', text:'Sanctuary', font:'UnifrakturMaguntia', size:.15, color:'#ecdcff', glow:'#9b6bff', x:.5, y:.08},
+      {t:'text', text:'goth · darkwave · post-punk', font:'Lora', bold:true, size:.04, color:'#b9a8d9', x:.5, y:.74},
+      {t:'text', text:'FRI 13 DEC · 10PM – 3AM', font:'Bebas Neue', size:.075, spacing:5, color:'#ffffff', x:.5, y:.82},
+      {t:'text', text:'The Underworld · dress to impress', font:'Hanken Grotesk', bold:true, size:.03, color:'#8f84a3', x:.5, y:.89},
+      {t:'sticker', id:'bat', x:.15, y:.2, size:.18, rot:-12},
+      {t:'sticker', id:'moon', x:.86, y:.18, size:.14, rot:10},
+    ]},
+  {id:'bandpromo', name:'Band promo', w:1080, h:1080, bg:{type:'solid', color:'#0b0a0c'},
+    cell:{x:0, y:0, w:1, h:1}, deco:[{type:'shade', y0:.55, y1:1, alpha:.9, rev:true}],
+    layers:[
+      {t:'text', text:'THE HOLLOW', font:'Metal Mania', size:.13, color:'#ffffff', shadow:40, x:.5, y:.74},
+      {t:'text', text:'New single "Ashes" out Friday', font:'Hanken Grotesk', bold:true, size:.04, color:'#e5e1e8', x:.5, y:.83},
+      {t:'text', text:'LISTEN NOW', font:'Hanken Grotesk', bold:true, size:.034, spacing:25, color:'#ffffff', bg:'#c4162f', x:.5, y:.91},
+    ]},
+  {id:'setlist', name:'Setlist', w:1600, h:2262, bg:{type:'paper', color:'#f4f1ea'},
+    cell:{x:.06, y:.04, w:.88, h:.22, rad:.01},
+    layers:[
+      {t:'text', text:'SETLIST', font:'Bebas Neue', size:.12, spacing:10, color:'#111111', x:.5, y:.32},
+      {t:'text', text:'1. Opening song\n2. Second song\n3. The fast one\n4. The slow one\n5. New song\n6. Crowd favourite\n7. Cover\n8. Closer\n\nENCORE: The big one', font:'Permanent Marker', size:.052, color:'#111111', align:'left', x:.5, y:.66},
+    ]},
+  {id:'flashday', name:'Tattoo flash day', w:1600, h:2000, bg:{type:'paper', color:'#f3eee4'},
+    cell:{x:.08, y:.19, w:.84, h:.52, rad:.01, frame:'border', shadow:true},
+    layers:[
+      {t:'text', text:'FLASH DAY', font:'Bebas Neue', size:.17, spacing:4, color:'#b3121f', x:.5, y:.1},
+      {t:'text', text:'Walk-ins welcome · from £60', font:'Lora', bold:true, size:.045, color:'#1c1612', x:.5, y:.78},
+      {t:'text', text:'SAT 21 JUNE · 11AM TILL LATE', font:'Hanken Grotesk', bold:true, size:.034, spacing:20, color:'#1c1612', x:.5, y:.85},
+      {t:'text', text:'Your Studio Name', font:'UnifrakturMaguntia', size:.06, color:'#b3121f', x:.5, y:.93},
+      {t:'sticker', id:'dagger', x:.88, y:.11, size:.14, rot:15},
+      {t:'sticker', id:'rose', x:.12, y:.11, size:.14, rot:-15},
+    ]},
+  {id:'credits', name:'Shoot credits', w:1080, h:1350, bg:{type:'solid', color:'#0b0a0c'},
+    cell:{x:0, y:0, w:1, h:1}, deco:[{type:'shade', y0:.6, y1:1, alpha:.85, rev:true}],
+    layers:[
+      {t:'text', text:'Model  @yourname\nPhotographer  @name\nMUA  @name\nWardrobe  @name', font:'Hanken Grotesk', bold:true, size:.036, color:'#ffffff', align:'left', x:.3, y:.86},
+      {t:'text', text:'NOIR', font:'UnifrakturMaguntia', size:.1, color:'#ffffff', shadow:30, x:.82, y:.9},
+    ]},
+  {id:'merch', name:'T-shirt mock-up', w:1600, h:1600, bg:{type:'solid', color:'#d9d6d2'},
+    deco:[{type:'tee', x:.5, y:.52, size:.9, color:'#141414', after:-1}],
+    cell:{x:.36, y:.3, w:.28, h:.32},
+    layers:[
+      {t:'text', text:'YOUR BAND', font:'Metal Mania', size:.05, color:'#ffffff', x:.5, y:.25},
+    ]},
+);
 const DESIGN_BY_ID = Object.fromEntries(DESIGNS.map(d => [d.id, d]));
 const TPL_SRC = new Map();     // the photo each applied design was built around
 function designTpl(d){ return {cells:[d.cell], deco:d.deco || [], bg:d.bg, text:{}}; }
@@ -2619,8 +2761,8 @@ async function designLayers(d, W, H){
   const out = [];
   for (const s of d.layers){
     const base = {x: s.x*W, y: s.y*H, rot: s.rot || 0, scale: 1, opacity: 1, flip: false, hidden: false};
-    if (s.t === 'text') out.push({...base, type:'text', text:s.text, font:s.font, size:Math.round(s.size*W), color:s.color, bold:!!s.bold, align:'center',
-      outline:s.outline || 0, ocolor:s.ocolor || '#111111', shadow:s.shadow || 0, bg:'', glow:'', spacing:s.spacing || 0, curve:s.curve || 0, grad:'', depth:s.depth || 0, dcolor:s.dcolor || '#111111'});
+    if (s.t === 'text') out.push({...base, type:'text', text:s.text, font:s.font, size:Math.round(s.size*W), color:s.color, bold:!!s.bold, align:s.align || 'center',
+      outline:s.outline || 0, ocolor:s.ocolor || '#111111', shadow:s.shadow || 0, bg:s.bg || '', glow:s.glow || '', spacing:s.spacing || 0, curve:s.curve || 0, grad:'', depth:s.depth || 0, dcolor:s.dcolor || '#111111'});
     else if (s.t === 'shape') out.push({...base, type:'shape', shape:s.shape, color:s.color, outline:s.outline || '', shadow:!!s.shadow, scale: s.size*W/100});
     else if (s.t === 'sticker'){
       const st = STK_BY_ID.get(s.id); if (!st) continue;
@@ -3589,6 +3731,13 @@ const TEMPLATES = [
       {type:'badge', value:'BEFORE', x:.085, y:.1, size:.024, bg:'rgba(17,17,17,.78)', color:'#ffffff', spacing:.15},
       {type:'badge', value:'AFTER', x:.925, y:.1, size:.024, bg:'#f6b443', color:'#1c1206', spacing:.15},
     ], text:{}},
+  {id:'healed', name:'Fresh & healed', ratio:16/9, bg:{type:'solid', color:'#111111'},
+    cells:[{x:0, y:0, w:.5, h:1}, {x:.5, y:0, w:.5, h:1}],
+    deco:[
+      {type:'rect', x:.497, y:0, w:.006, h:1, color:'#111111'},
+      {type:'badge', value:'FRESH', x:.08, y:.1, size:.024, bg:'rgba(17,17,17,.82)', color:'#ffffff', spacing:.15},
+      {type:'badge', value:'HEALED', x:.915, y:.1, size:.024, bg:'#c4162f', color:'#ffffff', spacing:.15},
+    ], text:{}},
   {id:'pills', name:'Pills', ratio:9/16, bg:{type:'gradient', from:'#c6b4ff', to:'#ffb9d3'},
     cells:[
       {x:.1, y:.05, w:.48, h:.36, rad:.5, shadow:true, rot:-4},
@@ -3720,6 +3869,21 @@ function decoFont(d, W){ return `${d.weight || 400} ${Math.round(d.size*W)}px "$
 
 function paintDeco(ctx, d, W, H, tpl, withText){
   ctx.save();
+  if (d.type === 'tee'){
+    // a T-shirt for merch mock-ups, with soft folds
+    const s = d.size*W, cx = d.x*W, cy = d.y*H, P = (x, y) => [cx + x*s, cy + y*s];
+    const path = new Path2D(); const pts = [[-.22,-.48],[-.08,-.5],[0,-.43],[.08,-.5],[.22,-.48],[.5,-.3],[.4,-.08],[.3,-.14],[.3,.5],[-.3,.5],[-.3,-.14],[-.4,-.08],[-.5,-.3]];
+    pts.forEach(([x, y], i) => { const [px, py] = P(x, y); i ? path.lineTo(px, py) : path.moveTo(px, py); }); path.closePath();
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = s*0.04; ctx.shadowOffsetY = s*0.015;
+    ctx.fillStyle = d.color || '#151515'; ctx.fill(path); ctx.shadowColor = 'transparent';
+    ctx.clip(path);
+    const g = ctx.createLinearGradient(cx - s*0.5, 0, cx + s*0.5, 0); g.addColorStop(0, 'rgba(255,255,255,.06)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.25)');
+    ctx.fillStyle = g; ctx.fillRect(cx - s, cy - s, s*2, s*2);
+    ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = s*0.012;
+    ctx.beginPath(); const [a1, a2] = P(-.08, -.5), [b1, b2] = P(0, -.43), [c1, c2] = P(.08, -.5); ctx.moveTo(a1, a2); ctx.quadraticCurveTo(b1, b2 + s*0.04, c1, c2); ctx.stroke();
+    for (const [x0, y0, x1, y1] of [[-.2, .1, -.1, .45], [.18, -.05, .12, .4]]){ const [p, q] = P(x0, y0), [r, t] = P(x1, y1); ctx.beginPath(); ctx.moveTo(p, q); ctx.quadraticCurveTo((p + r)/2 + s*0.03, (q + t)/2, r, t); ctx.stroke(); }
+    ctx.restore(); return;
+  }
   if (d.type === 'text'){
     if (!withText) { ctx.restore(); return; }
     ctx.translate(d.x*W, d.y*H); ctx.rotate((d.rot || 0)*RAD);

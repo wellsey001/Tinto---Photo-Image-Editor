@@ -70,12 +70,19 @@
 
         <div class="pane" id="pane-filters" hidden>
           <h2 class="pane-title">Filters</h2>
+          <button class="btn hex-btn" id="hexIt" type="button" title="A dark look picked for this photo. Tap again for another."><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 7c-1.2-1.6-3-2.4-5-2.2 1 .9 1.4 1.9 1.4 3-1.8-.6-3.7-.3-5.4.8 1.6.4 2.8 1.3 3.5 2.6C5 11.6 3.7 12.8 3 14.4c1.5-.7 3.2-.8 4.8-.2 1-.6 2.2-.9 3.4-.6L12 15l.8-1.4c1.2-.3 2.4 0 3.4.6 1.6-.6 3.3-.5 4.8.2-.7-1.6-2-2.8-3.5-3.2.7-1.3 1.9-2.2 3.5-2.6-1.7-1.1-3.6-1.4-5.4-.8 0-1.1.4-2.1 1.4-3-2-.2-3.8.6-5 2.2Z"/></svg>Hex it</button>
           <div class="filters" id="filterGrid"></div>
           <div class="row" id="strengthRow" hidden>
             <label for="strength">Filter strength</label><output id="strengthOut">100</output>
             <input type="range" id="strength" min="0" max="100" value="100">
           </div>
           <p class="hint">Filters sit on top of your adjustments, so you can still fine-tune in Adjust.</p>
+          <div class="sub looks">
+            <div class="group-h">Your looks</div>
+            <p class="hint">Save the adjustments, filter and effect you've set, and put the same look on any photo in one tap. Handy for keeping a whole shoot consistent.</p>
+            <div class="looks-list" id="looksList"></div>
+            <div class="look-save"><input class="input" id="lookName" maxlength="30" placeholder="Name this look" autocomplete="off"><button class="btn" id="lookSave" type="button">Save</button></div>
+          </div>
         </div>
 
         <div class="pane" id="pane-background" hidden>

@@ -61,21 +61,30 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 
 - **Adjust:** exposure, brightness, contrast, highlights, shadows, saturation, vibrance, warmth, tint, hue, split tone, fade, vignette, grain and sharpness, with a live RGB histogram and clipping warning.
 - **Auto:** one click sets light and colour to suit the photo.
-- **Filters:** 25 presets, from Cinema and Portra to Lomo, Vintage and Silver, with live thumbnails and a strength slider.
+- **Filters:** 33 presets, from Cinema and Portra to Lomo, Vintage and Silver, with live thumbnails and a strength slider.
+- **Hex it:** one tap gives the photo a dark, alternative look (a filter, an effect and a frame that go together), picked to suit the photo. Tap again for another.
+- **Your looks:** save the adjustments, filter, effect and frame you've set as a named look and put it on any photo in one tap. Handy for keeping a whole shoot consistent.
+- **Dark & alternative pack:** for goths, emos, metalheads and the people who photograph, tattoo and promote them.
+  - Filters: Crypt, Bloodmoon, Noir Lace, Scene Kid, Cassette, Doom, Witch House, Ghost and Ink.
+  - Effects: Grunge, Xerox, VHS (with a date stamp), Smoke, Infrared, Chroma, Blood (paint drips) and Eye glow (tap the eyes; red, white, ice, violet or gold).
+  - Frames: Gothic, Barbed wire, Burnt, Cracked, Coffin and Cameo.
+  - 18 stickers in a Dark pack (bat, skull, rose, raven, coffin, candle, chain, safety pin and more) and four fonts: Blackletter, Metal Mania, Creepster and Nosifer.
+  - Templates for work: Gig poster, Punk zine, Club night, Band promo, Setlist, Flash day, Photo credits and Merch mockup, plus a Fresh & healed tattoo collage.
+  - Text made for this photo suggests darker words and fonts once a dark look is on.
 - **Crop and rotate:** free or fixed ratios (1:1, 4:5, 3:2, 16:9, 9:16), rotate 90°, flip horizontal or vertical.
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
-- **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
+- **Text:** 18 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
 - **Text made for this photo:** at the top of Text, six ready-made styles worked out from your photo: fonts that suit its mood (night, warm, pastel, green…), colours taken from the photo that stand out where the words go, and a spot where they read well. **Match photo** recolours selected text the same way; press again for another colour.
 - **Projects:** File → Save Project (Ctrl+S) saves a `.tinto` file with the photo and every layer still editable. Open it again (double-click it, or Open photo) to carry on later.
 - **Retouch:** brush away blemishes, smooth skin (edges like eyes and hair stay sharp) and whiten teeth.
 - **AI upscale:** in Resize, make a small or soft photo 2× or 4× bigger with real added detail (Swin2SR, running on your device; the models are 8 MB and 21 MB, downloaded the first time). Shows progress and time left, and can be cancelled. Works on photos up to 1600 px (2×) or 800 px (4×) across on a computer, smaller on a phone.
 - **Object eraser:** in Retouch, choose Erase object and paint over something you don't want (a stranger in the background, a bin, a wire). Let go and it's filled in from the rest of the photo. Works on your computer or phone, no internet needed.
-- **Frames:** 11 frames (Border, Rounded, Polaroid, Gallery, Film, Stamp, Scallop, Stitched, Soft edge, Neon, Gold) with colour and thickness. They sit over the photo's edges, under text and stickers, and filters don't tint them.
+- **Frames:** 17 frames (Border, Rounded, Polaroid, Gallery, Film, Stamp, Scallop, Stitched, Soft edge, Neon, Gold, Gothic, Barbed wire, Burnt, Cracked, Coffin, Cameo) with colour and thickness. They sit over the photo's edges, under text and stickers, and filters don't tint them.
 - **Social sizes:** one click for Instagram post or portrait, Story/TikTok, YouTube thumbnail, Facebook, X, Pinterest or a phone wallpaper. Drag to choose what's kept, or keep the whole photo with blurred edges.
 - **Text effects:** curved text (arch or dip), gradient fills, 3D depth and neon glow, with new styles: Sunset, Rainbow, 3D Pop, Arch, Smile, Ocean and Ice neon.
 - **Sky replacement:** in Background, swap the sky for Blue sky, Sunset, Golden hour, Cotton candy, Storm, Starry night, Aurora or a photo of your own. An AI model (SegFormer, about 15 MB, downloaded once) finds the sky, the edges are tidied using the photo's own colours, and the rest of the photo can take on the new sky's light.
 - **Effects:** Glitch, Double exposure (with built-in forest, clouds or city lights, or your own photo; optionally only inside the person), Motion blur (optionally keeping the person sharp), Focus blur (tap to choose what stays sharp, circle or tilt-shift band), Light leak, Film dust, and a Pixelate/Blur brush for hiding faces or number plates. Apply one to lock it in, then add another on top.
-- **Templates:** nine single-photo designs (Birthday card, Quote post, YouTube thumbnail, Weekend story, Polaroid note, Event poster, Save the date, Postcard, Magazine cover). Your photo drops in, and the words and stickers arrive as normal layers you can change. Zoom and move the photo inside the design, or swap it.
+- **Templates:** 17 single-photo designs (Birthday card, Quote post, YouTube thumbnail, Weekend story, Polaroid note, Event poster, Save the date, Postcard, Magazine cover, and the eight in the Dark pack). Your photo drops in, and the words and stickers arrive as normal layers you can change. Zoom and move the photo inside the design, or swap it.
 - **Animation:** give any sticker or text an animation in Layers (Pop in, Slide in, Fade in, Type on, Bounce, Float, Pulse, Wiggle, Swing, Spin) and press Play. Export as a looping **GIF** (up to 600 px) or **Video** (MP4, up to 1080 px) of 2, 3 or 5 seconds. Animate everything gives every layer a movement in one tap.
 - **Autosave:** your work is saved in the background a few seconds after each change and when Tinto closes. If it closes without saving (or crashes), the next start offers to carry on where you left off.
 - **Recent files:** File › Open Recent, or the arrow next to Open, lists the photos and projects you used last. On Android it lists the projects saved in Documents › Tinto.
@@ -84,14 +93,14 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Background:** Tinto finds the person in your photo with the same AI as the sticker cutout, then blurs everything behind them (portrait mode), swaps it for a colour or gradient, or removes it (exported as a see-through PNG). Edge softness is adjustable. Works best on people; the AI model downloads once, the first time you use it.
 - **Sticker search:** search all emoji and stickers by name, with a Recent row and Favourites (right-click to star).
 - **Emoji:** 186 Microsoft Fluent Emoji in seven tabs (Faces, Silly, Love, Animals, Food, Party, Sky & nature), added as stickers with a white die-cut border. They're vector art, so they stay sharp at any size.
-- **Sticker packs:** 80 illustrated stickers in 13 packs: Faces, Silly, Animals, Snacks, Food, Cosy, Love, Party, Summer, Retro, Space, Dreamy and Nature. They're vector art with cute faces, white die-cut borders and a soft shadow, so they stay sharp at any size.
+- **Sticker packs:** 96 illustrated stickers in 14 packs: Dark, Faces, Silly, Animals, Snacks, Food, Cosy, Love, Party, Summer, Retro, Space, Dreamy and Nature. They're vector art with cute faces, white die-cut borders and a soft shadow, so they stay sharp at any size.
 - **Stickers:** 25 vector shapes with colour, outline and drop shadow, plus 28 emoji.
 - **Cheeky stickers (18+):** 20 rude word stickers (speech bubbles, bursts, stamps, pills and neon) and 15 naughty emoji. Hidden until you choose **Show** in Stickers.
 - **Custom stickers:** import any image and turn it into a sticker. Remove the background with AI (runs on your computer; the model downloads once, about 25 MB), in one click for plain backgrounds, or by tapping a colour; touch up with erase and restore brushes; add a white or black sticker border. Saved stickers stay in **My stickers** for next time.
 - **Draw:** freehand brush with a highlighter mode.
 - **Layers:** move, resize and rotate on the photo; reorder, hide, duplicate and set opacity.
 - **Right-click menu:** right-click a sticker or text for Duplicate, Copy/Paste, Bring to front, Send to back, Flip, Straighten, Centre, Hide and Delete. Right-click the photo to add text right there, paste, undo, copy the finished picture to paste into other apps, or export. Ctrl+C and Ctrl+V copy and paste stickers and text too, and text boxes get the usual Cut/Copy/Paste menu.
-- **Collage:** 20 styled templates (Polaroids, Film strip, Magazine, Story, Scrapbook, Circles, Heart, Diagonal, Mood board, Postcard, Photo booth, Honeycomb, Gallery wall, Before & after, Pills, Card stack, Newspaper, Arches, Sticker sheet, Banner) with editable titles, plus 12 grid layouts for 2 to 9 photos with spacing, rounded corners and background colour. Template titles become editable text layers when you send a collage to the editor.
+- **Collage:** 21 styled templates (Fresh & healed, Polaroids, Film strip, Magazine, Story, Scrapbook, Circles, Heart, Diagonal, Mood board, Postcard, Photo booth, Honeycomb, Gallery wall, Before & after, Pills, Card stack, Newspaper, Arches, Sticker sheet, Banner) with editable titles, plus 12 grid layouts for 2 to 9 photos with spacing, rounded corners and background colour. Template titles become editable text layers when you send a collage to the editor.
 - **Before and after:** hold the compare button (or `\`) to see the original.
 - **Undo and redo** for every edit.
 - **Export** as JPG, PNG or WebP through your system's save dialog.

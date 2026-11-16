@@ -1,7 +1,7 @@
 {
   "name": "tinto-mobile",
   "private": true,
-  "version": "2.7.1",
+  "version": "2.8.0",
   "description": "Tinto for Android: the same editor (src/renderer) packaged with Capacitor. Built by GitHub Actions.",
   "dependencies": {
     "@capacitor/android": "^7.0.0",
