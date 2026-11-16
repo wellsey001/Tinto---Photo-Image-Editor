@@ -801,6 +801,184 @@ S['pickle'] = ('silly', 'Cool pickle', svg(
     + glint(70, 36, .5, rot=-70),
     lg('pk', '#a8e07a', '#4fae4a')))
 
+
+# ---------- Dark: for goths, emos and metalheads. Same build, an inky outline and moody colours ----------
+D = '#120d14'
+def dol(d, fill, w=SW):
+    return f'<path d="{d}" fill="{fill}" stroke="{D}" stroke-width="{w}"/>'
+def shine(x, y, s=1.0, rot=-35, op=.5):
+    return (f'<g transform="translate({x} {y}) rotate({rot})" fill="#fff" opacity="{op}">'
+            f'<ellipse cx="0" cy="0" rx="{9*s}" ry="{3.6*s}"/></g>')
+
+S['bat'] = ('dark', 'Bat', svg(
+    dol('M100 70 C88 60 72 62 64 72 C56 60 36 54 14 62 C26 70 30 82 26 96 C40 88 54 92 60 104 C68 94 80 96 86 106 C92 98 96 96 100 96 C104 96 108 98 114 106 C120 96 132 94 140 104 C146 92 160 88 174 96 C170 82 174 70 186 62 C164 54 144 60 136 72 C128 62 112 60 100 70 Z', 'url(#bat)')
+    + dol('M84 74 L80 52 L92 66 Z M116 74 L120 52 L108 66 Z', '#2b2033', 4)
+    + '<ellipse cx="100" cy="86" rx="20" ry="18" fill="#2b2033"/>'
+    + '<circle cx="92" cy="82" r="4.5" fill="#ff3355"/><circle cx="108" cy="82" r="4.5" fill="#ff3355"/><circle cx="93.5" cy="80.5" r="1.4" fill="#fff"/><circle cx="109.5" cy="80.5" r="1.4" fill="#fff"/>'
+    + f'<path d="M93 93 L96 99 L99 94 M101 94 L104 99 L107 93" fill="#fff" stroke="{D}" stroke-width="2"/>'
+    + shine(60, 74, .9, -20, .25) + shine(140, 74, .9, 20, .25),
+    lg('bat', '#4a3a5c', '#1d1524')))
+
+S['skull'] = ('dark', 'Skull', svg(
+    dol('M100 22 C146 22 172 54 170 94 C168 120 156 132 146 138 L146 162 C146 172 138 178 128 178 L72 178 C62 178 54 172 54 162 L54 138 C44 132 32 120 30 94 C28 54 54 22 100 22 Z', 'url(#sk)')
+    + f'<path d="M58 104 C58 86 70 78 82 80 C94 82 96 96 92 108 C88 120 74 124 66 120 C60 116 58 112 58 104 Z" fill="{D}"/>'
+    + f'<path d="M142 104 C142 86 130 78 118 80 C106 82 104 96 108 108 C112 120 126 124 134 120 C140 116 142 112 142 104 Z" fill="{D}"/>'
+    + '<circle cx="80" cy="100" r="5" fill="#ff3355" opacity=".9"/><circle cx="120" cy="100" r="5" fill="#ff3355" opacity=".9"/>'
+    + f'<path d="M100 120 L92 138 L108 138 Z" fill="{D}"/>'
+    + f'<path d="M72 152 V176 M86 152 V178 M100 152 V178 M114 152 V178 M128 152 V176" stroke="{D}" stroke-width="4"/>'
+    + f'<path d="M66 152 H134" stroke="{D}" stroke-width="4"/>'
+    + f'<path d="M128 38 L120 56 L130 64" fill="none" stroke="{D}" stroke-width="3"/>'
+    + shine(64, 52, 1, -40, .7),
+    lg('sk', '#f4f0ea', '#c9c0d6')))
+
+S['rose'] = ('dark', 'Black rose', svg(
+    dol('M98 120 C96 150 92 170 88 194', 'none', 7) + dol('M98 120 C96 150 92 170 88 194', 'none', 0)
+    + f'<path d="M98 120 C96 150 92 170 88 194" fill="none" stroke="#3b6b3a" stroke-width="5"/>'
+    + dol('M94 156 C76 150 62 156 56 168 C72 172 86 168 94 156 Z', '#3b6b3a', 4)
+    + dol('M98 140 C114 132 130 134 138 144 C122 152 108 150 98 140 Z', '#3b6b3a', 4)
+    + dol('M100 30 C134 28 160 52 156 84 C152 112 128 128 100 126 C72 128 46 112 44 84 C40 52 66 28 100 30 Z', 'url(#rs)')
+    + f'<path d="M100 54 C118 52 130 64 128 80 C126 96 110 102 98 98 C84 94 80 80 88 70" fill="none" stroke="{D}" stroke-width="4"/>'
+    + f'<path d="M100 72 C108 70 112 78 106 84" fill="none" stroke="{D}" stroke-width="4"/>'
+    + f'<path d="M58 70 C66 96 82 112 100 114 M142 70 C134 96 118 112 100 114" fill="none" stroke="{D}" stroke-width="3.5"/>'
+    + '<path d="M120 112 C122 118 126 122 128 122" stroke="#d6144a" stroke-width="5"/><circle cx="128" cy="130" r="4" fill="#d6144a"/>'
+    + shine(74, 50, .8, -40, .35),
+    rg('rs', '#4b1528', '#140810', .4, .35, .8)))
+
+S['spider'] = ('dark', 'Spider', svg(
+    f'<path d="M100 0 V70" stroke="#cfc8da" stroke-width="2"/>'
+    + ''.join(f'<path d="{d}" fill="none" stroke="{D}" stroke-width="6"/>' for d in [
+        'M84 100 C64 84 46 86 34 70', 'M82 110 C60 104 42 112 28 104', 'M84 120 C64 124 50 138 40 152', 'M88 128 C76 142 70 160 66 176',
+        'M116 100 C136 84 154 86 166 70', 'M118 110 C140 104 158 112 172 104', 'M116 120 C136 124 150 138 160 152', 'M112 128 C124 142 130 160 134 176'])
+    + dol('M100 94 C124 94 128 112 126 124 C124 140 112 148 100 148 C88 148 76 140 74 124 C72 112 76 94 100 94 Z', 'url(#sp)')
+    + dol('M100 70 C112 70 116 80 116 88 C116 96 108 100 100 100 C92 100 84 96 84 88 C84 80 88 70 100 70 Z', '#2b2033', 4)
+    + '<circle cx="94" cy="86" r="4" fill="#ff3355"/><circle cx="106" cy="86" r="4" fill="#ff3355"/><circle cx="95" cy="84.6" r="1.3" fill="#fff"/><circle cx="107" cy="84.6" r="1.3" fill="#fff"/>'
+    + '<path d="M100 110 L108 120 L100 132 L92 120 Z" fill="#d6144a"/>'
+    + shine(88, 106, .7, -40, .3),
+    lg('sp', '#3a2c47', '#120d14')))
+
+def web_lines(col, w1, w2):
+    spokes = ''.join(f'<path d="M10 10 L{190*math.cos(a)+10:.1f} {190*math.sin(a)+10:.1f}" stroke="{col}" stroke-width="{w1}" stroke-linecap="round"/>' for a in [i*math.pi/2/5 for i in range(6)])
+    rings = ''.join('<path d="' + ' '.join(('M' if i == 0 else 'Q') + (f'{10+r*0.62*math.cos((i-.5)*math.pi/10):.1f} {10+r*0.62*math.sin((i-.5)*math.pi/10):.1f} ' if i else '') + f'{10+r*math.cos(i*math.pi/10):.1f} {10+r*math.sin(i*math.pi/10):.1f}' for i in range(6)) + f'" fill="none" stroke="{col}" stroke-width="{w2}" stroke-linecap="round"/>' for r in (40, 80, 122, 166))
+    return spokes + rings
+S['web'] = ('dark', 'Cobweb', svg(
+    web_lines(D, 8, 7) + web_lines('#efeaf5', 3.5, 2.8)
+    + f'<path d="M128 70 V118" stroke="#efeaf5" stroke-width="2"/>'
+    + f'<circle cx="128" cy="128" r="11" fill="{D}"/><circle cx="128" cy="118" r="7" fill="{D}"/><circle cx="125" cy="117" r="2" fill="#ff3355"/><circle cx="131" cy="117" r="2" fill="#ff3355"/>'
+    + ''.join(f'<path d="M128 126 l{dx} {dy} l{dx//2} {abs(dy)//2+6}" fill="none" stroke="{D}" stroke-width="3.5"/>' for dx, dy in [(-14,-8),(-15,2),(-13,10),(14,-8),(15,2),(13,10)]),
+    ''))
+
+S['gothcross'] = ('dark', 'Gothic cross', svg(
+    dol('M88 14 H112 V56 H150 L162 68 L150 80 H112 V170 L100 190 L88 170 V80 H50 L38 68 L50 56 H88 Z', 'url(#gc)')
+    + f'<circle cx="100" cy="68" r="12" fill="#d6144a" stroke="{D}" stroke-width="4"/><circle cx="96" cy="64" r="3.5" fill="#fff" opacity=".7"/>'
+    + f'<path d="M100 92 V160 M64 68 H82 M118 68 H136 M100 28 V48" stroke="{D}" stroke-width="2" opacity=".35"/>'
+    + shine(96, 26, .6, -70, .5),
+    lg('gc', '#e7e2ee', '#9a90a8', 0, 0, 1, 1)))
+
+S['coffin'] = ('dark', 'Coffin', svg(
+    dol('M74 12 H126 L160 58 L138 190 H62 L40 58 Z', 'url(#cf)')
+    + dol('M78 22 H122 L150 60 L130 180 H70 L50 60 Z', 'none', 3)
+    + f'<path d="M100 64 V140 M80 88 H120" stroke="#d9b45a" stroke-width="9" stroke-linecap="square"/>'
+    + f'<path d="M100 64 V140 M80 88 H120" stroke="{D}" stroke-width="2" stroke-linecap="square" opacity=".4"/>'
+    + shine(66, 60, .9, -60, .25),
+    lg('cf', '#5a3a2e', '#24140f')))
+
+S['pentagram'] = ('dark', 'Pentagram', svg(
+    f'<circle cx="100" cy="100" r="82" fill="none" stroke="{D}" stroke-width="{SW*2+6}"/>'
+    + '<circle cx="100" cy="100" r="82" fill="none" stroke="url(#pg)" stroke-width="6"/>'
+    + f'<path d="{" ".join(("M" if i==0 else "L") + f"{100+80*math.cos(-math.pi/2+i*4*math.pi/5):.1f} {100+80*math.sin(-math.pi/2+i*4*math.pi/5):.1f}" for i in range(6))}" fill="none" stroke="{D}" stroke-width="{SW*2+4}" stroke-linejoin="round"/>'
+    + f'<path d="{" ".join(("M" if i==0 else "L") + f"{100+80*math.cos(-math.pi/2+i*4*math.pi/5):.1f} {100+80*math.sin(-math.pi/2+i*4*math.pi/5):.1f}" for i in range(6))}" fill="none" stroke="url(#pg)" stroke-width="5" stroke-linejoin="round"/>'
+    + ''.join(f'<circle cx="{100+82*math.cos(-math.pi/2+i*2*math.pi/5):.1f}" cy="{100+82*math.sin(-math.pi/2+i*2*math.pi/5):.1f}" r="6" fill="#d6144a" stroke="{D}" stroke-width="3"/>' for i in range(5)),
+    lg('pg', '#f0e6ff', '#a68fc9')))
+
+S['brokenheart'] = ('dark', 'Broken heart', svg(
+    f'<clipPath id="bhH"><path d="{heart_path(100, 96, 1.5)}"/></clipPath><clipPath id="bhL"><path d="M0 0 H98 L88 52 L106 80 L90 112 L102 200 H0 Z"/></clipPath><clipPath id="bhR"><path d="M200 0 H98 L88 52 L106 80 L90 112 L102 200 H200 Z"/></clipPath>'
+    + f'<g clip-path="url(#bhL)" transform="rotate(-7 96 170) translate(-6 0)"><path d="{heart_path(100, 96, 1.5)}" fill="url(#bh)" stroke="{D}" stroke-width="{SW*1.4}"/><g clip-path="url(#bhH)"><path d="M98 0 L88 52 L106 80 L90 112 L102 200" fill="none" stroke="{D}" stroke-width="{SW*1.4}"/></g></g>'
+    + f'<g clip-path="url(#bhR)" transform="rotate(7 104 170) translate(6 0)"><path d="{heart_path(100, 96, 1.5)}" fill="url(#bh)" stroke="{D}" stroke-width="{SW*1.4}"/><g clip-path="url(#bhH)"><path d="M98 0 L88 52 L106 80 L90 112 L102 200" fill="none" stroke="{D}" stroke-width="{SW*1.4}"/></g></g>'
+    + shine(52, 54, 1, -40, .5) + '<path d="M150 150 C152 160 152 168 148 172" stroke="#7fb9ff" stroke-width="5" fill="none"/>',
+    lg('bh', '#e8203f', '#7a0418')))
+
+S['chain'] = ('dark', 'Chain', svg(
+    ''.join(f'<g transform="translate({x} {y}) rotate(-35)"><rect x="-26" y="-14" width="52" height="28" rx="14" fill="none" stroke="{D}" stroke-width="15"/><rect x="-26" y="-14" width="52" height="28" rx="14" fill="none" stroke="url(#ch)" stroke-width="8"/></g>'
+            if i % 2 == 0 else
+            f'<g transform="translate({x} {y}) rotate(55)"><rect x="-26" y="-12" width="52" height="24" rx="12" fill="none" stroke="{D}" stroke-width="15"/><rect x="-26" y="-12" width="52" height="24" rx="12" fill="none" stroke="url(#ch)" stroke-width="8"/></g>'
+            for i, (x, y) in enumerate([(40, 160), (70, 130), (100, 100), (130, 70), (160, 40)])),
+    lg('ch', '#ffffff', '#8c8796', 0, 0, 1, 1)))
+
+S['safetypin'] = ('dark', 'Safety pin', svg(
+    f'<g transform="rotate(-35 100 100)">'
+    + f'<path d="M40 112 H150 C176 112 176 88 150 88 H52" fill="none" stroke="{D}" stroke-width="16"/>'
+    + f'<path d="M40 112 H150 C176 112 176 88 150 88 H52" fill="none" stroke="url(#pin)" stroke-width="8"/>'
+    + f'<circle cx="160" cy="100" r="9" fill="none" stroke="{D}" stroke-width="4"/>'
+    + dol('M22 80 H62 V120 H22 C14 120 10 114 10 106 V94 C10 86 14 80 22 80 Z', 'url(#pin)', 5)
+    + f'<path d="M30 92 H52 M30 100 H52 M30 108 H52" stroke="{D}" stroke-width="2.5" opacity=".5"/></g>',
+    lg('pin', '#ffffff', '#9a96a3', 0, 0, 1, 1)))
+
+S['blackcat'] = ('dark', 'Black cat', svg(
+    dol('M150 172 C170 160 186 138 176 116 C168 100 150 108 156 122', 'none', 14)
+    + f'<path d="M150 172 C170 160 186 138 176 116 C168 100 150 108 156 122" fill="none" stroke="#231a2b" stroke-width="7"/>'
+    + dol('M60 186 C50 150 58 120 80 108 C70 96 66 80 70 64 L58 26 L86 46 C94 44 106 44 114 46 L142 26 L130 64 C136 80 130 96 120 108 C142 120 150 150 140 186 Z', 'url(#bc)')
+    + '<ellipse cx="86" cy="76" rx="9" ry="10" fill="#c8f04a"/><ellipse cx="114" cy="76" rx="9" ry="10" fill="#c8f04a"/>'
+    + f'<ellipse cx="86" cy="77" rx="2.6" ry="8" fill="{D}"/><ellipse cx="114" cy="77" rx="2.6" ry="8" fill="{D}"/>'
+    + '<circle cx="89" cy="72" r="2" fill="#fff"/><circle cx="117" cy="72" r="2" fill="#fff"/>'
+    + '<path d="M96 92 L104 92 L100 97 Z" fill="#ff7aa2"/>'
+    + f'<path d="M70 92 L48 88 M70 98 L50 102 M130 92 L152 88 M130 98 L150 102" stroke="#6d5d7a" stroke-width="2"/>'
+    + f'<path d="M78 146 C80 160 82 176 80 186 M122 146 C120 160 118 176 120 186" fill="none" stroke="#3b2f45" stroke-width="3"/>'
+    + shine(80, 120, .9, -60, .2),
+    lg('bc', '#3b2f45', '#120d14')))
+
+S['moon'] = ('dark', 'Witchy moon', svg(
+    dol('M120 20 C76 24 46 60 48 104 C50 148 88 182 132 178 C152 176 168 168 180 156 C132 164 94 132 92 92 C90 60 108 34 134 22 C130 20 124 20 120 20 Z', 'url(#mn)')
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#b9a8d9" opacity=".6"/>' for x, y, r in [(78, 80, 7), (70, 130, 5), (100, 156, 6)])
+    + star4(152, 70, 16, '#f6e7a8') + star4(170, 110, 9, '#f6e7a8', rot=20) + star4(30, 40, 10, '#d9cdf2')
+    + face(84, 104, .7, mood='sleep', blush=False),
+    lg('mn', '#efe6ff', '#9f8fd0', 0, 0, 1, 1)))
+
+S['candle'] = ('dark', 'Candle', svg(
+    f'<path d="M100 18 C114 36 118 50 110 62 C106 70 94 70 90 62 C82 50 88 34 100 18 Z" fill="#ffcf5a" stroke="{D}" stroke-width="4"/>'
+    + '<path d="M100 36 C106 46 106 54 102 58 C99 60 96 58 96 54 C95 48 97 42 100 36 Z" fill="#fff6c8"/>'
+    + f'<path d="M100 70 V78" stroke="{D}" stroke-width="4"/>'
+    + dol('M68 82 C80 76 120 76 132 82 L132 182 C132 188 68 188 68 182 Z', 'url(#cd)')
+    + dol('M68 84 C80 78 120 78 132 84 C132 98 126 104 122 100 C118 112 112 118 108 108 C104 96 98 98 96 112 C94 126 86 126 86 112 C86 100 80 96 76 104 C72 110 68 106 68 96 Z', '#efe9f2', 4)
+    + glint(84, 128, .5, rot=-80),
+    lg('cd', '#dcd2e4', '#a796b6')))
+
+S['raven'] = ('dark', 'Raven', svg(
+    dol('M40 120 C40 86 66 62 98 62 C104 44 120 34 138 38 C150 40 158 48 162 56 L188 62 L162 70 C162 80 158 90 150 98 C172 116 176 144 160 160 C140 176 104 178 78 168 L40 186 L54 160 C44 150 40 136 40 120 Z', 'url(#rv)')
+    + dol('M84 92 C110 100 132 120 140 150 C112 146 88 130 72 108 Z', '#2a2035', 4)
+    + '<circle cx="140" cy="52" r="5.5" fill="#d6144a"/><circle cx="141.8" cy="50.2" r="1.8" fill="#fff"/>'
+    + f'<path d="M88 168 L84 190 M102 172 L102 192 M84 190 L76 194 M84 190 L90 196 M102 192 L96 196 M102 192 L108 196" stroke="#4a4050" stroke-width="4"/>'
+    + shine(110, 66, .8, -20, .3),
+    lg('rv', '#3a2f48', '#0d0910')))
+
+S['dagger'] = ('dark', 'Dagger', svg(
+    f'<g transform="rotate(30 100 100)">'
+    + dol('M100 8 L114 34 L114 120 L86 120 L86 34 Z', 'url(#dg)')
+    + f'<path d="M100 14 V118" stroke="{D}" stroke-width="2" opacity=".35"/>'
+    + dol('M56 120 H144 C150 120 152 132 144 132 H56 C48 132 50 120 56 120 Z', '#d9b45a', 4)
+    + dol('M90 132 H110 V170 H90 Z', '#4a2a22', 4)
+    + f'<path d="M90 144 H110 M90 156 H110" stroke="#2a1812" stroke-width="3"/>'
+    + f'<circle cx="100" cy="180" r="11" fill="#d6144a" stroke="{D}" stroke-width="4"/><circle cx="96" cy="176" r="3" fill="#fff" opacity=".7"/>'
+    + '<path d="M100 60 C104 70 104 80 100 86 C96 80 96 70 100 60 Z" fill="#d6144a"/></g>',
+    lg('dg', '#ffffff', '#9aa3b0', 0, 0, 1, 0)))
+
+S['potion'] = ('dark', 'Potion', svg(
+    dol('M84 20 H116 V36 H84 Z', '#8a5a3a', 4)
+    + dol('M88 36 H112 V66 C140 76 160 102 160 130 C160 166 132 188 100 188 C68 188 40 166 40 130 C40 102 60 76 88 66 Z', 'url(#gl)')
+    + f'<path d="M46 132 C70 122 90 140 114 128 C130 120 146 124 154 132 C152 162 130 182 100 182 C70 182 48 164 46 132 Z" fill="url(#pt)"/>'
+    + '<circle cx="76" cy="152" r="6" fill="#d9ffb0" opacity=".8"/><circle cx="118" cy="158" r="4" fill="#d9ffb0" opacity=".8"/><circle cx="100" cy="112" r="5" fill="#d9ffb0" opacity=".5"/><circle cx="110" cy="96" r="3" fill="#d9ffb0" opacity=".4"/>'
+    + face(100, 150, .75, mood='smile', blush=False)
+    + shine(66, 104, 1, -60, .55),
+    lg('gl', '#e8e4f0', '#b2a7c4') + lg('pt', '#7cf05a', '#2f9a3a')))
+
+S['ghostie'] = ('dark', 'Emo ghost', svg(
+    dol('M100 24 C144 24 162 60 162 104 L162 176 L146 164 L132 180 L116 164 L100 180 L84 164 L68 180 L54 164 L38 176 L38 104 C38 60 56 24 100 24 Z', 'url(#eg)')
+    + f'<path d="M62 46 C78 30 112 26 140 40 C128 46 112 50 110 72 C100 60 84 58 62 66 Z" fill="{D}"/>'
+    + f'<path d="M80 100 Q86 94 92 100" fill="none" stroke="{D}" stroke-width="4"/><circle cx="118" cy="100" r="5" fill="{D}"/><circle cx="119.6" cy="98.4" r="1.6" fill="#fff"/>'
+    + f'<path d="M94 126 Q100 120 106 126" fill="none" stroke="{D}" stroke-width="4"/>'
+    + '<path d="M80 104 C79 112 79 118 82 120" stroke="#7fb9ff" stroke-width="4" fill="none"/>'
+    + shine(64, 82, .8, -60, .5),
+    lg('eg', '#ffffff', '#d7d2e6')))
+
 pack = [{'id': sid, 'cat': cat, 'name': name, 'svg': body} for sid, (cat, name, body) in S.items()]
 with open(OUT, 'w') as f:
     f.write('/* Generated by scripts/make-stickers.py - edit that, not this. */\n')

@@ -46,9 +46,20 @@ const FILTERS = [
   {id:'emerald', name:'Emerald', d:{tint:-32, hue:-5, contrast:10, split:-12}},
   {id:'gold', name:'Gilded', d:{warmth:40, vibrance:25, highlights:-20, split:22}},
   {id:'silver', name:'Silver', d:{contrast:28, grain:40, fade:10, highlights:-10}, mode:'mono'},
+  // the alternative scene: goth, emo, metal, witch house
+  {id:'crypt', name:'Crypt', d:{contrast:28, saturation:-60, shadows:-18, warmth:-30, tint:-8, vignette:50}, tone:{s:[0.02,0.1,0.14], h:[0.74,0.85,0.92], a:0.55}, crush:0.07},
+  {id:'bloodmoon', name:'Bloodmoon', d:{contrast:30, shadows:-20, vignette:40, exposure:-8, saturation:30}, keep:{hue:0, a:0.88}, crush:0.05},
+  {id:'noirlace', name:'Noir Lace', d:{contrast:40, highlights:12, shadows:-15, vignette:30}, mode:'mono', glow:0.45, tone:{s:[0.02,0.02,0.04], h:[0.92,0.94,1], a:0.2}},
+  {id:'scenekid', name:'Scene Kid', d:{exposure:22, contrast:22, highlights:25, saturation:-10, warmth:-45, fade:12}, tone:{s:[0.05,0.1,0.25], h:[0.9,0.97,1], a:0.4}, glow:0.5},
+  {id:'cassette', name:'Cassette', d:{fade:40, contrast:-12, saturation:-10, grain:25}, tone:{s:[0.3,0.08,0.3], h:[0.85,0.95,0.7], a:0.5}},
+  {id:'doom', name:'Doom', d:{contrast:45, shadows:-25, grain:45, vignette:55, exposure:-10}, mode:'sepia', modeAmt:0.7, crush:0.08},
+  {id:'witchhouse', name:'Witch House', d:{fade:30, contrast:8, saturation:-40, vignette:35}, tone:{s:[0.25,0.04,0.34], h:[0.5,0.95,0.9], a:0.65}, glow:0.3},
+  {id:'ghost', name:'Ghost', d:{exposure:15, saturation:-72, highlights:15, fade:15, contrast:-5}, tone:{s:[0.05,0.15,0.18], h:[0.96,0.96,0.98], a:0.3}, glow:0.2},
+  {id:'ink', name:'Ink', d:{sharpness:45, contrast:18, vibrance:10, highlights:-10, shadows:-5}},
 ];
 
-const FONTS = ['Hanken Grotesk','Anton','Bebas Neue','Playfair Display','Lora','Caveat','Permanent Marker','Pacifico','Space Mono','Sora','Lobster','Righteous','Dancing Script','Bungee'];
+const FONTS = ['Hanken Grotesk','Anton','Bebas Neue','Playfair Display','Lora','Caveat','Permanent Marker','Pacifico','Space Mono','Sora','Lobster','Righteous','Dancing Script','Bungee','UnifrakturMaguntia','Metal Mania','Creepster','Nosifer'];
+const FONT_LABEL = {UnifrakturMaguntia:'Blackletter'};
 const COLOURS = ['#ffffff','#111111','#efb34a','#ff5a5f','#ff7ac6','#4da3ff','#3ddc97','#9b6bff'];
 
 function polyPath(n, r, rot = -Math.PI/2){
@@ -168,6 +179,9 @@ function effective(filterId=S.filter, strength=S.strength, params=S.params){
   const amt = t * (f.modeAmt ?? 1);
   p.mono = f.mode==='mono' ? amt : 0;
   p.sepia = f.mode==='sepia' ? amt : 0;
+  p.tone = f.tone ? {s:f.tone.s, h:f.tone.h, a:f.tone.a*t} : null;
+  p.keep = f.keep ? {hue:f.keep.hue, a:f.keep.a*t} : null;
+  p.crush = (f.crush || 0)*t; p.glow = (f.glow || 0)*t;
   for (const k of KEYS) if (p[k]===undefined) p[k] = 0;
   return p;
 }
@@ -193,6 +207,8 @@ function processImage(src, p){
   const h10=.213-hc*.213+hs*.143, h11=.715+hc*.285+hs*.140, h12=.072-hc*.072-hs*.283;
   const h20=.213-hc*.213-hs*.787, h21=.715-hc*.715+hs*.715, h22=.072+hc*.928+hs*.072;
   const cx = w/2, cy = h/2, inv = 1/Math.sqrt(cx*cx + cy*cy);
+  // colour grade: shadows drift toward one colour and highlights toward another
+  const tn = p.tone && p.tone.a > 0 ? p.tone : null, kp = p.keep && p.keep.a > 0 ? p.keep : null, cr = p.crush || 0;
   for (let y=0; y<h; y++){
     const dy = y - cy;
     for (let x=0; x<w; x++){
@@ -204,8 +220,17 @@ function processImage(src, p){
       if (vib){ const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), k = 1 + vib*(1 - Math.min(1, (mx-mn)*1.6)); r = L + (r-L)*k; g = L + (g-L)*k; b = L + (b-L)*k; }
       if (hue){ const r0=r, g0=g, b0=b; r = h00*r0+h01*g0+h02*b0; g = h10*r0+h11*g0+h12*b0; b = h20*r0+h21*g0+h22*b0; }
       if (spl){ const t = (clamp(L,0,1)-0.5)*spl; r += t*0.26; g += t*0.04; b -= t*0.3; }
+      if (kp){
+        // keep one colour (reds for Bloodmoon) and drain the rest
+        const mx = r>g?(r>b?r:b):(g>b?g:b), mn = r<g?(r<b?r:b):(g<b?g:b), d = mx - mn;
+        let hh = 0; if (d > 0.0001){ if (mx === r) hh = ((g-b)/d + 6) % 6; else if (mx === g) hh = (b-r)/d + 2; else hh = (r-g)/d + 4; hh *= 60; }
+        const dist = Math.min(Math.abs(hh - kp.hue), 360 - Math.abs(hh - kp.hue)), keepW = clamp((d - 0.05)/0.12, 0, 1) * clamp(1 - (dist - 8)/20, 0, 1);
+        const k = kp.a*(1 - keepW), dk = 1 - 0.3*k; r += (L-r)*k; g += (L-g)*k; b += (L-b)*k; r *= dk; g *= dk; b *= dk;
+      }
       if (mono){ r += (L-r)*mono; g += (L-g)*mono; b += (L-b)*mono; }
       if (sep){ r += (L*1.07+0.05 - r)*sep; g += (L*0.95+0.02 - g)*sep; b += (L*0.76 - b)*sep; }
+      if (tn){ const t2 = clamp(L,0,1), sw = Math.pow(1-t2, 1.5), hw = Math.pow(t2, 1.5), a = tn.a; r += ((tn.s[0]-r)*sw + (tn.h[0]-r)*hw)*a; g += ((tn.s[1]-g)*sw + (tn.h[1]-g)*hw)*a; b += ((tn.s[2]-b)*sw + (tn.h[2]-b)*hw)*a; }
+      if (cr){ r = (r - cr)/(1 - cr); g = (g - cr)/(1 - cr); b = (b - cr)/(1 - cr); }
       if (fd){ const k = 1-0.22*fd, a = 0.1*fd; r = r*k+a; g = g*k+a; b = b*k+a*1.1; }
       if (vg){ const dx = x-cx, d = Math.sqrt(dx*dx+dy*dy)*inv; if (d > 0.4){ const t = (d-0.4)/0.6, m = 1 - vg*0.78*t*t*(3-2*t); r*=m; g*=m; b*=m; } }
       if (gr){ let hsh = (x*374761393 + y*668265263) | 0; hsh = (hsh ^ (hsh >>> 13)) * 1274126177 | 0; const n = (((hsh ^ (hsh >>> 16)) & 1023) / 1023 - 0.5) * gr; r += n; g += n; b += n; }
@@ -213,7 +238,31 @@ function processImage(src, p){
     }
   }
   if (p.sharpness > 0) sharpen(out, p.sharpness/100);
+  if (p.glow > 0) bloom(out, p.glow);
   return out;
+}
+/* soft glow: the bright parts, blurred at quarter size and laid back over the photo */
+function bloom(img, a){
+  const w = img.width, h = img.height, d = img.data, sw = Math.max(1, w >> 2), sh = Math.max(1, h >> 2), small = new Float32Array(sw*sh*3);
+  for (let y=0; y<sh; y++) for (let x=0; x<sw; x++){
+    const i = (Math.min(h-1, y*4 + 2)*w + Math.min(w-1, x*4 + 2))*4, L = (d[i]*0.3 + d[i+1]*0.6 + d[i+2]*0.1)/255, k = Math.max(0, (L - 0.55)/0.45);
+    const o = (y*sw + x)*3; small[o] = d[i]*k; small[o+1] = d[i+1]*k; small[o+2] = d[i+2]*k;
+  }
+  const r = Math.max(2, Math.round(Math.max(sw, sh)/60)), tmp = new Float32Array(small.length);
+  for (let pass=0; pass<3; pass++){
+    for (let y=0; y<sh; y++){ let s0=0, s1=0, s2=0; for (let x=-r; x<sw; x++){ const xa = Math.min(sw-1, x + r), xb = x - r - 1; const ia = (y*sw + xa)*3; s0 += small[ia]; s1 += small[ia+1]; s2 += small[ia+2]; if (xb >= 0){ const ib = (y*sw + xb)*3; s0 -= small[ib]; s1 -= small[ib+1]; s2 -= small[ib+2]; } if (x >= 0){ const o = (y*sw + x)*3, n = 2*r + 1; tmp[o] = s0/n; tmp[o+1] = s1/n; tmp[o+2] = s2/n; } } }
+    for (let x=0; x<sw; x++){ let s0=0, s1=0, s2=0; for (let y=-r; y<sh; y++){ const ya = Math.min(sh-1, y + r), yb = y - r - 1; const ia = (ya*sw + x)*3; s0 += tmp[ia]; s1 += tmp[ia+1]; s2 += tmp[ia+2]; if (yb >= 0){ const ib = (yb*sw + x)*3; s0 -= tmp[ib]; s1 -= tmp[ib+1]; s2 -= tmp[ib+2]; } if (y >= 0){ const o = (y*sw + x)*3, n = 2*r + 1; small[o] = s0/n; small[o+1] = s1/n; small[o+2] = s2/n; } } }
+  }
+  for (let y=0; y<h; y++){
+    const fy = Math.min(sh - 1.001, Math.max(0, y/4 - 0.5)), y0 = fy | 0, ty = fy - y0;
+    for (let x=0; x<w; x++){
+      const fx = Math.min(sw - 1.001, Math.max(0, x/4 - 0.5)), x0 = fx | 0, tx = fx - x0, a0 = (y0*sw + x0)*3, a1 = a0 + sw*3, i = (y*w + x)*4;
+      for (let c=0; c<3; c++){
+        const v = (small[a0+c]*(1-tx) + small[a0+3+c]*tx)*(1-ty) + (small[a1+c]*(1-tx) + small[a1+3+c]*tx)*ty, base = d[i+c];
+        d[i+c] = base + (255 - base)*(v/255)*a*1.4;      // screen
+      }
+    }
+  }
 }
 function sharpen(img, a){
   const w = img.width, h = img.height, d = img.data, src = new Uint8ClampedArray(d), k = a*1.1, row = w*4;
@@ -1010,6 +1059,12 @@ const FRAMES = [
   {id:'soft', name:'Soft edge', colour:'#ffffff'},
   {id:'neon', name:'Neon', colour:'#ff4fd8'},
   {id:'gold', name:'Gold', colour:''},
+  {id:'ornate', name:'Gothic', colour:'#111111'},
+  {id:'barbed', name:'Barbed wire', colour:'#2a2a2e'},
+  {id:'burn', name:'Film burn', colour:'#ff7a1a'},
+  {id:'cracked', name:'Cracked glass', colour:'#ffffff'},
+  {id:'coffin', name:'Coffin', colour:'#111111'},
+  {id:'cameo', name:'Cameo', colour:'#1a1418'},
 ];
 const FRAME_COLOURS = ['#ffffff','#111111','#fbfaf6','#ffd1dc','#cfe8ff','#d9f5e3','#efb34a','#ff5a5f','#9b6bff','#ff4fd8','#4de1ff'];
 function frameColour(f){ return f.colour || (FRAMES.find(x => x.id === f.style) || {}).colour || '#ffffff'; }
@@ -1022,7 +1077,89 @@ function drawFrame(ctx, W, H, f){
     ctx.fill('evenodd');
   };
   ctx.fillStyle = col;
+  let rs = 7 + Math.round(W + H) >>> 0; const R = () => (rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0) / 4294967296;
   switch (f.style){
+    case 'ornate': {
+      // a thick dark border with a fine inner line and pointed-arch corners
+      const s = t*1.5; band(s, s, s, s);
+      const gold = '#b8954a'; ctx.strokeStyle = gold; ctx.lineWidth = Math.max(1, t*0.08);
+      ctx.strokeRect(s*0.45, s*0.45, W - s*0.9, H - s*0.9); ctx.strokeRect(s - ctx.lineWidth*2, s - ctx.lineWidth*2, W - 2*s + ctx.lineWidth*4, H - 2*s + ctx.lineWidth*4);
+      const corner = (cx, cy, sx, sy) => {
+        ctx.save(); ctx.translate(cx, cy); ctx.scale(sx, sy); ctx.fillStyle = col;
+        const k = s*2.4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(k, 0); ctx.quadraticCurveTo(k*0.55, k*0.12, k*0.45, k*0.45); ctx.quadraticCurveTo(k*0.12, k*0.55, 0, k); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = gold; ctx.lineWidth = Math.max(1, t*0.08); ctx.beginPath(); ctx.moveTo(k*0.92, s*0.45); ctx.quadraticCurveTo(k*0.5, k*0.18, k*0.42, k*0.42); ctx.quadraticCurveTo(k*0.18, k*0.5, s*0.45, k*0.92); ctx.stroke();
+        // a little cross in each corner
+        ctx.fillStyle = gold; const c = s*0.6, w = Math.max(1.5, s*0.08); ctx.fillRect(s*0.75 - w/2, s*0.75 - c/2, w, c); ctx.fillRect(s*0.75 - c*0.35, s*0.75 - c*0.18, c*0.7, w);
+        ctx.restore();
+      };
+      corner(0, 0, 1, 1); corner(W, 0, -1, 1); corner(0, H, 1, -1); corner(W, H, -1, -1);
+      break;
+    }
+    case 'barbed': {
+      const s = t*1.1; band(s, s, s, s);
+      ctx.strokeStyle = '#8d8b92'; ctx.lineWidth = Math.max(1.2, t*0.07); ctx.lineCap = 'round';
+      const wire = (x0, y0, x1, y1) => {
+        const len = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0)/len, uy = (y1 - y0)/len, step = t*1.6;
+        for (const off of [-1, 1]){ ctx.beginPath(); for (let d = 0; d <= len; d += t*0.3){ const w = Math.sin(d/(t*0.6))*t*0.08*off; ctx.lineTo(x0 + ux*d - uy*w, y0 + uy*d + ux*w); } ctx.stroke(); }
+        for (let d = step/2; d < len; d += step){ const x = x0 + ux*d, y = y0 + uy*d, b = t*0.32;
+          ctx.beginPath(); ctx.moveTo(x - b, y - b); ctx.lineTo(x + b, y + b); ctx.moveTo(x - b, y + b); ctx.lineTo(x + b, y - b); ctx.stroke(); }
+      };
+      const h = s/2; wire(0, h, W, h); wire(0, H - h, W, H - h); wire(h, 0, h, H); wire(W - h, 0, W - h, H);
+      break;
+    }
+    case 'burn': {
+      // light leaking in and scorched corners, like the end of a roll of film
+      const g1 = ctx.createRadialGradient(0, H*0.3, 0, 0, H*0.3, m*0.55); g1.addColorStop(0, col); g1.addColorStop(0.35, col + 'aa'); g1.addColorStop(1, col + '00');
+      ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = g1; ctx.fillRect(0, 0, W, H);
+      const g2 = ctx.createRadialGradient(W, H*0.85, 0, W, H*0.85, m*0.4); g2.addColorStop(0, '#fff2c0'); g2.addColorStop(0.4, col + '88'); g2.addColorStop(1, col + '00');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'multiply';
+      const e = ctx.createRadialGradient(W/2, H/2, m*0.35, W/2, H/2, Math.hypot(W, H)/2); e.addColorStop(0, 'rgba(60,20,0,0)'); e.addColorStop(1, 'rgba(40,10,0,.95)');
+      ctx.fillStyle = e; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#120804'; band(t*0.3, t*0.3, t*0.3, t*0.3);
+      break;
+    }
+    case 'cracked': {
+      // cracks spreading from a point of impact near a corner
+      const ix = W*(0.72 + R()*0.15), iy = H*(0.15 + R()*0.2), rays = 14;
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineCap = 'round';
+      const shadow = 'rgba(0,0,0,.35)';
+      const paths = [];
+      for (let i=0; i<rays; i++){
+        let a = i/rays*Math.PI*2 + R()*0.3, x = ix, y = iy; const pts = [[x, y]], len = m*(0.25 + R()*0.6);
+        for (let d = 0; d < len; d += m*0.04){ a += (R() - 0.5)*0.4; x += Math.cos(a)*m*0.04; y += Math.sin(a)*m*0.04; pts.push([x, y]); }
+        paths.push(pts);
+      }
+      for (const [style, w, dy] of [[shadow, t*0.12, t*0.05], ['rgba(255,255,255,.85)', t*0.07, 0]]){
+        ctx.strokeStyle = style; ctx.lineWidth = Math.max(1, w);
+        for (const pts of paths){ ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y + dy) : ctx.moveTo(x, y + dy)); ctx.stroke(); }
+        // rings round the impact
+        for (const rr of [m*0.05, m*0.12, m*0.2]){ ctx.beginPath(); for (let k=0; k<=rays; k++){ const p = paths[k % rays], idx = Math.min(p.length - 1, Math.round(rr/(m*0.04))); const [x, y] = p[idx]; k ? ctx.lineTo(x, y + dy) : ctx.moveTo(x, y + dy); } ctx.stroke(); }
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(ix, iy, t*0.35, 0, Math.PI*2); ctx.fill();
+      break;
+    }
+    case 'coffin': {
+      // the photo shows through a coffin-shaped window
+      const pad = t*1.2, w = W - 2*pad, h = H - 2*pad, sh = h*0.26;
+      ctx.beginPath(); ctx.rect(0, 0, W, H);
+      ctx.moveTo(pad + w*0.3, pad); ctx.lineTo(pad + w*0.7, pad); ctx.lineTo(pad + w, pad + sh); ctx.lineTo(pad + w*0.82, pad + h); ctx.lineTo(pad + w*0.18, pad + h); ctx.lineTo(pad, pad + sh); ctx.closePath();
+      ctx.fill('evenodd');
+      ctx.strokeStyle = '#b8954a'; ctx.lineWidth = Math.max(1, t*0.1);
+      ctx.beginPath(); ctx.moveTo(pad + w*0.3, pad); ctx.lineTo(pad + w*0.7, pad); ctx.lineTo(pad + w, pad + sh); ctx.lineTo(pad + w*0.82, pad + h); ctx.lineTo(pad + w*0.18, pad + h); ctx.lineTo(pad, pad + sh); ctx.closePath(); ctx.stroke();
+      break;
+    }
+    case 'cameo': {
+      // a Victorian oval with a beaded edge
+      const pad = t*1.4, rx = W/2 - pad, ry = H/2 - pad;
+      ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.ellipse(W/2, H/2, rx, ry, 0, 0, Math.PI*2); ctx.fill('evenodd');
+      ctx.strokeStyle = '#c9a85a'; ctx.lineWidth = Math.max(1.5, t*0.18); ctx.beginPath(); ctx.ellipse(W/2, H/2, rx, ry, 0, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#e8d6a0';
+      const n = Math.round((rx + ry)*Math.PI/(t*0.55));
+      for (let i=0; i<n; i++){ const a = i/n*Math.PI*2; ctx.beginPath(); ctx.arc(W/2 + Math.cos(a)*(rx + t*0.32), H/2 + Math.sin(a)*(ry + t*0.32), Math.max(1, t*0.11), 0, Math.PI*2); ctx.fill(); }
+      break;
+    }
     case 'border': band(t, t, t, t); break;
     case 'rounded': band(t, t, t, t, t*1.8); break;
     case 'polaroid': {
@@ -1495,13 +1632,13 @@ const fontPick = (() => {
   list.className = 'font-list'; list.setAttribute('role', 'listbox'); list.hidden = true; list.tabIndex = -1;
   FONTS.forEach(f => {
     const o = document.createElement('div'); o.className = 'font-opt'; o.setAttribute('role', 'option'); o.dataset.font = f;
-    o.textContent = f; o.style.fontFamily = `"${f}", system-ui, sans-serif`;
+    o.textContent = FONT_LABEL[f] || f; o.style.fontFamily = `"${f}", system-ui, sans-serif`;
     if (['Caveat', 'Dancing Script', 'Pacifico', 'Lobster', 'Permanent Marker'].includes(f)) o.style.fontWeight = 700;
     o.onclick = () => choose(f); list.appendChild(o);
   });
   sel.hidden = true; sel.after(btn, list);
   let hi = 0;
-  const paint = () => { const f = sel.value; btn.textContent = f; btn.style.fontFamily = `"${f}", system-ui, sans-serif`; list.querySelectorAll('.font-opt').forEach(o => o.setAttribute('aria-selected', String(o.dataset.font === f))); };
+  const paint = () => { const f = sel.value; btn.textContent = FONT_LABEL[f] || f; btn.style.fontFamily = `"${f}", system-ui, sans-serif`; list.querySelectorAll('.font-opt').forEach(o => o.setAttribute('aria-selected', String(o.dataset.font === f))); };
   const mark = i => { hi = (i + FONTS.length) % FONTS.length; list.querySelectorAll('.font-opt').forEach((o, k) => o.classList.toggle('hi', k === hi)); list.children[hi].scrollIntoView({block:'nearest'}); };
   const open = () => { list.hidden = false; btn.setAttribute('aria-expanded', 'true'); mark(Math.max(0, FONTS.indexOf(sel.value))); list.focus(); };
   const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -1914,7 +2051,7 @@ window.addEventListener('blur', () => { spaceHeld = false; stage.classList.remov
 
 /* ================= Effects ================= */
 // One effect at a time, drawn onto the photo before Adjust and Filters. "Apply" bakes it in so another can go on top.
-const FX_DEFAULT = {id:'none', amt:60, angle:0, cx:0.5, cy:0.5, size:40, shape:'circle', mode:'pixel', bsize:30, strokes:[], tex:'forest', inside:false, keep:false, seed:1};
+const FX_DEFAULT = {id:'none', amt:60, angle:0, cx:0.5, cy:0.5, size:40, shape:'circle', mode:'pixel', bsize:30, strokes:[], tex:'forest', inside:false, keep:false, seed:1, blood:'red', eye:'red', eyes:[], date:''};
 const FX = [
   {id:'none', name:'None'},
   {id:'glitch', name:'Glitch', amt:55, hint:'Shifted colour channels and torn scan lines. Shuffle for a different tear.'},
@@ -1924,6 +2061,15 @@ const FX = [
   {id:'leak', name:'Light leak', amt:70, hint:'Warm film light bleeding in from the edges. Shuffle for another one.'},
   {id:'dust', name:'Film dust', amt:55, hint:'Specks, hairs and scratches, like an old scanned negative. Shuffle to scatter them again.'},
   {id:'brush', name:'Pixelate brush', amt:60, hint:'Brush over faces, number plates or anything you want hidden.'},
+  // the alternative scene
+  {id:'grunge', name:'Grunge', amt:60, hint:'Scratches, stains, dust and burnt edges, like an old flyer left on a wall. Shuffle for a different wear.'},
+  {id:'xerox', name:'Xerox zine', amt:55, hint:'Photocopied in black and white halftone dots, like a DIY gig flyer.'},
+  {id:'vhs', name:'VHS', amt:60, hint:'Camcorder look: colour bleed, scan lines, a tracking glitch and an on-screen date you can change.'},
+  {id:'smoke', name:'Smoke', amt:55, hint:'Drifting fog and smoke, thicker towards the bottom. Shuffle to move it.'},
+  {id:'infrared', name:'Infrared glow', amt:60, hint:'Hazy, glowing skin and pale tones, like infrared film.'},
+  {id:'chroma', name:'Chromatic', amt:45, hint:'Red and blue edges pulling apart towards the corners, for an unsettling feel.'},
+  {id:'blood', name:'Blood drips', amt:70, hint:'Paint on the photo and it drips. Choose red or black.'},
+  {id:'eyeglow', name:'Eye glow', amt:75, hint:'Tap each eye to make it glow. Drag a glow to move it.'},
 ];
 const FX_BY_ID = Object.fromEntries(FX.map(f => [f.id, f]));
 const FX_IMG = new Map();     // double-exposure photos the person picked
@@ -2098,6 +2244,135 @@ function fxApply(src, fx, base, tag){
       lx.stroke();
     }
     o.globalAlpha = Math.min(1, 0.45 + t*0.7); o.drawImage(L, 0, 0); o.globalAlpha = 1;
+  } else if (fx.id === 'grunge'){
+    const R = fxRng(fx.seed*6151 + 3), L = mk(W, H), lx = L.getContext('2d');
+    // stains: soft dark blotches
+    for (let i=0; i<Math.round(6 + 14*t); i++){
+      const x = R()*W, y = R()*H, r = K*(0.05 + R()*0.18), g = lx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(40,28,15,${0.4 + R()*0.35})`); g.addColorStop(0.7, `rgba(40,28,15,${0.15 + R()*0.15})`); g.addColorStop(1, 'rgba(40,28,15,0)');
+      lx.fillStyle = g; lx.fillRect(x - r, y - r, r*2, r*2);
+    }
+    // scratches
+    lx.lineCap = 'round';
+    for (let i=0; i<Math.round(20 + 80*t); i++){
+      let x = R()*W, y = R()*H; const len = K*(0.02 + R()*0.25), a = (R() - 0.5)*0.6 + (R() < 0.5 ? Math.PI/2 : 0), light = R() < 0.55;
+      lx.strokeStyle = light ? `rgba(255,250,235,${0.25 + R()*0.45})` : `rgba(15,10,5,${0.3 + R()*0.4})`; lx.lineWidth = Math.max(0.6, K*0.0008*(1 + R()*2));
+      lx.beginPath(); lx.moveTo(x, y); for (let s=0; s<6; s++){ x += Math.cos(a)*len/6 + (R()-0.5)*K*0.003; y += Math.sin(a)*len/6 + (R()-0.5)*K*0.003; lx.lineTo(x, y); } lx.stroke();
+    }
+    for (let i=0; i<Math.round(200 + 900*t); i++){ const r = K*0.0008*(1 + R()*R()*5); lx.fillStyle = R() < 0.5 ? `rgba(20,14,8,${0.4 + R()*0.5})` : `rgba(255,250,240,${0.3 + R()*0.5})`; lx.beginPath(); lx.arc(R()*W, R()*H, r, 0, Math.PI*2); lx.fill(); }
+    o.globalAlpha = Math.min(1, 0.4 + t*0.7); o.drawImage(L, 0, 0); o.globalAlpha = 1;
+    // burnt edges
+    const e = o.createRadialGradient(W/2, H/2, Math.min(W, H)*0.35, W/2, H/2, Math.hypot(W, H)/2);
+    e.addColorStop(0, 'rgba(30,18,8,0)'); e.addColorStop(1, `rgba(20,10,4,${Math.min(1, 1.1*t)})`);
+    o.globalCompositeOperation = 'multiply'; o.fillStyle = e; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.35*t; o.fillStyle = '#a07040'; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  } else if (fx.id === 'xerox'){
+    // black-and-white halftone: one dot per cell, bigger where it's darker
+    const s = src.getContext('2d').getImageData(0, 0, W, H).data, cell = Math.max(3, K*(0.004 + t*0.008)), R = fxRng(fx.seed*911 + 1);
+    o.fillStyle = '#efece4'; o.fillRect(0, 0, W, H); o.fillStyle = '#141414';
+    const lumAt = (x, y) => { const i = (Math.min(H-1, y|0)*W + Math.min(W-1, x|0))*4; return (s[i]*0.3 + s[i+1]*0.59 + s[i+2]*0.11)/255; };
+    const ang = Math.PI/4, ca = Math.cos(ang), sa = Math.sin(ang), diag = Math.hypot(W, H);
+    for (let v=-diag; v<diag; v+=cell) for (let u=-diag; u<diag; u+=cell){
+      const x = W/2 + u*ca - v*sa, y = H/2 + u*sa + v*ca; if (x < -cell || y < -cell || x > W + cell || y > H + cell) continue;
+      let d = 1 - lumAt(clamp(x, 0, W-1), clamp(y, 0, H-1));
+      d = clamp((d - 0.2)*1.7, 0, 1);                       // photocopiers lose the light greys and fill in the darks
+      if (d < 0.04) continue;
+      o.beginPath(); o.arc(x, y, cell*0.72*Math.sqrt(d), 0, Math.PI*2); o.fill();
+    }
+    // toner specks and a streak
+    for (let i=0; i<Math.round(300*t + 100); i++){ o.globalAlpha = 0.3 + R()*0.6; o.fillRect(R()*W, R()*H, Math.max(1, K*0.0012*R()*3), Math.max(1, K*0.0012*R()*3)); }
+    o.globalAlpha = 0.12; o.fillRect(R()*W*0.9, 0, K*(0.003 + R()*0.006), H); o.globalAlpha = 1;
+  } else if (fx.id === 'vhs'){
+    const s = src.getContext('2d').getImageData(0, 0, W, H), sd = s.data, od = new Uint8ClampedArray(sd.length), R = fxRng(fx.seed*4421 + 9);
+    const shift = Math.round(K*0.004*(0.5 + t)), band0 = Math.floor(H*(0.75 + R()*0.15)), band1 = band0 + Math.round(H*0.035), gap = Math.max(2, Math.round(K/360));
+    for (let y=0; y<H; y++){
+      const wob = Math.round(Math.sin(y*0.05 + fx.seed)*K*0.0008*t + (y >= band0 && y < band1 ? (R() - 0.3)*K*0.02*t : 0)), dark = y % gap === 0 ? 1 - 0.18*t : 1;
+      for (let x=0; x<W; x++){
+        const i = (y*W + x)*4, xr = clamp(x + shift + wob, 0, W-1), xg = clamp(x + wob, 0, W-1), xb = clamp(x - shift + wob, 0, W-1);
+        od[i] = sd[(y*W + xr)*4]*dark; od[i+1] = sd[(y*W + xg)*4 + 1]*dark; od[i+2] = sd[(y*W + xb)*4 + 2]*dark; od[i+3] = 255;
+        if (y >= band0 && y < band1 && R() < 0.15*t){ const n = 120 + R()*135; od[i] = od[i+1] = od[i+2] = n; }
+      }
+    }
+    s.data.set(od); o.putImageData(s, 0, 0);
+    // soft, washed-out tape colour
+    o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.35*t; o.fillStyle = '#4a6cff'; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'screen'; o.globalAlpha = 0.12*t; o.fillStyle = '#ff40a0'; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+    // the on-screen display
+    const fs = Math.round(K*0.035), pad = Math.round(K*0.035);
+    o.font = `700 ${fs}px "Space Mono", ui-monospace, monospace`; o.textBaseline = 'alphabetic';
+    o.shadowColor = 'rgba(0,0,0,.6)'; o.shadowOffsetX = o.shadowOffsetY = Math.max(1, fs*0.06); o.fillStyle = '#f2f2f2';
+    o.textAlign = 'left'; o.fillText('PLAY ►', pad, pad + fs);
+    o.textAlign = 'right'; o.fillStyle = '#ffd36a';
+    const date = (fx.date || vhsDate()).toUpperCase().split('\n');
+    date.forEach((line, k) => o.fillText(line, W - pad, H - pad - (date.length - 1 - k)*fs*1.25));
+    o.shadowColor = 'transparent'; o.textAlign = 'left';
+  } else if (fx.id === 'smoke'){
+    const R = fxRng(fx.seed*2287 + 5), L = mk(W, H), lx = L.getContext('2d');
+    for (let i=0; i<70; i++){
+      const y = H*(0.3 + Math.pow(R(), 0.6)*0.8), x = R()*W, r = K*(0.08 + R()*0.2), a = (0.1 + R()*0.18)*(0.6 + (y/H - 0.3));
+      const g = lx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(235,235,240,${a})`); g.addColorStop(1, 'rgba(235,235,240,0)');
+      lx.fillStyle = g; lx.fillRect(x - r, y - r, r*2, r*2);
+    }
+    // wisps
+    lx.lineCap = 'round';
+    for (let i=0; i<14; i++){
+      let x = R()*W, y = H*(0.4 + R()*0.6); lx.strokeStyle = `rgba(240,240,245,${0.05 + R()*0.06})`; lx.lineWidth = K*(0.02 + R()*0.04);
+      lx.beginPath(); lx.moveTo(x, y); for (let s=0; s<8; s++){ x += K*0.05*(R() - 0.3); y -= K*0.03*R(); lx.lineTo(x, y); } lx.stroke();
+    }
+    const S2 = mk(W, H), sx = S2.getContext('2d'); sx.filter = `blur(${(K*0.012).toFixed(0)}px)`; sx.drawImage(L, 0, 0); sx.filter = 'none';
+    o.globalCompositeOperation = 'screen'; o.globalAlpha = Math.min(1, t*1.5); o.drawImage(S2, 0, 0); o.drawImage(S2, 0, 0);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  } else if (fx.id === 'infrared'){
+    const b = fxBlur(src, K*(0.01 + t*0.02));
+    o.globalCompositeOperation = 'luminosity'; o.globalAlpha = 0.5*t; o.drawImage(src, 0, 0);
+    o.globalCompositeOperation = 'screen'; o.globalAlpha = 0.75*t; o.drawImage(b, 0, 0);
+    o.globalCompositeOperation = 'saturation'; o.globalAlpha = 0.6*t; o.fillStyle = '#808080'; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.25*t; o.fillStyle = '#ffd6e8'; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  } else if (fx.id === 'chroma'){
+    const s = src.getContext('2d').getImageData(0, 0, W, H), sd = s.data, od = s.data.slice(), e = 0.028*t, cxp = W/2, cyp = H/2;
+    for (let y=0; y<H; y++) for (let x=0; x<W; x++){
+      const dx = x - cxp, dy = y - cyp, i = (y*W + x)*4;
+      const rx = clamp(Math.round(cxp + dx*(1 + e)), 0, W-1), ry = clamp(Math.round(cyp + dy*(1 + e)), 0, H-1);
+      const bx = clamp(Math.round(cxp + dx*(1 - e)), 0, W-1), by = clamp(Math.round(cyp + dy*(1 - e)), 0, H-1);
+      od[i] = sd[(ry*W + rx)*4]; od[i+2] = sd[(by*W + bx)*4 + 2];
+    }
+    s.data.set(od); o.putImageData(s, 0, 0);
+  } else if (fx.id === 'blood' && fx.strokes.length){
+    const col = fx.blood === 'black' ? [14, 8, 10] : [96, 0, 8], R = fxRng(fx.seed*733 + 2), L = mk(W, H), lx = L.getContext('2d');
+    lx.fillStyle = lx.strokeStyle = `rgb(${col})`; lx.lineCap = lx.lineJoin = 'round';
+    for (const st of fx.strokes){
+      const r = st.r*K, p = st.pts; lx.lineWidth = r*2;
+      lx.beginPath(); lx.moveTo(p[0]*W, p[1]*H); for (let i=2; i<p.length; i+=2) lx.lineTo(p[i]*W, p[i+1]*H);
+      if (p.length <= 2){ lx.arc(p[0]*W, p[1]*H, r, 0, Math.PI*2); lx.fill(); } else lx.stroke();
+      // drips run down from along the stroke
+      for (let i=0; i<p.length; i+=2){
+        if (R() > 0.6*t + 0.15) continue;
+        const x = p[i]*W + (R() - 0.5)*r*1.4, y = p[i+1]*H, len = r*(2 + R()*10)*(0.4 + t), dw = r*(0.25 + R()*0.35);
+        lx.beginPath(); lx.moveTo(x - dw, y); lx.lineTo(x - dw*0.7, y + len); lx.arc(x, y + len, dw*0.75, Math.PI, 0, true); lx.lineTo(x + dw, y); lx.fill();
+        lx.beginPath(); lx.arc(x, y + len + dw*0.1, dw*0.95, 0, Math.PI*2); lx.fill();
+      }
+      // a few splatter dots
+      for (let k=0; k<Math.round(4*t); k++){ const i = Math.floor(R()*p.length/2)*2, a = R()*Math.PI*2, d = r*(1.5 + R()*3); lx.beginPath(); lx.arc(p[i]*W + Math.cos(a)*d, p[i+1]*H + Math.sin(a)*d, r*(0.08 + R()*0.2), 0, Math.PI*2); lx.fill(); }
+    }
+    // wet look: darker edges, a shine on top
+    const sh = mk(W, H), shx = sh.getContext('2d'); shx.drawImage(L, 0, 0); shx.globalCompositeOperation = 'source-in';
+    const gl = shx.createLinearGradient(0, 0, 0, H); gl.addColorStop(0, `rgba(${col.map((v, i) => Math.min(255, v + (i ? 4 : 40)))},1)`); gl.addColorStop(1, `rgba(${col},1)`); shx.fillStyle = gl; shx.fillRect(0, 0, W, H);
+    o.globalAlpha = 0.96; o.drawImage(sh, 0, 0); o.globalAlpha = 1;
+    const hl = mk(W, H), hx = hl.getContext('2d'); hx.drawImage(L, -K*0.002, -K*0.003); hx.globalCompositeOperation = 'destination-out'; hx.drawImage(L, K*0.0015, K*0.002);
+    hx.globalCompositeOperation = 'source-in'; hx.fillStyle = 'rgba(255,190,190,.35)'; hx.fillRect(0, 0, W, H);
+    o.drawImage(hl, 0, 0);
+  } else if (fx.id === 'eyeglow' && fx.eyes.length){
+    const cols = {red:[255,40,40], white:[235,245,255], ice:[90,200,255], violet:[180,90,255], gold:[255,190,40]}, c = cols[fx.eye] || cols.red;
+    for (const [nx, ny] of fx.eyes){
+      const x = nx*W, y = ny*H, r = K*(0.006 + fx.bsize/100*0.03);
+      o.globalCompositeOperation = 'screen';
+      let g = o.createRadialGradient(x, y, 0, x, y, r*6*(0.6 + t)); g.addColorStop(0, `rgba(${c},${0.55*t})`); g.addColorStop(1, `rgba(${c},0)`); o.fillStyle = g; o.fillRect(x - r*8, y - r*8, r*16, r*16);
+      g = o.createRadialGradient(x, y, 0, x, y, r*1.6); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, `rgba(${c},1)`); g.addColorStop(1, `rgba(${c},0)`);
+      o.globalCompositeOperation = 'source-over'; o.globalAlpha = Math.min(1, 0.4 + t); o.fillStyle = g; o.beginPath(); o.arc(x, y, r*1.6, 0, Math.PI*2); o.fill(); o.globalAlpha = 1;
+    }
   } else if (fx.id === 'brush' && fx.strokes.length){
     const key = `${fx.mode}|${fx.amt}|${W}x${H}`;
     let E = tag && fxLayerCache.get(tag);
@@ -2123,6 +2398,7 @@ function fxApply(src, fx, base, tag){
   }
   return out;
 }
+const vhsDate = () => { const d = new Date(), m = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()]; return `${m} ${String(d.getDate()).padStart(2, '0')} ${d.getFullYear()}\n${((d.getHours() + 11) % 12) + 1}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`; };
 let fxCache = {key:'', src:null, out:null};
 const skyOn = () => { const i = S.sky && S.sky.id !== 'none' && S.base && skyMasks.get(S.base); return !!(i && !i.none); };
 function fxPreviewData(){
@@ -2158,7 +2434,7 @@ function drawFxThumbs(){
   if (!S.base) return;
   const src = fxCover(rawC.width > 10 ? rawC : S.base, 150, 112);
   for (const {c, f} of fxThumbs){
-    const fx = {...FX_DEFAULT, id:f.id, amt:f.amt || 60, tex:'forest', strokes: f.id === 'brush' ? [{r:0.12, pts:[0.3, 0.35, 0.5, 0.5, 0.7, 0.62]}] : []};
+    const fx = {...FX_DEFAULT, id:f.id, amt:f.amt || 60, tex:'forest', strokes: f.id === 'brush' ? [{r:0.12, pts:[0.3, 0.35, 0.5, 0.5, 0.7, 0.62]}] : f.id === 'blood' ? [{r:0.03, pts:[0.15, 0.2, 0.5, 0.17, 0.85, 0.22]}] : [], eyes: f.id === 'eyeglow' ? [[0.42, 0.4], [0.58, 0.4]] : [], bsize: f.id === 'eyeglow' ? 40 : 30};
     c.getContext('2d').drawImage(f.id === 'none' ? src : fxApply(src, fx, null), 0, 0);
   }
 }
@@ -2180,7 +2456,9 @@ function fxSeg(id, key){
     S.fx[key] = b.dataset.v; commit(); fxChanged(); syncFx();
   });
 }
-fxSeg('fxTex', 'tex'); fxSeg('fxShape', 'shape'); fxSeg('fxMode', 'mode');
+fxSeg('fxTex', 'tex'); fxSeg('fxShape', 'shape'); fxSeg('fxMode', 'mode'); fxSeg('fxBlood', 'blood'); fxSeg('fxEye', 'eye');
+$('#fxDate').addEventListener('input', e => { S.fx.date = e.target.value.replace(/\s{2,}/, '\n'); fxChanged(); });
+$('#fxDate').addEventListener('change', commit);
 $('#fxFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const img = await loadImageFile(f); const ref = 'img-' + Date.now().toString(36); FX_IMG.set(ref, img); S.fx.tex = ref; commit(); fxChanged(); syncFx(); }
@@ -2189,7 +2467,7 @@ $('#fxFile').addEventListener('change', async e => {
 $('#fxInside').onchange = e => { S.fx.inside = e.target.checked; if (S.fx.inside) ensureBgMask(); commit(); fxChanged(); };
 $('#fxKeep').onchange = e => { S.fx.keep = e.target.checked; if (S.fx.keep) ensureBgMask(); commit(); fxChanged(); };
 $('#fxShuffle').onclick = () => { S.fx.seed = (S.fx.seed % 9973) + 1 + Math.floor(Math.random()*500); commit(); fxChanged(); };
-$('#fxClear').onclick = () => { S.fx.strokes = []; commit(); fxChanged(); };
+$('#fxClear').onclick = () => { S.fx.strokes = []; S.fx.eyes = []; commit(); fxChanged(); };
 $('#fxRemove').onclick = () => setFx('none');
 $('#fxApply').onclick = () => {
   if (!S.base || S.fx.id === 'none') return;
@@ -2213,15 +2491,26 @@ function syncFx(){
   document.querySelectorAll('#fxMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.mode)));
   $('#fxInside').checked = !!fx.inside; $('#fxKeep').checked = !!fx.keep;
   paintFxAmt(); paintFxAngle(); paintFxSize(); paintFxBsize();
-  stage.classList.toggle('fx-brush', tab === 'effects' && fx.id === 'brush');
+  stage.classList.toggle('fx-brush', tab === 'effects' && (fx.id === 'brush' || fx.id === 'blood' || fx.id === 'eyeglow'));
+  $('#fxDate').value = (fx.date || '').replace('\n', '  ');
+  $('#fxDate').placeholder = vhsDate().replace('\n', '  ');
+  document.querySelectorAll('#fxBlood button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.blood)));
+  document.querySelectorAll('#fxEye button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === fx.eye)));
+  $('#fxBsizeLabel').textContent = fx.id === 'eyeglow' ? 'Glow size' : 'Brush size';
   stage.classList.toggle('fx-focus', tab === 'effects' && fx.id === 'focus');
 }
 /* brushing and choosing the focus point on the photo */
 let fxDrag = null;
 function fxPointerDown(e){
-  const id = S.fx.id; if (id !== 'brush' && id !== 'focus') return false;
+  const id = S.fx.id; if (!['brush', 'focus', 'blood', 'eyeglow'].includes(id)) return false;
   const p = clientToImg(e), nx = p.x / S.base.width, ny = p.y / S.base.height;
   if (id === 'focus'){ S.fx.cx = clamp(nx, 0, 1); S.fx.cy = clamp(ny, 0, 1); fxDrag = {focus:true}; }
+  else if (id === 'eyeglow'){
+    // drag a glow that's already there, or tap to add one
+    const near = S.fx.eyes.findIndex(([x, y]) => Math.hypot((x - nx)*S.base.width, (y - ny)*S.base.height) < Math.max(S.base.width, S.base.height)*0.03);
+    if (near < 0) S.fx.eyes = [...S.fx.eyes, [nx, ny]];
+    fxDrag = {eye: near < 0 ? S.fx.eyes.length - 1 : near};
+  }
   else {
     const st = {r: (0.006 + S.fx.bsize/100*0.07) * Math.min(S.base.width, S.base.height) / Math.max(S.base.width, S.base.height), pts:[nx, ny]};
     S.fx.strokes = [...S.fx.strokes, st]; fxDrag = {st};
@@ -2231,6 +2520,7 @@ function fxPointerDown(e){
 function fxPointerMove(e){
   const p = clientToImg(e), nx = p.x / S.base.width, ny = p.y / S.base.height;
   if (fxDrag.focus){ S.fx.cx = clamp(nx, 0, 1); S.fx.cy = clamp(ny, 0, 1); }
+  else if (fxDrag.eye !== undefined){ S.fx.eyes = S.fx.eyes.map((q, i) => i === fxDrag.eye ? [clamp(nx, 0, 1), clamp(ny, 0, 1)] : q); }
   else { const q = fxDrag.st.pts; if (Math.hypot(nx - q[q.length-2], ny - q[q.length-1]) < fxDrag.st.r * 0.3) return; q.push(nx, ny); }
   fxChanged();
 }
@@ -4356,7 +4646,7 @@ function skFinish(){
 
 /* ---- illustrated sticker packs: vector art, rasterised on demand with a white die-cut border and soft shadow ---- */
 const PACK = window.STICKER_PACK || [];
-const PACK_CATS = [['faces','Faces'],['silly','Silly'],['animals','Animals'],['snacks','Snacks'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
+const PACK_CATS = [['dark','Dark'],['faces','Faces'],['silly','Silly'],['animals','Animals'],['snacks','Snacks'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
 const packURL = s => s.src || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg));
 
 async function packCanvas(s){
