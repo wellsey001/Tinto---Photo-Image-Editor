@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="build/icon.png" width="96" height="96" alt="Tinto icon">
+  <img src="docs/logo-animated.svg" width="128" height="128" alt="Tinto logo: the slider knob glides left and back while the eye watches it and blinks">
 </p>
 
 <h1 align="center">Tinto</h1>
@@ -170,6 +170,7 @@ tinto/
 │       ├── ai-web.js      The same AI tools running in the page, for Android
 │       └── app.js         Editor: image processing, layers, collage, export
 ├── scripts/             Sticker pack generator and the AI checks (desktop and in-page)
+├── docs/                  The animated logo at the top of this page
 ├── .github/workflows/     GitHub Actions build
 └── package.json           Scripts and electron-builder settings
 ```
