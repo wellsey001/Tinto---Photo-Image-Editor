@@ -8,6 +8,7 @@ from PIL import Image
 from scipy import ndimage as nd
 
 CROSS = nd.generate_binary_structure(2, 1)
+SCALE = 2          # stickers come out at twice the size of the sheet, for smooth edges
 
 
 def fill_holes(m):
@@ -53,19 +54,31 @@ def tidy(im, border=None):
     if body.sum() < 30:
         return im
 
-    # one thin, even white edge
-    R = border if border else max(2.5, 0.022 * max(H, W))
-    pad = int(np.ceil(R)) + 2
-    big_body = np.zeros((H + 2 * pad, W + 2 * pad), bool); big_body[pad:pad + H, pad:pad + W] = body
-    D = nd.distance_transform_edt(~big_body)
-    out = np.zeros((H + 2 * pad, W + 2 * pad, 4), np.float32)
-    out[..., :3] = 255
-    out[..., 3] = np.clip(R + 0.5 - D, 0, 1) * 255
-    src = np.zeros_like(out); src[pad:pad + H, pad:pad + W] = a
-    out[big_body, :3] = src[big_body, :3]
-    out[big_body, 3] = src[big_body, 3]          # see-through gaps inside a drawing stay see-through
-    rim = big_body & ~nd.binary_erosion(big_body)
-    out[rim, :3] = 0.7 * src[rim, :3] + 0.3 * 255
+    # one thin white edge with a soft, rounded outline, built at twice the size so it stays smooth
+    S = SCALE
+    R = (border if border else max(2.5, 0.022 * max(H, W))) * S
+    pad = int(np.ceil(R + 3 * S)) + 2
+    W2, H2 = W * S + 2 * pad, H * S + 2 * pad
+    big = Image.fromarray(a.round().clip(0, 255).astype(np.uint8), 'RGBA').resize((W * S, H * S), Image.LANCZOS)
+    img = np.zeros((H2, W2, 4), np.float32); img[pad:pad + H * S, pad:pad + W * S] = np.array(big, np.float32)
+    bm = np.array(Image.fromarray((body * 255).astype(np.uint8)).resize((W * S, H * S), Image.BILINEAR), np.float32) / 255
+    bodyf = np.zeros((H2, W2), np.float32); bodyf[pad:pad + H * S, pad:pad + W * S] = bm
+    bodyf = nd.gaussian_filter(bodyf, 0.6 * S)
+    body2 = bodyf > 0.5
+    # border shape: everything within R of the drawing, rounded off, then feathered at its rim
+    near = (nd.distance_transform_edt(~body2) <= R).astype(np.float32)
+    shape = nd.gaussian_filter(near, 1.1 * S)
+    t = np.clip((shape - 0.2) / 0.6, 0, 1)
+    border_a = t * t * (3 - 2 * t)
+    # drawing over white, blended softly into the border along its outline
+    w = np.clip((bodyf - 0.3) / 0.4, 0, 1)
+    out = np.zeros((H2, W2, 4), np.float32)
+    ia = img[..., 3] / 255
+    out[..., :3] = img[..., :3] * (w * ia)[..., None] + 255 * (1 - w * ia)[..., None]
+    out[..., 3] = np.maximum(border_a, w * ia) * 255
+    # see-through gaps inside a drawing stay see-through
+    inner = nd.binary_erosion(body2, iterations=int(2 * S))
+    out[inner, 3] = img[inner, 3]
     res = Image.fromarray(out.round().clip(0, 255).astype(np.uint8), 'RGBA')
     return res.crop(res.getbbox())
 

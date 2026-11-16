@@ -2158,7 +2158,7 @@ async function packCanvas(s){
     bw = Math.round(N*0.04); framed = withBorder(art, '#ffffff', bw, Math.round(bw*2.2));
   } else {
     // cut-out art already has its border: enlarge it smoothly so it holds up on big photos
-    const k = 3, art = mk(img.naturalWidth*k, img.naturalHeight*k), ax = art.getContext('2d');
+    const k = Math.max(1, 450 / Math.max(img.naturalWidth, img.naturalHeight)), art = mk(Math.round(img.naturalWidth*k), Math.round(img.naturalHeight*k)), ax = art.getContext('2d');
     ax.imageSmoothingEnabled = true; ax.imageSmoothingQuality = 'high'; ax.drawImage(img, 0, 0, art.width, art.height);
     bw = Math.round(Math.max(art.width, art.height)*0.03); framed = withBorder(art, '', 0, Math.round(bw*2.2));
   }

@@ -283,27 +283,33 @@
     body = fillHoles(body);
     let count = 0; for (let i=0; i<N; i++) count += body[i];
     if (count < 30) return src;
-    // one thin, even white edge
-    const R = Math.max(2.5, 0.022 * Math.max(W, H));
-    const pad = Math.ceil(R) + 2, W2 = W + pad*2, H2 = H + pad*2, N2 = W2*H2;
-    const big2 = new Uint8Array(N2);
-    for (let y=0; y<H; y++) for (let x=0; x<W; x++) big2[(y+pad)*W2 + x+pad] = body[y*W+x];
-    const outside = new Uint8Array(N2); for (let i=0; i<N2; i++) outside[i] = big2[i] ? 0 : 1;
+    // one thin white edge with a soft, rounded outline, built at twice the size so it stays smooth
+    const S = 2, R = Math.max(2.5, 0.022 * Math.max(W, H)) * S;
+    const pad = Math.ceil(R + 3*S) + 2, W2 = W*S + pad*2, H2 = H*S + pad*2, N2 = W2*H2;
+    const up = (draw) => { const c = document.createElement('canvas'); c.width = W2; c.height = H2; const x = c.getContext('2d');
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; draw(x); return x.getImageData(0, 0, W2, H2).data; };
+    const img = up(x => x.drawImage(src, pad, pad, W*S, H*S));
+    const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+    const mx = mc.getContext('2d'), md = mx.createImageData(W, H);
+    for (let i=0; i<N; i++){ md.data[i*4+3] = body[i] ? 255 : 0; }
+    mx.putImageData(md, 0, 0);
+    const bmData = up(x => x.drawImage(mc, pad, pad, W*S, H*S));
+    let bodyf = new Float32Array(N2); for (let i=0; i<N2; i++) bodyf[i] = bmData[i*4+3] / 255;
+    bodyf = boxBlur(boxBlur(bodyf, W2, H2, 1), W2, H2, 1);
+    const body2 = new Uint8Array(N2); for (let i=0; i<N2; i++) body2[i] = bodyf[i] > 0.5 ? 1 : 0;
+    const outside = new Uint8Array(N2); for (let i=0; i<N2; i++) outside[i] = body2[i] ? 0 : 1;
     const D = distance(outside, W2, H2);
+    let shape = new Float32Array(N2); for (let i=0; i<N2; i++) shape[i] = D[i] <= R ? 1 : 0;
+    for (let k=0; k<3; k++) shape = boxBlur(shape, W2, H2, 2);
+    const inner = erode(body2, W2, H2, 2*S);
     const c = document.createElement('canvas'); c.width = W2; c.height = H2;
     const cx = c.getContext('2d'), o = cx.createImageData(W2, H2), od = o.data;
-    for (let y=0; y<H2; y++) for (let x=0; x<W2; x++){
-      const i = y*W2+x, k = i*4;
-      if (big2[i]){
-        const s = ((y-pad)*W + x-pad)*4;
-        const rim = x>0 && y>0 && x<W2-1 && y<H2-1 && (!big2[i-1] || !big2[i+1] || !big2[i-W2] || !big2[i+W2]);
-        const t = rim ? 0.3 : 0;
-        od[k] = d[s] + (255-d[s])*t; od[k+1] = d[s+1] + (255-d[s+1])*t; od[k+2] = d[s+2] + (255-d[s+2])*t;
-        od[k+3] = d[s+3];                       // see-through gaps inside a drawing stay see-through
-      } else {
-        od[k] = od[k+1] = od[k+2] = 255;
-        od[k+3] = Math.round(255 * Math.max(0, Math.min(1, R + 0.5 - D[i])));
-      }
+    for (let i=0; i<N2; i++){
+      const k = i*4, ia = img[k+3] / 255;
+      let t = Math.max(0, Math.min(1, (shape[i] - 0.2) / 0.6)); const ba = t*t*(3 - 2*t);
+      const w = Math.max(0, Math.min(1, (bodyf[i] - 0.3) / 0.4)) * ia;
+      od[k] = img[k]*w + 255*(1-w); od[k+1] = img[k+1]*w + 255*(1-w); od[k+2] = img[k+2]*w + 255*(1-w);
+      od[k+3] = inner[i] ? img[k+3] : Math.round(255 * Math.max(ba, w));   // gaps inside a drawing stay see-through
     }
     cx.putImageData(o, 0, 0);
     let x0 = W2, y0 = H2, x1 = -1, y1 = -1;
