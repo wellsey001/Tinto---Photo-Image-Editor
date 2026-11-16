@@ -147,6 +147,7 @@ function commit(){
   // every crop or retouch stroke keeps a full copy of the photo; keep at most 12 of them
   while (new Set(hist.map(h => h.base)).size > 12 && hist.length > 1) hist.shift();
   hi = hist.length - 1; updateUndo();
+  if (typeof scheduleAutosave === 'function') scheduleAutosave();
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
@@ -156,8 +157,8 @@ function restore(st){
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
 }
-function undo(){ if (hi > 0) { hi--; restore(hist[hi]); } }
-function redo(){ if (hi < hist.length-1) { hi++; restore(hist[hi]); } }
+function undo(){ if (hi > 0) { hi--; restore(hist[hi]); scheduleAutosave(); } }
+function redo(){ if (hi < hist.length-1) { hi++; restore(hist[hi]); scheduleAutosave(); } }
 function updateUndo(){ const col = typeof tab!=='undefined' && tab==='collage'; $('#undoBtn').disabled = col || hi <= 0; $('#redoBtn').disabled = col || hi >= hist.length-1; }
 
 function effective(filterId=S.filter, strength=S.strength, params=S.params){
@@ -2399,7 +2400,7 @@ function openFile(file, path){
     URL.revokeObjectURL(url);
     S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:{...FX_DEFAULT}, sky:{...SKY_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
     projectPath = null;
-    selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    selId = null; drawSession = null; hist = []; hi = -1; commit(); savedAt = hist[hi]; syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('This browser can’t read that image. HEIC photos need converting to JPG first.'); };
   img.src = url;
@@ -2422,6 +2423,9 @@ function dataURLToCanvas(url){
     img.src = url;
   });
 }
+// the photo only changes now and then, so its PNG is kept rather than encoded again for every autosave
+const pngCache = new WeakMap();
+async function cachedURL(c){ let u = pngCache.get(c); if (!u){ u = await canvasToDataURL(c); pngCache.set(c, u); } return u; }
 async function buildProject(){
   const images = {};
   for (const l of S.layers){
@@ -2431,13 +2435,13 @@ async function buildProject(){
   const doc = {
     format: PROJECT_FORMAT, version: 1, app: 'Tinto', appVersion: (typeof appVer === 'string' ? appVer : ''), saved: new Date().toISOString(),
     name: S.name, label: S.label, width: S.base.width, height: S.base.height,
-    photo: await canvasToDataURL(S.base),
+    photo: await cachedURL(S.base),
     params: S.params, filter: S.filter, strength: S.strength, bg: S.bg, frame: S.frame, fx: S.fx,
     sky: S.sky, skyImages: S.sky && SKY_IMG.has(S.sky.id) ? {[S.sky.id]: await canvasToDataURL(SKY_IMG.get(S.sky.id))} : {},
     skyMask: skyOn() ? {bottom: skyMasks.get(S.base).bottom, c: await canvasToDataURL(skyMasks.get(S.base).c)} : null,
     fxImages: S.fx && FX_IMG.has(S.fx.tex) ? {[S.fx.tex]: await canvasToDataURL(FX_IMG.get(S.fx.tex))} : {},
     layers: S.layers, images,
-    mask: mask ? await canvasToDataURL(mask) : null,
+    mask: mask ? await cachedURL(mask) : null,
   };
   return new TextEncoder().encode(JSON.stringify(doc));
 }
@@ -2451,13 +2455,13 @@ async function saveProject(saveAs){
     const fname = (S.name || 'project') + '.tinto';
     if (desktop){
       const res = await window.tinto.saveProject(fname, data, saveAs ? null : projectPath);
-      if (res.saved){ projectPath = res.path; savedAt = hist[hi]; S.label = res.path.split(/[\\/]/).pop(); updateInfo(); toast('Project saved. Open it any time to keep editing.'); }
+      if (res.saved){ projectPath = res.path; savedAt = hist[hi]; S.label = res.path.split(/[\\/]/).pop(); updateInfo(); toast('Project saved. Open it any time to keep editing.'); doAutosave(); }
       else if (res.error) toast(`Couldn’t save the project: ${res.error}`);
     } else if (NATIVE){
       const blob = new Blob([data], {type:'application/json'});
       if (saveAs) { await nativeShare(blob, fname, 'Share project'); }
       else {
-        try { const r = await nativeSave(blob, fname, 'project'); savedAt = hist[hi]; toast(`Project saved to ${r.where}`, 'Share', () => nativeShare(blob, fname, 'Share project').catch(() => {})); }
+        try { const r = await nativeSave(blob, fname, 'project'); savedAt = hist[hi]; doAutosave(); toast(`Project saved to ${r.where}`, 'Share', () => nativeShare(blob, fname, 'Share project').catch(() => {})); }
         catch { await nativeShare(blob, fname, 'Save or share your project'); }
       }
     } else {
@@ -2469,7 +2473,7 @@ async function saveProject(saveAs){
   saving = false; $('#saveBtn').disabled = false;
 }
 let savedAt = null;
-async function openProject(file, path){
+async function openProject(file, path, restored){
   let doc;
   try { doc = JSON.parse(await file.text()); }
   catch { toast('That project file couldn’t be read. It may be damaged.'); return; }
@@ -2498,7 +2502,7 @@ async function openProject(file, path){
     selId = null; drawSession = null; hist = []; hi = -1; commit(); savedAt = hist[hi];
     syncUI(); syncBg(); syncFrame(); syncFx(); syncSky(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
     const missing = layers.filter(l => l.type === 'image' && !STICKER_IMG.has(l.ref)).length;
-    toast(missing ? `Project opened. ${missing} sticker${missing>1?'s':''} couldn’t be found.` : 'Project opened. Everything is still editable.');
+    toast(missing ? `Project opened. ${missing} sticker${missing>1?'s':''} couldn’t be found.` : restored ? 'Welcome back. Your edits are just as you left them.' : 'Project opened. Everything is still editable.');
   } catch (e) { toast('That project couldn’t be opened. It may be damaged.'); }
 }
 $('#saveBtn').onclick = () => saveProject(false);
@@ -3442,6 +3446,107 @@ function toast(msg, actionLabel, action){
   t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, actionLabel ? 6000 : 2600);
 }
 
+/* ================= autosave and recent files ================= */
+// A few seconds after each change, the work in progress is saved as a project in Tinto's own storage
+// (and again when Tinto closes). If Tinto closes without saving, or crashes, the next start offers it back.
+const AUTOSAVE = desktop && window.tinto.autosave ? window.tinto.autosave : (NATIVE ? {
+  async write(data, meta){
+    const FS = plugin('Filesystem');
+    await FS.writeFile({path:'autosave/current.tinto', data:await blobToB64(new Blob([data])), directory:'DATA', recursive:true});
+    await FS.writeFile({path:'autosave/meta.json', data:JSON.stringify({...meta, at:Date.now()}), directory:'DATA', encoding:'utf8', recursive:true});
+    return true;
+  },
+  async read(){
+    try {
+      const FS = plugin('Filesystem');
+      const m = await FS.readFile({path:'autosave/meta.json', directory:'DATA', encoding:'utf8'});
+      const d = await FS.readFile({path:'autosave/current.tinto', directory:'DATA'});
+      return {meta:JSON.parse(m.data), data:b64ToBytes(d.data)};
+    } catch { return null; }
+  },
+  async clear(){ const FS = plugin('Filesystem'); for (const p of ['autosave/current.tinto', 'autosave/meta.json']) try { await FS.deleteFile({path:p, directory:'DATA'}); } catch {} return true; },
+} : null);
+let autoTimer = 0, autoAt = null, autoBusy = false, autoStored = false, restoring = false;
+function scheduleAutosave(){
+  if (!AUTOSAVE || restoring) return;
+  clearTimeout(autoTimer); autoTimer = setTimeout(doAutosave, NATIVE ? 10000 : 4000);
+}
+function autoThumb(){
+  try { const k = 200 / Math.max(view.width, view.height), c = mk(Math.max(1, Math.round(view.width*k)), Math.max(1, Math.round(view.height*k))); c.getContext('2d').drawImage(view, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.7); }
+  catch { return null; }
+}
+async function doAutosave(){
+  clearTimeout(autoTimer);
+  if (!AUTOSAVE || !S.base || autoBusy || restoring || tab === 'collage') return;
+  const cur = hist[hi];
+  if (cur === autoAt) return;
+  autoBusy = true;
+  try {
+    if (cur === savedAt){
+      // nothing that isn't already in a saved file (or the photo as it was opened)
+      if (autoStored){ await AUTOSAVE.clear(); autoStored = false; }
+    } else {
+      await AUTOSAVE.write(await buildProject(), {name:S.name, path:projectPath, thumb:autoThumb()});
+      autoStored = true;
+    }
+    autoAt = cur;
+  } catch { /* best effort: try again after the next change */ }
+  autoBusy = false;
+}
+if (desktop && AUTOSAVE) window.tinto.autosave.onFlush(() => doAutosave());
+if (NATIVE){
+  document.addEventListener('visibilitychange', () => { if (document.hidden) doAutosave(); });
+}
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m/60)} hour${Math.round(m/60) > 1 ? 's' : ''} ago` : `${Math.round(m/1440)} day${Math.round(m/1440) > 1 ? 's' : ''} ago`; };
+let restoreOffer = null;
+async function offerRestore(){
+  if (!AUTOSAVE) return;
+  const r = await AUTOSAVE.read().catch(() => null);
+  if (!r || !r.data || hi > 0) return;      // nothing saved, or they've already started on something
+  restoreOffer = r; autoStored = true;
+  const bar = $('#restoreBar'), img = $('#restoreThumb');
+  img.hidden = !r.meta.thumb; if (r.meta.thumb) img.src = r.meta.thumb;
+  $('#restoreName').textContent = `${r.meta.name || 'Your photo'} · ${r.meta.at ? ago(r.meta.at) : ''}`;
+  bar.hidden = false;
+}
+$('#restoreGo').onclick = async () => {
+  const r = restoreOffer; $('#restoreBar').hidden = true; if (!r) return;
+  restoring = true;
+  try {
+    const name = (r.meta.path ? r.meta.path.split(/[\\/]/).pop() : (r.meta.name || 'photo') + '.tinto');
+    await openProject(new File([r.data], name.endsWith('.tinto') ? name : name + '.tinto'), r.meta.path || undefined, true);
+    if (!r.meta.path) S.label = (r.meta.name || 'photo') + ' (unsaved)';
+    savedAt = null; autoAt = hist[hi]; updateInfo();
+  } finally { restoring = false; }
+};
+$('#restoreHide').onclick = async () => { $('#restoreBar').hidden = true; restoreOffer = null; await AUTOSAVE.clear().catch(() => {}); autoStored = false; };
+
+/* recent photos and projects: the arrow beside Open */
+async function recentItems(){
+  if (desktop && window.tinto.recent){
+    const list = await window.tinto.recent.list().catch(() => []);
+    const items = list.slice(0, 10).map(r => ({label: r.name, act: () => window.tinto.recent.open(r.path).then(ok => { if (!ok) toast('That file has moved or been deleted.'); })}));
+    return items.length ? [...items, '-', {label:'Clear recent', act: () => window.tinto.recent.clear()}] : [{label:'Nothing opened yet', off:true}];
+  }
+  if (NATIVE){
+    // projects saved on the phone live in Documents › Tinto
+    const FS = plugin('Filesystem'); let files = [];
+    try { await nativeStoragePermission(); files = (await FS.readdir({path:'Tinto', directory:'DOCUMENTS'})).files || []; } catch {}
+    files = files.map(f => typeof f === 'string' ? {name:f} : f).filter(f => /\.tinto$/i.test(f.name)).sort((a, b) => (+b.mtime || 0) - (+a.mtime || 0)).slice(0, 10);
+    const items = files.map(f => ({label: f.name.replace(/\.tinto$/i, ''), act: async () => {
+      try { const r = await FS.readFile({path:`Tinto/${f.name}`, directory:'DOCUMENTS'}); if (tab === 'collage') setTab('adjust'); openProject(new File([b64ToBytes(r.data)], f.name)); }
+      catch { toast('That project couldn’t be opened.'); }
+    }}));
+    return items.length ? items : [{label:'No saved projects yet', off:true}];
+  }
+  return [];
+}
+$('#recentBtn').hidden = !(desktop || NATIVE);
+$('#recentBtn').onclick = async e => {
+  const r = $('#recentBtn').getBoundingClientRect();
+  openCtx([{label:'Open photo or project…', act: openPhoto}, '-', ...await recentItems()], r.left, r.bottom + 6);
+};
+
 /* ================= sample photo ================= */
 function makeSample(){
   const W = 1600, H = 1067, c = mk(W,H), x = c.getContext('2d'), hz = H*0.56;
@@ -3476,9 +3581,10 @@ function makeSample(){
 S.base = makeSample(); S.name = 'lakeside-dusk'; S.label = 'Sample: lakeside-dusk.jpg';
 S.layers.push({id:nextId++, type:'text', text:'Golden hour', font:'Caveat', size:120, color:'#fff3d6', bold:true, align:'center', outline:0, ocolor:'#111111', shadow:40, bg:'', x:1010, y:250, rot:-6, scale:1, opacity:1, flip:false, hidden:false});
 S.layers.push({id:nextId++, type:'shape', shape:'sparkle', color:'#fff3d6', outline:'', shadow:false, x:1260, y:190, rot:0, scale:0.7, opacity:0.9, flip:false, hidden:false});
-commit(); syncUI(); rebuildPreview(); syncResize(); refreshLayerUI();
+commit(); savedAt = hist[hi]; syncUI(); rebuildPreview(); syncResize(); refreshLayerUI();
 seedCollage(); syncCollage();
-if (desktop) window.tinto.startupFile().then(f => { if (f) openFile(nativeToFile(f), f.path); }).catch(() => {});
+if (desktop) window.tinto.startupFile().then(f => { if (f) openFile(nativeToFile(f), f.path); else offerRestore(); }).catch(() => offerRestore());
+else if (NATIVE) setTimeout(offerRestore, 600);
 document.fonts.load('700 40px "Caveat"').then(composite).catch(()=>{});
 FONTS.forEach(f => document.fonts.load(`400 40px "${f}"`).catch(()=>{}));
 

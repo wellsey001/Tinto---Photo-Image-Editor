@@ -25,6 +25,23 @@ contextBridge.exposeInMainWorld('tinto', {
   /** Menu commands: 'open', 'save', 'save-as', 'export' or 'check-updates'. */
   onMenu: cb => ipcRenderer.on('menu', (_e, action) => cb(action)),
 
+  /** Recent photos and projects: list() resolves to [{path, name, at}]; open(path) opens one. */
+  recent: {
+    list: () => ipcRenderer.invoke('recent:list'),
+    open: p => ipcRenderer.invoke('recent:open', p),
+    clear: () => ipcRenderer.invoke('recent:clear'),
+    onChange: cb => ipcRenderer.on('recent-changed', () => cb()),
+  },
+
+  /** Autosave of the work in progress: write(bytes, {name, path, thumb}), read() -> {meta, data} or null, clear(). */
+  autosave: {
+    write: (data, meta) => ipcRenderer.invoke('autosave:write', { data, meta }),
+    read: () => ipcRenderer.invoke('autosave:read'),
+    clear: () => ipcRenderer.invoke('autosave:clear'),
+    /** Tinto is about to close: save now, then call done(). */
+    onFlush: cb => ipcRenderer.on('flush-autosave', () => Promise.resolve(cb()).catch(() => {}).finally(() => ipcRenderer.send('autosave:flushed'))),
+  },
+
   /** Puts a PNG (bytes) on the system clipboard so it can be pasted into other apps. Resolves true on success. */
   copyImage: data => ipcRenderer.invoke('clipboard:write-image', data),
 

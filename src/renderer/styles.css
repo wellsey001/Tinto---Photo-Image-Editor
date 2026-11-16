@@ -456,3 +456,10 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 /* Sky */
 .sky-grid canvas{aspect-ratio:5/3}
 @media (max-width:640px){ .update-bar{top:calc(env(safe-area-inset-top, 0px) + 72px);bottom:auto;left:12px;right:12px;transform:none;width:auto} }
+
+/* Recent and restore */
+.recent-btn{padding-left:6px;padding-right:6px;margin-left:-6px}
+.recent-btn svg{width:16px;height:16px}
+.restore-bar{right:auto;left:max(20px, env(safe-area-inset-left, 0px))}
+.restore-bar img{width:56px;height:42px;object-fit:cover;border-radius:6px;flex:none;background:#000}
+.restore-bar .upd-text span{color:var(--muted);font-size:12.5px}

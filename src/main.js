@@ -95,6 +95,7 @@ async function readImage(filePath) {
   if (stat.size > MAX_OPEN_BYTES) throw new Error('File is larger than 200 MB.');
   const data = await fs.readFile(filePath);
   if (path.extname(filePath).slice(1).toLowerCase() === PROJECT_EXT) knownProjects.add(path.resolve(filePath));
+  addRecent(filePath);
   return { name: path.basename(filePath), path: filePath, data };
 }
 
@@ -128,6 +129,13 @@ function createWindow() {
 
   win.once('ready-to-show', revealEditor);
   win.on('closed', () => { win = null; });
+  // save the work in progress before closing (see autosave below)
+  let flushed = false;
+  win.on('close', e => {
+    if (flushed || installingUpdate) return;
+    e.preventDefault();
+    flushAutosave().then(() => { flushed = true; if (win && !win.isDestroyed()) win.close(); });
+  });
 
   // Keep the app on its own page: links open in the default browser instead.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -162,6 +170,14 @@ function buildMenu() {
       label: 'File',
       submenu: [
         { label: 'Open Photo or Project…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+        {
+          label: 'Open Recent',
+          submenu: recent.length ? [
+            ...recent.map(r => ({ label: r.name.replace(/&/g, '&&'), sublabel: path.dirname(r.path), click: () => sendFileToWindow(r.path) })),
+            { type: 'separator' },
+            { label: 'Clear Recent', click: () => { recent = []; saveRecent(); } },
+          ] : [{ label: 'Nothing opened yet', enabled: false }],
+        },
         { type: 'separator' },
         { label: 'Save Project', accelerator: 'CmdOrCtrl+S', click: send('save') },
         { label: 'Save Project As…', accelerator: 'CmdOrCtrl+Shift+S', click: send('save-as') },
@@ -201,6 +217,88 @@ function buildMenu() {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/* ---------- recent files ---------- */
+// The last 12 photos and projects opened or saved, kept in recent.json in the app data folder.
+const RECENT_MAX = 12;
+let recent = [];
+const recentPath = () => path.join(app.getPath('userData'), 'recent.json');
+async function loadRecent() {
+  try {
+    const list = JSON.parse(await fs.readFile(recentPath(), 'utf8'));
+    if (Array.isArray(list)) recent = list.filter(r => r && typeof r.path === 'string').slice(0, RECENT_MAX);
+  } catch { recent = []; }
+}
+function saveRecent() {
+  fs.writeFile(recentPath(), JSON.stringify(recent)).catch(() => {});
+  if (app.isReady()) buildMenu();
+  if (win && !win.isDestroyed()) win.webContents.send('recent-changed');
+}
+function addRecent(filePath) {
+  const p = path.resolve(filePath);
+  recent = [{ path: p, name: path.basename(p), at: Date.now() }, ...recent.filter(r => r.path !== p)].slice(0, RECENT_MAX);
+  try { app.addRecentDocument(p); } catch { /* not on every system */ }
+  saveRecent();
+}
+ipcMain.handle('recent:list', async () => {
+  const out = [];
+  for (const r of recent) {
+    try { await fs.access(r.path); out.push(r); } catch { /* moved or deleted: leave it out */ }
+  }
+  return out;
+});
+ipcMain.handle('recent:open', async (_e, p) => {
+  if (typeof p !== 'string' || !recent.some(r => r.path === p)) return false;
+  await sendFileToWindow(p);
+  return true;
+});
+ipcMain.handle('recent:clear', () => { recent = []; saveRecent(); return true; });
+
+/* ---------- autosave ---------- */
+// The editor saves the work in progress (as a .tinto project) a few seconds after each change, and when
+// Tinto closes. If Tinto is closed without saving, or crashes, the next start offers to carry on.
+const autosaveDir = () => path.join(app.getPath('userData'), 'autosave');
+ipcMain.handle('autosave:write', async (_e, req) => {
+  if (!req || !(req.data instanceof Uint8Array)) return false;
+  const dir = autosaveDir();
+  await fs.mkdir(dir, { recursive: true });
+  const meta = {
+    name: String(req.meta && req.meta.name || 'photo').slice(0, 200),
+    path: req.meta && typeof req.meta.path === 'string' ? req.meta.path : null,
+    thumb: req.meta && typeof req.meta.thumb === 'string' && req.meta.thumb.length < 200000 ? req.meta.thumb : null,
+    at: Date.now(),
+  };
+  // write to a temporary file first, so a crash mid-write never leaves a broken autosave
+  await fs.writeFile(path.join(dir, 'current.tinto.tmp'), req.data);
+  await fs.rename(path.join(dir, 'current.tinto.tmp'), path.join(dir, 'current.tinto'));
+  await fs.writeFile(path.join(dir, 'meta.json'), JSON.stringify(meta));
+  return true;
+});
+ipcMain.handle('autosave:read', async () => {
+  try {
+    const meta = JSON.parse(await fs.readFile(path.join(autosaveDir(), 'meta.json'), 'utf8'));
+    const data = await fs.readFile(path.join(autosaveDir(), 'current.tinto'));
+    if (meta.path) knownProjects.add(path.resolve(meta.path));
+    return { meta, data };
+  } catch { return null; }
+});
+ipcMain.handle('autosave:clear', async () => {
+  await fs.rm(path.join(autosaveDir(), 'current.tinto'), { force: true });
+  await fs.rm(path.join(autosaveDir(), 'meta.json'), { force: true });
+  return true;
+});
+// Before Tinto closes, give the editor a moment to save the latest changes.
+let flushWaiter = null;
+ipcMain.on('autosave:flushed', () => { if (flushWaiter) flushWaiter(); });
+function flushAutosave() {
+  if (!win || win.isDestroyed()) return Promise.resolve();
+  return new Promise(resolve => {
+    const done = () => { clearTimeout(t); flushWaiter = null; resolve(); };
+    const t = setTimeout(done, 2500);
+    flushWaiter = done;
+    win.webContents.send('flush-autosave');
+  });
 }
 
 /* ---------- IPC: what the editor can ask the main process to do ---------- */
@@ -272,7 +370,7 @@ ipcMain.handle('project:save', async (_e, req) => {
   try {
     await fs.writeFile(target, req.data);
     knownProjects.add(target);
-    app.addRecentDocument(target);
+    addRecent(target);
     return { saved: true, path: target };
   } catch (err) {
     return { saved: false, error: err.message };
@@ -521,17 +619,8 @@ async function takeUpdateMarker() {
 let installingUpdate = false;
 ipcMain.handle('update:install', async (_e, opts) => {
   if (!autoUpdater || installingUpdate || updateState.state !== 'ready') return { ok: false };
-  if (opts && opts.hasEdits && win && !win.isDestroyed()) {
-    const choice = dialog.showMessageBoxSync(win, {
-      type: 'question',
-      buttons: ['Update now', 'Cancel'],
-      defaultId: 0,
-      cancelId: 1,
-      message: 'Export your photo first?',
-      detail: 'Tinto closes to install the update, and edits you haven’t exported will be lost. To keep them, cancel and press Ctrl+E to export.',
-    });
-    if (choice === 1) return { ok: false, cancelled: true };
-  }
+  // the editor's work in progress is autosaved, and offered back when the new version opens
+  await flushAutosave();
   installingUpdate = true;
   const to = updateState.version || '';
   // remember the update, so the new version can say "Updated to version …" when it opens
@@ -559,6 +648,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     if (process.env.TINTO_SELFTEST === 'cutout') { runCutoutSelfTest(); return; }
+    await loadRecent();
     buildMenu();
     const updatedTo = await takeUpdateMarker();
     createSplash(updatedTo ? { mode: 'updated', v: updatedTo } : undefined);
