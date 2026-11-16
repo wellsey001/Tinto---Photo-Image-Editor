@@ -905,8 +905,8 @@ function eraseDab(st, p, r){
   }
   st.wx.putImageData(out, x0, y0);
 }
-function inpaint(rgba, w, h, hole){
-  const here = () => window.TintoInpaint(rgba, w, h, hole);
+function inpaint(rgba, w, h, hole, reach){
+  const here = () => window.TintoInpaint(rgba, w, h, hole, reach);
   if (ER.worker === false) return Promise.resolve().then(here);
   try {
     if (!ER.worker){
@@ -917,9 +917,9 @@ function inpaint(rgba, w, h, hole){
   const id = ++ER.seq, keep = {rgba: rgba.slice(), hole: hole.slice()};
   return new Promise((res, rej) => {
     // if the worker can't run here, do the work on the page instead
-    ER.worker.onerror = ev => { ev.preventDefault(); ER.worker = false; ER.waiting.delete(id); try { res(window.TintoInpaint(keep.rgba, w, h, keep.hole)); } catch (e) { rej(e); } };
+    ER.worker.onerror = ev => { ev.preventDefault(); ER.worker = false; ER.waiting.delete(id); try { res(window.TintoInpaint(keep.rgba, w, h, keep.hole, reach)); } catch (e) { rej(e); } };
     ER.waiting.set(id, d => d.error ? rej(new Error(d.error)) : res(d.rgba));
-    ER.worker.postMessage({id, w, h, rgba, hole}, [rgba.buffer, hole.buffer]);
+    ER.worker.postMessage({id, w, h, rgba, hole, reach}, [rgba.buffer, hole.buffer]);
   });
 }
 async function eraseObject(st){
@@ -945,7 +945,10 @@ async function eraseObject(st){
   ER.busy = true; stage.classList.add('erasing'); bgStatusMini('Erasing…');
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   try {
-    const filled = await inpaint(cx.getImageData(0, 0, ww, wh).data, ww, wh, hole.slice());
+    // the eraser may spread a little past the brush, over bits of the object that were missed
+    const reach = clamp(Math.round(st.r * k * 0.6), 5, 40);
+    const filled = await inpaint(cx.getImageData(0, 0, ww, wh).data, ww, wh, hole.slice(), reach);
+    for (let i=0; i<ww*wh; i++){ if (filled[i*4+3] !== 255){ hole[i] = 1; filled[i*4+3] = 255; } }
     const fc = mk(ww, wh); fc.getContext('2d').putImageData(new ImageData(filled, ww, wh), 0, 0);
     // back to full size, blended in along a soft edge
     const patch = mk(rw, rh), px = patch.getContext('2d'); px.imageSmoothingQuality = 'high'; px.drawImage(fc, 0, 0, rw, rh);

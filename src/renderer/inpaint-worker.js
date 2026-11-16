@@ -10,9 +10,9 @@
 // In a worker it answers messages; loaded as a normal script it offers TintoInpaint() instead
 // (used if a worker can't be started).
 if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) self.onmessage = e => {
-  const { id, w, h, rgba, hole } = e.data;
+  const { id, w, h, rgba, hole, reach } = e.data;
   try {
-    const out = complete(rgba, w, h, hole);
+    const out = complete(rgba, w, h, hole, reach);
     self.postMessage({ id, rgba: out }, [out.buffer]);
   } catch (err) {
     self.postMessage({ id, error: String(err && err.message || err) });
@@ -20,7 +20,8 @@ if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScop
 };
 else self.TintoInpaint = complete;
 
-function complete(rgba, W, H, hole0) {
+function complete(rgba, W, H, hole0, reach) {
+  if (reach > 0) hole0 = growHole(rgba, W, H, hole0, reach);
   // the pyramid: each level half the size of the one before, down to a hole a few pixels across
   const levels = [{ w: W, h: H, img: toFloat(rgba, W * H), hole: hole0 }];
   while (true) {
@@ -50,8 +51,90 @@ function complete(rgba, W, H, hole0) {
   const top = levels[0];
   if (top.targets && top.sources.length) matchSeam(top);
   const out = new Uint8ClampedArray(rgba);
-  for (let i = 0, n = W * H; i < n; i++) if (hole0[i]) { out[i * 4] = top.img[i * 3]; out[i * 4 + 1] = top.img[i * 3 + 1]; out[i * 4 + 2] = top.img[i * 3 + 2]; out[i * 4 + 3] = 255; }
+  // filled pixels are marked with alpha 250, so the editor knows exactly which area was replaced
+  for (let i = 0, n = W * H; i < n; i++) if (hole0[i]) { out[i * 4] = top.img[i * 3]; out[i * 4 + 1] = top.img[i * 3 + 1]; out[i * 4 + 2] = top.img[i * 3 + 2]; out[i * 4 + 3] = 250; } else out[i * 4 + 3] = 255;
   return out;
+}
+
+/* People rarely paint over all of a thing: a sliver of it, its outline or its shadow is left just outside
+   the brush, and stays behind as a ghost. So before filling, the painted area spreads over anything
+   touching it (within `reach` pixels) that stands out from what the background there should look like. */
+function growHole(rgba, W, H, hole, reach) {
+  // what the background should look like: the photo at quarter size with the hole smoothed over, blurred
+  const L0 = { w: W, h: H, img: toFloat(rgba, W * H), hole };
+  const L1 = down(L0), L2 = down(L1); diffuse(L2);
+  const bw = L2.w, bh = L2.h; let b = L2.img;
+  for (let pass = 0; pass < 2; pass++) {
+    const o = new Float32Array(b.length);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+      let r = 0, g = 0, bl = 0, n = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= bw || yy >= bh) continue; const j = (yy * bw + xx) * 3; r += b[j]; g += b[j + 1]; bl += b[j + 2]; n++; }
+      const i = (y * bw + x) * 3; o[i] = r / n; o[i + 1] = g / n; o[i + 2] = bl / n;
+    }
+    b = o;
+  }
+  const diff = i => {
+    const x = i % W, y = (i / W) | 0, fx = Math.min(bw - 1.001, Math.max(0, x / 4 - 0.375)), fy = Math.min(bh - 1.001, Math.max(0, y / 4 - 0.375));
+    const x0 = fx | 0, y0 = fy | 0, tx = fx - x0, ty = fy - y0, a = (y0 * bw + x0) * 3, c = a + bw * 3;
+    let d = 0;
+    for (let ch = 0; ch < 3; ch++) {
+      const v = (b[a + ch] * (1 - tx) + b[a + 3 + ch] * tx) * (1 - ty) + (b[c + ch] * (1 - tx) + b[c + 3 + ch] * tx) * ty;
+      d = Math.max(d, Math.abs(rgba[i * 4 + ch] - v));
+    }
+    return d;
+  };
+  // how far each nearby pixel is from the painted area
+  const far = reach * 2, dist = new Int16Array(W * H).fill(-1);
+  let ring = [];
+  for (let i = 0; i < W * H; i++) if (hole[i]) dist[i] = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (hole[i] && ((x > 0 && !hole[i - 1]) || (x < W - 1 && !hole[i + 1]) || (y > 0 && !hole[i - W]) || (y < H - 1 && !hole[i + W]))) ring.push(i); }
+  const edge = ring.slice(), outer = [];
+  for (let d = 1; d <= far && ring.length; d++) {
+    const next = [];
+    for (const i of ring) { const x = i % W, y = (i / W) | 0; for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) if (j >= 0 && dist[j] < 0) { dist[j] = d; next.push(j); if (d > reach) outer.push(j); } }
+    ring = next;
+  }
+  // how much ordinary background differs from its own blur (grain, wood, grass): standing out means well above that
+  const sample = []; for (let k = 0; k < outer.length; k += Math.max(1, (outer.length / 3000) | 0)) sample.push(diff(outer[k]));
+  sample.sort((a, c) => a - c);
+  const typical = sample.length ? sample[(sample.length * 0.75) | 0] : 8;
+  let holeArea = 0; for (let i = 0; i < W * H; i++) if (hole[i]) holeArea++;
+  // the colours of the thing itself: whatever stands out inside the painted area. Only more of the same
+  // may be added, so a street light or a face next to the brush is left alone.
+  const bins = new Uint16Array(4096), bin = i => ((rgba[i * 4] >> 4) << 8) | ((rgba[i * 4 + 1] >> 4) << 4) | (rgba[i * 4 + 2] >> 4);
+  const base = Math.max(20, typical * 2.6);
+  for (let i = 0; i < W * H; i++) if (hole[i] && diff(i) > base) bins[bin(i)]++;
+  const need = Math.max(3, holeArea * 0.0015);
+  const likeObject = i => {
+    const r = rgba[i * 4] >> 4, g = rgba[i * 4 + 1] >> 4, bl = rgba[i * 4 + 2] >> 4; let n = 0;
+    for (let dr = -1; dr <= 1; dr++) for (let dg = -1; dg <= 1; dg++) for (let db = -1; db <= 1; db++) {
+      const R = r + dr, G = g + dg, B = bl + db; if (R < 0 || G < 0 || B < 0 || R > 15 || G > 15 || B > 15) continue;
+      n += bins[(R << 8) | (G << 4) | B];
+    }
+    return n >= need;
+  };
+  for (let thr = base, attempt = 0; attempt < 1; attempt++) {
+    const grown = hole.slice(); let added = 0; const q = edge.slice();
+    while (q.length) {
+      const i = q.pop(), x = i % W, y = (i / W) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, y > 0 ? i - W : -1, y < H - 1 ? i + W : -1]) {
+        if (j < 0 || grown[j] || dist[j] < 0 || dist[j] > reach) continue;
+        if (diff(j) > thr && likeObject(j)) { grown[j] = 1; added++; q.push(j); }
+      }
+    }
+    // a leftover sliver is small. If it spread a long way, the background is busy or another object is
+    // touching: leave it, and fill just what was painted
+    if (added > holeArea * 0.1) break;
+    if (!added) return hole;
+    // two pixels more round what was added, for its soft edges
+    const out = grown.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x; if (!grown[i] || hole[i]) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H) out[yy * W + xx] = 1; }
+    }
+    return out;
+  }
+  return hole;
 }
 
 /* each hole pixel takes its colour from the overlapping patch that matched best */
