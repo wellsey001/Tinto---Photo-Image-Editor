@@ -137,6 +137,9 @@
 
         <div class="pane" id="pane-stickers" hidden>
           <h2 class="pane-title">Stickers</h2>
+          <div class="group-h">Emoji</div>
+          <div class="chips packtabs" id="emojiTabs" role="tablist" aria-label="Emoji category"></div>
+          <div class="stickers pack" id="emojiPackGrid"></div>
           <div class="group-h">Sticker packs</div>
           <div class="chips packtabs" id="packTabs" role="tablist" aria-label="Sticker pack"></div>
           <div class="stickers pack" id="packGrid"></div>
@@ -147,8 +150,6 @@
           <input type="file" id="stickerInput" accept="image/*" hidden>
           <div class="group-h">Shapes</div>
           <div class="stickers" id="stickerGrid"></div>
-          <div class="group-h">Emoji</div>
-          <div class="stickers emoji" id="emojiGrid"></div>
           <div class="group-h">Cheeky <span class="tag18">18+</span><button class="linkbtn" id="cheekyToggle" type="button">Show</button></div>
           <p class="hint" id="cheekyHint">Swear words and adult jokes. Hidden until you choose to show them.</p>
           <div class="cheeky" id="cheekyGrid" hidden></div>
@@ -312,6 +313,7 @@
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="stickerpack.js"></script>
+<script src="emoji/emojipack.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

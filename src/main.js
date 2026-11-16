@@ -185,7 +185,7 @@ function buildMenu() {
             type: 'info',
             title: 'About Tinto',
             message: 'Tinto - Photo & Image Editor',
-            detail: `Version ${app.getVersion()}\nElectron ${process.versions.electron}`,
+            detail: `Version ${app.getVersion()}\nElectron ${process.versions.electron}\n\nEmoji: Microsoft Fluent Emoji (MIT licence)`,
           }),
         },
       ],

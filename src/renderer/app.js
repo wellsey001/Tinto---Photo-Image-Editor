@@ -106,7 +106,6 @@ const SHAPES = [
 const STICKER_IMG = new Map(); // custom sticker id -> canvas; layers store only the id
 const PATHS = Object.fromEntries(SHAPES.map(s => [s.id, new Path2D(s.d)]));
 const RULES = Object.fromEntries(SHAPES.map(s => [s.id, s.rule || 'nonzero']));
-const EMOJI = ['😍','😂','😎','🥳','😘','🤩','❤️','🔥','✨','💯','👍','🙌','🎉','🌈','⭐','🌸','🌻','🦋','🐶','🐱','🍕','☕','🎵','📸','🌞','🌙','👑','💎'];
 const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
 
 const TEXT_PRESETS = [
@@ -732,12 +731,6 @@ $('#tnew').onclick = () => addText(TEXT_PRESETS[0]);
     b.innerHTML = `<svg viewBox="-4 -4 108 108"><path d="${s.d}" fill="currentColor" fill-rule="${s.rule || 'nonzero'}"/></svg>`;
     b.onclick = () => addLayer({type:'shape', shape:s.id, color:stickerColour, outline:'#ffffff', shadow:true, scale:minSide()*0.22/100});
     grid.appendChild(b);
-  });
-  const eg = $('#emojiGrid');
-  EMOJI.forEach(ch => {
-    const b = document.createElement('button'); b.type='button'; b.className='stk'; b.title = 'Add ' + ch; b.textContent = ch;
-    b.onclick = () => addLayer({type:'emoji', char:ch, shadow:false, scale:minSide()*0.2/100});
-    eg.appendChild(b);
   });
 })();
 let stickerColour = '#ff5a5f';
@@ -2144,7 +2137,6 @@ function skFinish(){
 /* ---- illustrated sticker packs: vector art, rasterised on demand with a white die-cut border and soft shadow ---- */
 const PACK = window.STICKER_PACK || [];
 const PACK_CATS = [['faces','Faces'],['silly','Silly'],['animals','Animals'],['snacks','Snacks'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
-let packCat = 'faces';
 const packURL = s => s.src || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg));
 
 async function packCanvas(s){
@@ -2154,7 +2146,8 @@ async function packCanvas(s){
   let framed, bw;
   if (s.svg){
     // vector art: rasterise big, then add a white die-cut border
-    const N = 900, art = mk(N, N); art.getContext('2d').drawImage(img, 0, 0, N, N);
+    const N = 900, iw = img.naturalWidth || 1, ih = img.naturalHeight || 1, k = N / Math.max(iw, ih);
+    const art = mk(Math.round(iw*k), Math.round(ih*k)); art.getContext('2d').drawImage(img, 0, 0, art.width, art.height);
     bw = Math.round(N*0.04); framed = withBorder(art, '#ffffff', bw, Math.round(bw*2.2));
   } else {
     // cut-out art already has its border: enlarge it smoothly so it holds up on big photos
@@ -2170,35 +2163,43 @@ async function packCanvas(s){
   return key;
 }
 
-function buildPacks(){
-  const tabs = $('#packTabs'), grid = $('#packGrid');
-  if (!tabs || !PACK.length) return;
-  tabs.innerHTML = '';
-  for (const [id, label] of PACK_CATS){
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip'; b.textContent = label;
-    b.setAttribute('role', 'tab'); b.setAttribute('aria-pressed', String(id === packCat));
-    b.onclick = () => { packCat = id; buildPacks(); $('#packGrid').scrollTop = 0; };
-    tabs.appendChild(b);
+/* A sticker section: a row of category tabs and a grid of stickers (used for Emoji and Sticker packs). */
+function stickerSection(items, cats, tabsSel, gridSel, label){
+  let cur = cats[0][0];
+  function build(){
+    const tabs = $(tabsSel), grid = $(gridSel);
+    if (!tabs || !items.length) return;
+    tabs.innerHTML = '';
+    for (const [id, name] of cats){
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = name;
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-pressed', String(id === cur));
+      b.onclick = () => { cur = id; build(); grid.scrollTop = 0; };
+      tabs.appendChild(b);
+    }
+    grid.innerHTML = '';
+    for (const s of items){
+      if (s.cat !== cur) continue;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'stk'; b.title = s.name; b.setAttribute('aria-label', s.name);
+      const im = document.createElement('img'); im.src = packURL(s); im.alt = ''; im.draggable = false; im.loading = 'lazy'; im.decoding = 'async';
+      b.appendChild(im);
+      b.onclick = async () => {
+        if (!S.base){ toast('Open a photo first.'); return; }
+        try {
+          const key = await packCanvas(s), c = STICKER_IMG.get(key);
+          addLayer({type:'image', ref:key, name:s.name, w:c.width, h:c.height, scale: minSide()*0.35/Math.max(c.width, c.height)});
+        } catch (e) { toast('Could not add that ' + label + '.'); }
+      };
+      grid.appendChild(b);
+    }
   }
-  grid.innerHTML = '';
-  for (const s of PACK){
-    if (packCat !== 'all' && s.cat !== packCat) continue;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'stk'; b.title = s.name; b.setAttribute('aria-label', s.name);
-    const im = document.createElement('img'); im.src = packURL(s); im.alt = ''; im.draggable = false; im.loading = 'lazy'; im.decoding = 'async';
-    b.appendChild(im);
-    b.onclick = async () => {
-      if (!S.base){ toast('Open a photo first.'); return; }
-      try {
-        const key = await packCanvas(s), c = STICKER_IMG.get(key);
-        addLayer({type:'image', ref:key, name:s.name, w:c.width, h:c.height, scale: minSide()*0.35/Math.max(c.width, c.height)});
-      } catch (e) { toast('Could not add that sticker.'); }
-    };
-    grid.appendChild(b);
-  }
+  build();
 }
-buildPacks();
+const FLUENT = window.EMOJI_PACK || [];
+const FLUENT_CATS = [['faces','Faces'],['silly','Silly'],['love','Love'],['animals','Animals'],['food','Food'],['party','Party'],['sky','Sky & nature']];
+stickerSection(FLUENT, FLUENT_CATS, '#emojiTabs', '#emojiPackGrid', 'emoji');
+stickerSection(PACK, PACK_CATS, '#packTabs', '#packGrid', 'sticker');
 
 function placeSticker(id){
   const c = STICKER_IMG.get(id); if (!c) return;
