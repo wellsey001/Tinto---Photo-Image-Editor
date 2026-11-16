@@ -618,6 +618,189 @@ S['earth'] = ('space', 'Earth', svg(
     + face(100, 104, 1.0) + glint(62, 56, .9),
     lg('sea', '#8fd3ff', '#3b9ef5') + rg('eshade', 'rgba(255,255,255,0)', 'rgba(42,30,51,.25)', cx=.38, cy=.32, r=.8)))
 
+
+# ---------------- Faces (funny expressions) ----------------
+def yface(g='yf'):
+    return f'<circle cx="100" cy="104" r="80" fill="url(#{g})" stroke="{O}" stroke-width="{SW}"/>'
+YF = rg('yf', '#fff3a0', '#ffc72e', cx=.38, cy=.3, r=.85)
+def blush2(y=124, dx=50):
+    return f'<ellipse cx="{100-dx}" cy="{y}" rx="11" ry="6" fill="#ff7aa2" opacity=".5"/><ellipse cx="{100+dx}" cy="{y}" rx="11" ry="6" fill="#ff7aa2" opacity=".5"/>'
+def zee(x, y, k):
+    return f'<path d="M{x} {y} h{12*k} l{-12*k} {12*k} h{12*k}" fill="none" stroke="{O}" stroke-width="{3.5*k+1}" stroke-linejoin="round"/>'
+
+S['laugh'] = ('faces', 'Crying laughing', svg(
+    yface()
+    + f'<path d="M58 88 Q72 74 86 88 M114 88 Q128 74 142 88" fill="none" stroke="{O}" stroke-width="6"/>'
+    + f'<path d="M54 112 Q100 112 146 112 Q140 168 100 168 Q60 168 54 112 Z" fill="#7a2a3a" stroke="{O}" stroke-width="{SW}"/>'
+    + '<path d="M70 150 Q100 132 130 150 Q118 166 100 166 Q82 166 70 150 Z" fill="#ff7a8a"/>'
+    + '<path d="M60 113 H140 L136 124 H64 Z" fill="#fff"/>'
+    + f'<path d="M40 96 C24 108 18 132 30 140 C42 146 52 130 48 100 Z" fill="#8fd3ff" stroke="{O}" stroke-width="4"/>'
+    + f'<path d="M160 96 C176 108 182 132 170 140 C158 146 148 130 152 100 Z" fill="#8fd3ff" stroke="{O}" stroke-width="4"/>'
+    + glint(64, 58, .8), YF))
+
+S['tongue'] = ('faces', 'Cheeky wink', svg(
+    yface()
+    + f'<circle cx="72" cy="88" r="9" fill="{O}"/><circle cx="75" cy="85" r="3" fill="#fff"/>'
+    + f'<path d="M116 90 Q128 80 142 88" fill="none" stroke="{O}" stroke-width="6"/>'
+    + f'<path d="M62 122 Q100 150 138 122" fill="none" stroke="{O}" stroke-width="5"/>'
+    + f'<path d="M96 134 C96 160 104 172 116 172 C130 172 134 156 130 132 Z" fill="#ff7a8a" stroke="{O}" stroke-width="4"/>'
+    + '<path d="M113 140 V160" stroke="#d6455e" stroke-width="3"/>'
+    + blush2(118, 56) + glint(64, 58, .8), YF))
+
+S['cool'] = ('faces', 'Too cool', svg(
+    yface()
+    + f'<path d="M30 80 H170 L164 90 Q160 120 132 120 Q108 120 106 92 H94 Q92 120 68 120 Q40 120 36 90 Z" fill="#2a1e33" stroke="{O}" stroke-width="3"/>'
+    + '<path d="M48 90 L64 108 M54 88 L70 106 M120 90 L136 108 M126 88 L142 106" stroke="#fff" stroke-width="4" opacity=".55"/>'
+    + f'<path d="M74 146 Q104 162 132 138" fill="none" stroke="{O}" stroke-width="6"/>'
+    + glint(64, 50, .7), YF))
+
+S['hearteyes'] = ('faces', 'Heart eyes', svg(
+    yface()
+    + f'<path d="{heart_path(70, 92, .42)}" fill="#ff3b6b" stroke="{O}" stroke-width="3.5"/>'
+    + f'<path d="{heart_path(130, 92, .42)}" fill="#ff3b6b" stroke="{O}" stroke-width="3.5"/>'
+    + f'<path d="M64 126 Q100 126 136 126 Q132 162 100 162 Q68 162 64 126 Z" fill="#7a2a3a" stroke="{O}" stroke-width="{SW}"/>'
+    + '<path d="M80 150 Q100 140 120 150 Q112 160 100 160 Q88 160 80 150 Z" fill="#ff7a8a"/>'
+    + glint(60, 60, .7) + f'<path d="{heart_path(170, 40, .3)}" fill="#ff8fb1" stroke="{O}" stroke-width="3"/>', YF))
+
+S['shock'] = ('faces', 'Shocked', svg(
+    yface()
+    + f'<path d="M52 66 Q66 54 82 60 M118 60 Q134 54 148 66" fill="none" stroke="{O}" stroke-width="5"/>'
+    + f'<circle cx="70" cy="94" r="17" fill="#fff" stroke="{O}" stroke-width="4"/><circle cx="130" cy="94" r="17" fill="#fff" stroke="{O}" stroke-width="4"/>'
+    + f'<circle cx="70" cy="96" r="7" fill="{O}"/><circle cx="130" cy="96" r="7" fill="{O}"/>'
+    + f'<ellipse cx="100" cy="146" rx="16" ry="20" fill="#7a2a3a" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M158 52 C166 64 170 74 160 80 C150 84 146 72 158 52 Z" fill="#8fd3ff" stroke="{O}" stroke-width="3.5"/>'
+    + glint(56, 60, .6), YF))
+
+S['sleepy'] = ('faces', 'Sleepy', svg(
+    yface()
+    + f'<path d="M56 96 Q70 106 84 96 M116 96 Q130 106 144 96" fill="none" stroke="{O}" stroke-width="6"/>'
+    + f'<ellipse cx="100" cy="140" rx="12" ry="9" fill="#7a2a3a" stroke="{O}" stroke-width="4"/>'
+    + f'<circle cx="122" cy="146" r="11" fill="#cfefff" stroke="{O}" stroke-width="3" opacity=".9"/><circle cx="118" cy="142" r="3" fill="#fff"/>'
+    + zee(140, 30, 1.2) + zee(164, 12, .9) + blush2(122, 52) + glint(62, 62, .7), YF))
+
+S['angry'] = ('faces', 'Grumpy', svg(
+    '<g fill="#e9e3f2" stroke="#2a1e33" stroke-width="4">'
+    '<circle cx="30" cy="40" r="12"/><circle cx="20" cy="22" r="8"/><circle cx="170" cy="40" r="12"/><circle cx="180" cy="22" r="8"/></g>'
+    + f'<circle cx="100" cy="104" r="80" fill="url(#af)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M50 74 L86 90 M150 74 L114 90" stroke="{O}" stroke-width="7"/>'
+    + f'<circle cx="72" cy="104" r="8" fill="{O}"/><circle cx="128" cy="104" r="8" fill="{O}"/>'
+    + f'<path d="M70 154 Q100 130 130 154" fill="none" stroke="{O}" stroke-width="6"/>'
+    + glint(60, 62, .7), rg('af', '#ffb08a', '#ff5d4a', cx=.38, cy=.3, r=.85)))
+
+S['nerd'] = ('faces', 'Nerd', svg(
+    yface()
+    + f'<circle cx="68" cy="96" r="24" fill="#fff" fill-opacity=".55" stroke="{O}" stroke-width="6"/><circle cx="132" cy="96" r="24" fill="#fff" fill-opacity=".55" stroke="{O}" stroke-width="6"/>'
+    + f'<path d="M92 94 Q100 88 108 94 M44 92 L24 86 M156 92 L176 86" fill="none" stroke="{O}" stroke-width="6"/>'
+    + f'<circle cx="70" cy="98" r="8" fill="{O}"/><circle cx="130" cy="98" r="8" fill="{O}"/>'
+    + f'<path d="M66 136 Q100 160 134 136" fill="none" stroke="{O}" stroke-width="6"/>'
+    + f'<rect x="88" y="142" width="11" height="13" rx="2" fill="#fff" stroke="{O}" stroke-width="3"/><rect x="101" y="142" width="11" height="13" rx="2" fill="#fff" stroke="{O}" stroke-width="3"/>'
+    + glint(60, 54, .7), YF))
+
+# ---------------- Snacks (with faces) ----------------
+S['pizza'] = ('snacks', 'Pizza slice', svg(
+    f'<path d="M100 188 L26 46 Q100 16 174 46 Z" fill="url(#cheese)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M24 44 Q100 10 176 44 L170 60 Q100 30 30 60 Z" fill="#e0954a" stroke="{O}" stroke-width="{SW}"/>'
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#e2384d" stroke="{O}" stroke-width="3"/>' for x, y, r in [(66, 78, 11), (134, 78, 11), (100, 150, 9)])
+    + '<path d="M82 160 C84 172 92 172 92 162" fill="#ffd54a" stroke="#2a1e33" stroke-width="3"/>'
+    + face(100, 106, 1.1), lg('cheese', '#ffe27a', '#ffb52e')))
+
+S['taco'] = ('snacks', 'Taco', svg(
+    ''.join(f'<circle cx="{x}" cy="{y}" r="16" fill="#6fd36b" stroke="{O}" stroke-width="4"/>' for x, y in [(40, 92), (66, 72), (100, 64), (134, 72), (160, 92)])
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="9" fill="#ff5d4a" stroke="{O}" stroke-width="3"/>' for x, y in [(56, 82), (118, 66), (150, 84)])
+    + f'<path d="M18 160 A82 82 0 0 1 182 160 Z" fill="url(#shell)" stroke="{O}" stroke-width="{SW}"/>'
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="3" fill="#d99a3a"/>' for x, y in [(50, 140), (150, 138), (70, 112), (132, 110), (100, 102)])
+    + face(100, 136, 1.15), lg('shell', '#ffe08a', '#f2b544')))
+
+S['burger'] = ('snacks', 'Burger', svg(
+    f'<path d="M26 92 C26 40 174 40 174 92 Z" fill="url(#bun)" stroke="{O}" stroke-width="{SW}"/>'
+    + ''.join(f'<ellipse cx="{x}" cy="{y}" rx="4" ry="2.5" fill="#fff6e0" transform="rotate({r} {x} {y})"/>' for x, y, r in [(70, 60, -20), (100, 52, 0), (130, 60, 20), (86, 74, 10), (116, 74, -10)])
+    + f'<path d="M20 98 Q40 88 60 100 Q80 88 100 100 Q120 88 140 100 Q160 88 180 98 L176 108 H24 Z" fill="#6fd36b" stroke="{O}" stroke-width="4"/>'
+    + f'<path d="M30 108 H170 L150 128 L136 112 Z" fill="#ffd54a" stroke="{O}" stroke-width="4"/>'
+    + f'<rect x="24" y="108" width="152" height="30" rx="14" fill="#7a4325" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M30 140 H170 Q174 172 140 176 H60 Q26 172 30 140 Z" fill="url(#bun)" stroke="{O}" stroke-width="{SW}"/>'
+    + face(100, 70, .95) + glint(48, 70, .5, rot=-40), lg('bun', '#ffcf7a', '#e9973f')))
+
+S['hotdog'] = ('snacks', 'Hot dog', svg(
+    f'<path d="M24 92 C10 92 10 66 30 64 H170 C190 66 190 92 176 92 Z" fill="#e0603e" stroke="{O}" stroke-width="{SW}"/>'
+    + '<path d="M34 72 H166" stroke="#ff9b7a" stroke-width="5" opacity=".7"/>'
+    + '<path d="M36 74 Q46 62 56 74 T76 74 T96 74 T116 74 T136 74 T156 74" fill="none" stroke="#ffd54a" stroke-width="6"/>'
+    + f'<path d="M14 92 C14 82 186 82 186 92 C190 148 160 172 100 172 C40 172 10 148 14 92 Z" fill="url(#hbun)" stroke="{O}" stroke-width="{SW}"/>'
+    + face(100, 128, 1.15) + glint(40, 112, .5, rot=-60), lg('hbun', '#ffd99a', '#eaa250')))
+
+S['fries'] = ('snacks', 'Fries', svg(
+    ''.join(f'<rect x="{x}" y="{y}" width="17" height="90" rx="4" fill="#ffd54a" stroke="{O}" stroke-width="4" transform="rotate({r} {x+8} {y+90})"/>' for x, y, r in [(52, 30, -12), (74, 18, -5), (96, 12, 0), (118, 20, 6), (138, 32, 13), (86, 36, -2), (108, 34, 3)])
+    + f'<path d="M40 86 H160 L146 188 H54 Z" fill="url(#box)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M40 86 Q70 108 100 86 Q130 108 160 86" fill="#ff7a8a" stroke="{O}" stroke-width="4"/>'
+    + face(100, 140, 1.15) + glint(56, 118, .45, rot=-80), lg('box', '#ff5d6a', '#d6233f')))
+
+S['sushi'] = ('snacks', 'Sushi', svg(
+    f'<rect x="30" y="92" width="140" height="74" rx="30" fill="url(#rice)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M24 98 C30 58 170 58 176 98 C176 116 24 116 24 98 Z" fill="url(#salmon)" stroke="{O}" stroke-width="{SW}"/>'
+    + '<path d="M50 80 Q60 92 52 104 M80 72 Q92 86 84 104 M114 72 Q126 86 120 104 M146 80 Q156 92 150 104" fill="none" stroke="#fff" stroke-width="4" opacity=".7"/>'
+    + f'<rect x="88" y="62" width="24" height="56" rx="3" fill="#2f3b3a" stroke="{O}" stroke-width="4"/>'
+    + face(100, 140, 1.0),
+    lg('rice', '#ffffff', '#ece7f2') + lg('salmon', '#ffb08a', '#ff7a5a')))
+
+S['egg'] = ('snacks', 'Fried egg', svg(
+    f'<path d="M96 20 C140 16 186 44 178 92 C190 132 156 180 108 176 C66 190 18 160 24 118 C8 78 40 26 96 20 Z" fill="url(#white)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<circle cx="104" cy="100" r="44" fill="url(#yolk)" stroke="{O}" stroke-width="{SW}"/>'
+    + face(104, 104, .9) + glint(84, 76, .6),
+    lg('white', '#ffffff', '#f0ecf5') + rg('yolk', '#ffe27a', '#ffa21f')))
+
+S['onigiri'] = ('snacks', 'Rice ball', svg(
+    f'<path d="M100 16 C126 16 182 120 182 150 C182 182 160 186 100 186 C40 186 18 182 18 150 C18 120 74 16 100 16 Z" fill="url(#rice2)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M58 132 H142 V186 H58 Z" fill="#2f3b3a" stroke="{O}" stroke-width="4"/>'
+    + face(100, 100, 1.1) + glint(78, 58, .55),
+    lg('rice2', '#ffffff', '#ece7f2')))
+
+# ---------------- Silly ----------------
+S['poo'] = ('silly', 'Happy poo', svg(
+    f'<ellipse cx="100" cy="160" rx="80" ry="28" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<ellipse cx="100" cy="122" rx="62" ry="26" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<ellipse cx="100" cy="88" rx="44" ry="22" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M78 70 C84 44 108 36 116 18 C126 40 124 60 116 72" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
+    + face(100, 152, 1.15) + glint(72, 80, .5, rot=-20),
+    lg('poo', '#b8835a', '#7a4a2a')))
+
+S['ghost'] = ('silly', 'Ghost', svg(
+    f'<path d="M100 18 C150 18 170 60 170 100 V172 Q156 160 142 176 Q128 160 114 178 Q100 162 86 178 Q72 160 58 176 Q44 160 30 172 V100 C30 60 50 18 100 18 Z" fill="url(#gh)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<ellipse cx="74" cy="90" rx="9" ry="13" fill="{O}"/><ellipse cx="126" cy="90" rx="9" ry="13" fill="{O}"/><circle cx="77" cy="85" r="3.5" fill="#fff"/><circle cx="129" cy="85" r="3.5" fill="#fff"/>'
+    + f'<path d="M84 118 Q100 132 116 118 Q114 146 100 146 Q86 146 84 118 Z" fill="#7a2a3a" stroke="{O}" stroke-width="4"/>'
+    + '<path d="M92 132 Q100 126 108 132 Q106 144 100 144 Q94 144 92 132 Z" fill="#ff7a8a"/>'
+    + blush2(116, 46) + glint(66, 48, .7),
+    lg('gh', '#ffffff', '#e4dcf5')))
+
+S['potato'] = ('silly', 'Couch potato', svg(
+    f'<rect x="14" y="120" width="172" height="56" rx="16" fill="url(#sofa)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<rect x="10" y="104" width="34" height="78" rx="14" fill="url(#sofa)" stroke="{O}" stroke-width="{SW}"/><rect x="156" y="104" width="34" height="78" rx="14" fill="url(#sofa)" stroke="{O}" stroke-width="{SW}"/>'
+    + f'<path d="M52 182 V194 M148 182 V194" stroke="{O}" stroke-width="7"/>'
+    + f'<path d="M100 28 C142 26 160 66 156 104 C152 140 128 150 100 150 C72 150 46 142 44 104 C42 64 62 30 100 28 Z" fill="url(#pot)" stroke="{O}" stroke-width="{SW}"/>'
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="3.5" fill="#b07a3e"/>' for x, y in [(70, 60), (130, 56), (140, 120), (64, 126)])
+    + face(100, 90, 1.1, mood='sleep')
+    + f'<rect x="120" y="116" width="16" height="34" rx="5" fill="#2a1e33" transform="rotate(-25 128 133)"/><circle cx="124" cy="122" r="3" fill="#ff5d7a"/>',
+    lg('sofa', '#b69cff', '#7b55f0') + lg('pot', '#f2c98a', '#d39a55')))
+
+S['tooth'] = ('silly', 'Happy tooth', svg(
+    f'<path d="M100 40 C120 22 172 18 172 70 C172 112 156 130 150 170 C146 194 124 194 120 170 C116 148 110 136 100 136 C90 136 84 148 80 170 C76 194 54 194 50 170 C44 130 28 112 28 70 C28 18 80 22 100 40 Z" fill="url(#tooth)" stroke="{O}" stroke-width="{SW}"/>'
+    + face(100, 82, 1.15) + star4(160, 30, 14, '#ffffff') + star4(30, 150, 10, '#8fd3ff', rot=20) + glint(56, 52, .7),
+    lg('tooth', '#ffffff', '#e3e9f5')))
+
+S['banana'] = ('silly', 'Banana', svg(
+    f'<path d="M150 22 L162 18 L168 36 L158 40 Z" fill="#6b4a2a" stroke="{O}" stroke-width="4"/>'
+    + f'<path d="M158 38 C176 90 156 168 76 182 C42 188 20 172 30 160 C90 160 130 120 142 40 Z" fill="url(#ban)" stroke="{O}" stroke-width="{SW}"/>'
+    + '<path d="M148 60 C150 110 120 150 70 166" fill="none" stroke="#e0a91f" stroke-width="4" opacity=".7"/>'
+    + face(104, 136, 1.0) + glint(150, 70, .5, rot=-70),
+    lg('ban', '#fff38a', '#ffd23a')))
+
+S['pickle'] = ('silly', 'Cool pickle', svg(
+    f'<path d="M100 14 C140 14 154 50 152 100 C150 154 136 188 100 188 C64 188 50 154 48 100 C46 50 60 14 100 14 Z" fill="url(#pk)" stroke="{O}" stroke-width="{SW}"/>'
+    + ''.join(f'<ellipse cx="{x}" cy="{y}" rx="4" ry="6" fill="#3f8a3a" opacity=".6"/>' for x, y in [(70, 50), (130, 60), (64, 130), (138, 140), (100, 170), (90, 36)])
+    + f'<path d="M44 82 H156 L152 90 Q150 112 128 112 Q106 112 104 92 H96 Q94 112 72 112 Q50 112 48 90 Z" fill="#2a1e33" stroke="{O}" stroke-width="3"/>'
+    + '<path d="M58 90 L70 104 M118 90 L130 104" stroke="#fff" stroke-width="4" opacity=".55"/>'
+    + f'<path d="M80 138 Q104 152 124 132" fill="none" stroke="{O}" stroke-width="5"/>'
+    + glint(70, 36, .5, rot=-70),
+    lg('pk', '#a8e07a', '#4fae4a')))
+
 pack = [{'id': sid, 'cat': cat, 'name': name, 'svg': body} for sid, (cat, name, body) in S.items()]
 with open(OUT, 'w') as f:
     f.write('/* Generated by scripts/make-stickers.py - edit that, not this. */\n')

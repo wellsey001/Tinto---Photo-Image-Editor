@@ -2143,8 +2143,8 @@ function skFinish(){
 
 /* ---- illustrated sticker packs: vector art, rasterised on demand with a white die-cut border and soft shadow ---- */
 const PACK = window.STICKER_PACK || [];
-const PACK_CATS = [['animals','Animals'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
-let packCat = 'animals';
+const PACK_CATS = [['faces','Faces'],['silly','Silly'],['animals','Animals'],['snacks','Snacks'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
+let packCat = 'faces';
 const packURL = s => s.src || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg));
 
 async function packCanvas(s){
@@ -2256,131 +2256,6 @@ async function loadMyStickers(){
   } catch { /* no saved stickers */ }
 }
 
-/* ---- sticker sheet importer: split one image holding many stickers into My stickers ---- */
-const SH = {pieces:[], busy:false};
-async function openSheet(file){
-  if (!file) return;
-  if (file.type && !file.type.startsWith('image/')) { toast('That file isn’t an image. Choose a JPG, PNG, WebP or GIF.'); return; }
-  let c;
-  try { c = await fileToCanvas(file, 2600); }
-  catch { toast('This image couldn’t be read. HEIC photos need converting to JPG first.'); return; }
-  SH.pieces = []; SH.busy = true;
-  $('#shGrid').innerHTML = ''; $('#shAdd').disabled = true; $('#shMsg').textContent = 'Finding the stickers…';
-  $('#sheetModal').hidden = false;
-  try {
-    const found = await window.splitStickerSheet(c, msg => { $('#shMsg').textContent = msg; });
-    SH.pieces = found.map(p => ({...p, on:true}));
-  } catch (e) { SH.pieces = []; }
-  SH.busy = false;
-  renderSheet();
-}
-function renderSheet(){
-  const grid = $('#shGrid'); grid.innerHTML = '';
-  if (!SH.pieces.length){
-    $('#shMsg').textContent = 'No separate stickers were found in this image. For a single sticker, use Import instead.';
-    $('#shAdd').disabled = true; return;
-  }
-  SH.pieces.forEach((p, i) => {
-    const wrap = document.createElement('div'); wrap.className = 'sh-item';
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'sh-pick';
-    b.setAttribute('aria-pressed', String(p.on)); b.setAttribute('aria-label', `Sticker ${i+1}`);
-    const im = document.createElement('img'); im.alt = ''; im.src = p.canvas.toDataURL('image/png');
-    const t = document.createElement('span'); t.className = 'tick'; t.textContent = '✓';
-    b.append(im, t);
-    b.onclick = () => { p.on = !p.on; b.setAttribute('aria-pressed', String(p.on)); syncSheetCount(); };
-    const cut = document.createElement('button'); cut.type = 'button'; cut.className = 'sh-cut'; cut.textContent = 'Split';
-    cut.title = 'Two stickers stuck together? Split them'; cut.onclick = () => openSplit(i);
-    wrap.append(b, cut);
-    grid.appendChild(wrap);
-  });
-  syncSheetCount();
-}
-function syncSheetCount(){
-  const n = SH.pieces.filter(p => p.on).length;
-  $('#shMsg').textContent = `Found ${SH.pieces.length} sticker${SH.pieces.length === 1 ? '' : 's'}. Tap any you don’t want to leave them out.`;
-  $('#shAdd').disabled = !n;
-  $('#shAdd').textContent = n ? `Add ${n} to My stickers` : 'Add to My stickers';
-}
-async function addSheet(){
-  if (SH.busy) return;
-  const chosen = SH.pieces.filter(p => p.on); if (!chosen.length) return;
-  SH.busy = true; $('#shAdd').disabled = true;
-  let saved = 0, failed = 0;
-  for (const p of chosen){
-    const id = stickerId(); STICKER_IMG.set(id, p.canvas);
-    if (desktop){
-      try {
-        const blob = await new Promise(r => p.canvas.toBlob(r, 'image/png'));
-        await window.tinto.stickers.save(id, new Uint8Array(await blob.arrayBuffer())); saved++;
-      } catch { failed++; }
-    }
-    addMyStickerTile(id, p.canvas);
-  }
-  SH.busy = false; closeSheet();
-  if (tab !== 'stickers') setTab('stickers');
-  if (!desktop) toast(`${chosen.length} stickers added to My stickers for this session.`);
-  else if (failed) toast(`${saved} stickers saved to My stickers. ${failed} couldn’t be saved.`);
-  else toast(`${saved} stickers saved to My stickers.`);
-}
-function closeSheet(){ if (SH.busy) return; closeSplit(); $('#sheetModal').hidden = true; SH.pieces = []; $('#shGrid').innerHTML = ''; }
-
-/* Split view: tap each sticker in a stuck-together group once, then Split. */
-const SP = {i:-1, pts:[], k:1};
-function openSplit(i){
-  SP.i = i; SP.pts = [];
-  const p = SH.pieces[i], c = $('#shSplitC');
-  SP.k = Math.min(3, 520 / Math.max(p.w, p.h));          // show small groups bigger
-  c.width = Math.round(p.w * SP.k); c.height = Math.round(p.h * SP.k);
-  $('#shGrid').hidden = $('#shFoot').hidden = true;
-  $('#shSplit').hidden = $('#shSplitFoot').hidden = false;
-  $('#shMsg').textContent = 'Tap each sticker in this group once, then choose Split.';
-  drawSplit();
-}
-function drawSplit(){
-  const p = SH.pieces[SP.i], c = $('#shSplitC'), x = c.getContext('2d');
-  x.clearRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high';
-  x.drawImage(p.canvas, 0, 0, c.width, c.height);
-  SP.pts.forEach((pt, n) => {
-    const cx = pt.x * SP.k, cy = pt.y * SP.k;
-    x.beginPath(); x.arc(cx, cy, 13, 0, Math.PI*2); x.fillStyle = '#ff7a3d'; x.fill();
-    x.lineWidth = 3; x.strokeStyle = '#fff'; x.stroke();
-    x.fillStyle = '#fff'; x.font = '700 13px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText(String(n+1), cx, cy + 0.5);
-  });
-  const n = SP.pts.length;
-  $('#shSplitGo').disabled = n < 2;
-  $('#shSplitGo').textContent = n >= 2 ? `Split into ${n}` : 'Split';
-}
-function closeSplit(){
-  SP.i = -1; SP.pts = [];
-  $('#shSplit').hidden = $('#shSplitFoot').hidden = true;
-  $('#shGrid').hidden = $('#shFoot').hidden = false;
-}
-$('#shSplitC').addEventListener('click', e => {
-  const c = e.currentTarget, r = c.getBoundingClientRect(), p = SH.pieces[SP.i];
-  const x = (e.clientX - r.left) / r.width * p.w, y = (e.clientY - r.top) / r.height * p.h;
-  const a = p.canvas.getContext('2d').getImageData(Math.min(p.w-1, x|0), Math.min(p.h-1, y|0), 1, 1).data[3];
-  if (!a){ toast('Tap on a sticker, not the empty space around it.'); return; }
-  SP.pts.push({x, y}); drawSplit();
-});
-$('#shSplitClear').onclick = () => { SP.pts = []; drawSplit(); };
-$('#shSplitBack').onclick = () => { closeSplit(); syncSheetCount(); };
-$('#shSplitGo').onclick = () => {
-  const p = SH.pieces[SP.i], parts = window.splitStickerAt(p.canvas, SP.pts);
-  if (parts.length >= 2) SH.pieces.splice(SP.i, 1, ...parts.map(q => ({...q, on:true})));
-  closeSplit(); renderSheet();
-};
-$('#importSheet').onclick = async () => {
-  if (desktop){ const files = await window.tinto.openImages(false); if (files.length) openSheet(nativeToFile(files[0])); }
-  else $('#sheetInput').click();
-};
-$('#sheetInput').onchange = e => { const f = e.target.files[0]; e.target.value = ''; openSheet(f); };
-$('#shAdd').onclick = addSheet;
-$('#shCancel').onclick = closeSheet;
-$('#shAll').onclick = () => { SH.pieces.forEach(p => p.on = true); renderSheet(); };
-$('#shNone').onclick = () => { SH.pieces.forEach(p => p.on = false); renderSheet(); };
-$('#sheetModal').addEventListener('click', e => { if (e.target.id === 'sheetModal') closeSheet(); });
-
 /* Wiring */
 $('#importSticker').onclick = async () => {
   if (desktop){ const files = await window.tinto.openImages(false); if (files.length) openStickerEditor(nativeToFile(files[0])); }
@@ -2418,12 +2293,6 @@ window.addEventListener('keydown', e => {
   const mod = e.ctrlKey || e.metaKey;
   if (e.key === 'Escape' && !SK.busy) closeStickerEditor();
   else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#skUndo').click(); }
-}, true);
-// Same for the sticker sheet dialog (Enter and Space still press its buttons).
-window.addEventListener('keydown', e => {
-  if ($('#sheetModal').hidden || e.key === 'Tab' || e.key === 'Enter' || e.key === ' ') return;
-  e.stopImmediatePropagation();
-  if (e.key === 'Escape'){ if (SP.i >= 0){ closeSplit(); syncSheetCount(); } else closeSheet(); }
 }, true);
 /* ================= right-click menu ================= */
 const CTX = {el:null, back:null, items:[]};
@@ -2549,17 +2418,6 @@ $('#myStickers').addEventListener('contextmenu', e => {
   const id = tile.dataset.id, c = STICKER_IMG.get(id); if (!c) return;
   openCtx([
     {label:'Add to photo', off:!S.base, act:() => placeSticker(id)},
-    {label:'Tidy edges', act:async () => {
-      const t = window.tidySticker(c);
-      if (t === c){ toast('Nothing to tidy on this one.'); return; }
-      STICKER_IMG.set(id, t);
-      tile.querySelector('img').src = t.toDataURL('image/png');
-      if (desktop){
-        try { const blob = await new Promise(r => t.toBlob(r, 'image/png')); await window.tinto.stickers.save(id, new Uint8Array(await blob.arrayBuffer())); }
-        catch { toast('Tidied, but the change couldn’t be saved.'); return; }
-      }
-      toast('Edges tidied. Stickers already on the photo keep their old edges.');
-    }},
     ...(desktop ? ['-', {label:'Delete from My stickers', danger:true, act:async () => { if (await window.tinto.stickers.remove(id)) tile.remove(); }}] : []),
   ], e.clientX, e.clientY);
 });
