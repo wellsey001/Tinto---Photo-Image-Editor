@@ -1,0 +1,22 @@
+/* Fonts bundled with Tinto (Latin subset), so text looks right offline. Licences in this folder. */
+@font-face{font-family:'Sora';font-style:normal;font-weight:500;font-display:swap;src:url(Sora-500.woff) format('woff')}
+@font-face{font-family:'Sora';font-style:normal;font-weight:600;font-display:swap;src:url(Sora-600.woff) format('woff')}
+@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:400;font-display:swap;src:url(HankenGrotesk-400.woff) format('woff')}
+@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:500;font-display:swap;src:url(HankenGrotesk-500.woff) format('woff')}
+@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:600;font-display:swap;src:url(HankenGrotesk-600.woff) format('woff')}
+@font-face{font-family:'Hanken Grotesk';font-style:normal;font-weight:700;font-display:swap;src:url(HankenGrotesk-700.woff) format('woff')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(IBMPlexMono-400.woff) format('woff')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(IBMPlexMono-500.woff) format('woff')}
+@font-face{font-family:'Anton';font-style:normal;font-weight:400;font-display:swap;src:url(Anton-400.woff) format('woff')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url(PlayfairDisplay-700.woff) format('woff')}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:700;font-display:swap;src:url(PlayfairDisplay-700i.woff) format('woff')}
+@font-face{font-family:'Caveat';font-style:normal;font-weight:700;font-display:swap;src:url(Caveat-700.woff) format('woff')}
+@font-face{font-family:'Permanent Marker';font-style:normal;font-weight:400;font-display:swap;src:url(PermanentMarker-400.woff) format('woff')}
+@font-face{font-family:'Pacifico';font-style:normal;font-weight:400;font-display:swap;src:url(Pacifico-400.woff) format('woff')}
+@font-face{font-family:'Bebas Neue';font-style:normal;font-weight:400;font-display:swap;src:url(BebasNeue-400.woff) format('woff')}
+@font-face{font-family:'Space Mono';font-style:normal;font-weight:700;font-display:swap;src:url(SpaceMono-700.woff) format('woff')}
+@font-face{font-family:'Lora';font-style:normal;font-weight:600;font-display:swap;src:url(Lora-600.woff) format('woff')}
+@font-face{font-family:'Lobster';font-style:normal;font-weight:400;font-display:swap;src:url(Lobster-400.woff) format('woff')}
+@font-face{font-family:'Righteous';font-style:normal;font-weight:400;font-display:swap;src:url(Righteous-400.woff) format('woff')}
+@font-face{font-family:'Dancing Script';font-style:normal;font-weight:700;font-display:swap;src:url(DancingScript-700.woff) format('woff')}
+@font-face{font-family:'Bungee';font-style:normal;font-weight:400;font-display:swap;src:url(Bungee-400.woff) format('woff')}
