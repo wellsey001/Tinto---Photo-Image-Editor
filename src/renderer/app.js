@@ -124,10 +124,11 @@ const TEXT_PRESETS = [
 ];
 
 /* ================= state + history ================= */
-let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], name:'photo', label:''};
+const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30};
+let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
-const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers)});
-function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && KEYS.every(k => a.params[k]===b.params[k]); }
+const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg)});
+function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && a.bj===b.bj && KEYS.every(k => a.params[k]===b.params[k]); }
 function commit(){
   const s = snap();
   if (same(s, hist[hi])) return;
@@ -137,8 +138,8 @@ function commit(){
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
-  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers);
-  if (!getSel()) selId = null;
+  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)};
+  if (!getSel()) selId = null; syncBg();
   syncUI();
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
@@ -359,6 +360,11 @@ function draw(){
   if (!prevData) return;
   const out = processImage(prevData, effective());
   photoX.putImageData(out, 0, 0); drawHisto(out);
+  if (S.bg.mode !== 'original'){
+    const m = bgMaskFor(S.base);
+    if (m) applyBackground(photoC, m, S.bg); else ensureBgMask();
+  }
+  stage.classList.toggle('checker', S.bg.mode === 'remove' && !!bgMaskFor(S.base));
   composite();
 }
 function composite(){
@@ -507,6 +513,147 @@ function syncUI(){
   $('#strengthRow').hidden = S.filter==='none'; paintStrength();
 }
 
+
+/* ================= background: blur, colour, gradient or remove what's behind the subject ================= */
+const BG_GRADS = [['#ffd1dc','#a1c4fd'],['#fbc2eb','#a6c1ee'],['#f6d365','#fda085'],['#84fab0','#8fd3f4'],['#a18cd1','#fbc2eb'],['#fccb90','#d57eeb'],['#43e97b','#38f9d7'],['#30cfd0','#330867'],['#ff9a9e','#fecfef'],['#232526','#414345']];
+const BG_MODES = [['original','Original'],['blur','Blur'],['colour','Colour'],['gradient','Gradient'],['remove','Remove']];
+const bgMasks = new WeakMap();           // photo canvas -> mask canvas (white, alpha = subject)
+let bgJob = null;                        // the photo whose mask is being worked out
+function bgMaskFor(base){ return base ? bgMasks.get(base) || null : null; }
+
+function bgStatus(msg, progress){
+  $('#bgStatus').hidden = !msg; if (msg) $('#bgStatusMsg').textContent = msg;
+  $('#bgBar').hidden = progress === undefined;
+  if (progress !== undefined) $('#bgBarFill').style.width = Math.round(progress*100) + '%';
+}
+async function ensureBgMask(){
+  const base = S.base;
+  if (!base || bgMasks.has(base) || bgJob === base) return;
+  if (!desktop || !window.tinto.removeBackground){ $('#bgWebHint').hidden = false; return; }
+  bgJob = base;
+  // the model works at about 512 px, so a 1024 px copy is plenty and keeps it quick
+  const k = Math.min(1, 1024 / Math.max(base.width, base.height));
+  const w = Math.max(1, Math.round(base.width*k)), h = Math.max(1, Math.round(base.height*k));
+  const d = scaleCanvas(base, w, h).getContext('2d').getImageData(0, 0, w, h).data, rgb = new Uint8Array(w*h*3);
+  for (let i=0, j=0, q=0; i<w*h; i++, j+=4, q+=3){ rgb[q]=d[j]; rgb[q+1]=d[j+1]; rgb[q+2]=d[j+2]; }
+  let downloading = false;
+  const stop = window.tinto.onRemoveBgProgress(pr => {
+    if (bgJob !== base) return;
+    if (pr.phase === 'loading') bgStatus('Getting the background tool ready…');
+    else if (pr.phase === 'download'){ downloading = true; bgStatus('Downloading the AI model (first time only)…', pr.progress || 0); }
+    else if (pr.phase === 'working') bgStatus('Finding the person in your photo…');
+  });
+  bgStatus('Finding the person in your photo…');
+  for (let attempt = 0; attempt < 20; attempt++){
+    try {
+      const mask = await window.tinto.removeBackground(rgb, w, h);
+      const mc = mk(w, h), mx = mc.getContext('2d'), id = mx.createImageData(w, h);
+      let solid = 0;
+      for (let i=0; i<w*h; i++){ id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=255; id.data[i*4+3]=mask[i]; if (mask[i] > 128) solid++; }
+      mx.putImageData(id, 0, 0);
+      bgMasks.set(base, mc);
+      bgStatus(null);
+      if (solid < w*h*0.01) toast('Tinto couldn’t find a person in this photo, so the whole picture counts as background.');
+      break;
+    } catch (err) {
+      const msg = String(err && err.message || err);
+      if (/already being removed/.test(msg)){ await new Promise(r => setTimeout(r, 800)); continue; }   // a sticker cutout is running
+      bgStatus(null);
+      if (downloading || /fetch|network|ENOTFOUND|ETIMEDOUT|ECONN/i.test(msg)) toast('Couldn’t download the background tool. Check your internet connection and try again.');
+      else toast('Tinto couldn’t work out the background of this photo.');
+      S.bg.mode = 'original'; syncBg(); commit();
+      break;
+    }
+  }
+  stop(); if (bgJob === base) bgJob = null;
+  if (S.base === base) render();
+}
+
+/* Replaces everything behind the subject on canvas c (already edited), using mask canvas m. */
+function applyBackground(c, m, bg){
+  const W = c.width, H = c.height, x = c.getContext('2d');
+  // the subject, cut out with a softened edge
+  const subj = mk(W, H), sx = subj.getContext('2d');
+  sx.drawImage(c, 0, 0);
+  const edge = (bg.edge / 100) * Math.max(W, H) * 0.004;
+  const mm = mk(W, H), mx = mm.getContext('2d');
+  mx.imageSmoothingEnabled = true; mx.imageSmoothingQuality = 'high';
+  if (edge > 0.3) mx.filter = `blur(${edge.toFixed(2)}px)`;
+  mx.drawImage(m, 0, 0, W, H);
+  sx.globalCompositeOperation = 'destination-in'; sx.drawImage(mm, 0, 0);
+  // the new background
+  if (bg.mode === 'blur'){
+    const r = (bg.blur / 100) * Math.max(W, H) * 0.035;
+    // take the person out (a little wider than the mask) so they don't smear into the blur
+    const hole = mk(W, H), hx = hole.getContext('2d');
+    hx.drawImage(c, 0, 0);
+    const grow = mk(W, H), gx = grow.getContext('2d');
+    gx.filter = `blur(${Math.max(2, r*0.25).toFixed(1)}px)`; gx.drawImage(m, 0, 0, W, H); gx.filter = 'none';
+    gx.globalCompositeOperation = 'source-in'; gx.fillStyle = '#fff'; gx.fillRect(0, 0, W, H);
+    hx.globalCompositeOperation = 'destination-out'; hx.drawImage(grow, 0, 0); hx.drawImage(grow, 0, 0);
+    // blur what's left; dividing by its coverage fills the gap with the colours around it
+    const blurOf = (src, rad) => {
+      const pad = Math.ceil(rad * 2), b = mk(W + pad*2, H + pad*2), bx = b.getContext('2d');
+      bx.drawImage(src, 0, 0, W, H, 0, 0, W + pad*2, H + pad*2); bx.clearRect(pad, pad, W, H); bx.drawImage(src, pad, pad);
+      const o = mk(W, H), ox = o.getContext('2d');
+      ox.filter = `blur(${rad.toFixed(1)}px)`; ox.drawImage(b, -pad, -pad); ox.filter = 'none';
+      const id = ox.getImageData(0, 0, W, H), d = id.data;
+      for (let i=3; i<d.length; i+=4) d[i] = d[i] > 2 ? 255 : 0;
+      ox.putImageData(id, 0, 0);
+      return o;
+    };
+    const near = blurOf(hole, r), far = blurOf(hole, r * 4);
+    x.clearRect(0, 0, W, H);
+    x.filter = `blur(${r.toFixed(1)}px)`; x.drawImage(c, 0, 0); x.filter = 'none';   // last resort under everything
+    x.drawImage(far, 0, 0); x.drawImage(near, 0, 0);
+  } else if (bg.mode === 'colour'){
+    x.clearRect(0, 0, W, H); x.fillStyle = bg.colour; x.fillRect(0, 0, W, H);
+  } else if (bg.mode === 'gradient'){
+    const [a, z] = BG_GRADS[bg.grad] || BG_GRADS[0], g = x.createLinearGradient(0, 0, W*0.35, H);
+    g.addColorStop(0, a); g.addColorStop(1, z);
+    x.clearRect(0, 0, W, H); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  } else {
+    x.clearRect(0, 0, W, H);
+  }
+  x.drawImage(subj, 0, 0);
+}
+
+function setBg(patch, live){
+  Object.assign(S.bg, patch); syncBg(); render();
+  if (!live) commit();
+}
+const bgModeBtns = {};
+for (const [id, label] of BG_MODES){
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = label;
+  b.setAttribute('role', 'radio'); b.onclick = () => setBg({mode:id});
+  $('#bgModes').appendChild(b); bgModeBtns[id] = b;
+}
+const bgColourSw = makeSwatches($('#bgColour'), ['#ffffff','#111111','#f7e3c4','#ffd1dc','#cfe8ff','#d9f5e3','#efb34a','#9b6bff'], (c, live, done) => setBg({colour:c}, live && !done));
+(function buildGrads(){
+  const el = $('#bgGrad');
+  BG_GRADS.forEach(([a, z], i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'swc grad'; b.title = `Gradient ${i+1}`;
+    b.style.background = `linear-gradient(160deg, ${a}, ${z})`; b.dataset.i = i;
+    b.onclick = () => setBg({grad:i}); el.appendChild(b);
+  });
+})();
+const paintBgBlur = bindRange('bgBlur', () => S.bg.blur, v => { S.bg.blur = v; render(); }, v => String(v));
+const paintBgEdge = bindRange('bgEdge', () => S.bg.edge, v => { S.bg.edge = v; render(); }, v => String(v));
+function syncBg(){
+  const m = S.bg.mode;
+  for (const id in bgModeBtns) bgModeBtns[id].setAttribute('aria-checked', String(id === m)), bgModeBtns[id].setAttribute('aria-pressed', String(id === m));
+  $('#bgBlurRow').hidden = m !== 'blur';
+  $('#bgColourRow').hidden = m !== 'colour';
+  $('#bgGradRow').hidden = m !== 'gradient';
+  $('#bgEdgeRow').hidden = m === 'original';
+  $('#bgRemoveHint').hidden = m !== 'remove';
+  bgColourSw.set(S.bg.colour);
+  document.querySelectorAll('#bgGrad .swc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.i === S.bg.grad)));
+  paintBgBlur(); paintBgEdge();
+  if (!window.tinto) $('#bgWebHint').hidden = false;
+}
+syncBg();
+
 /* ================= tools / tabs ================= */
 let tab = 'adjust';
 document.querySelectorAll('.tool').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
@@ -514,7 +661,7 @@ function setTab(name){
   if (tab==='draw' && name!=='draw') drawSession = null;
   tab = name;
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
-  ['adjust','filters','crop','resize','text','stickers','draw','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  ['adjust','filters','background','crop','resize','text','stickers','draw','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
   $('#cropLayer').hidden = name!=='crop';
   stage.classList.toggle('drawing', name==='draw');
   const col = name==='collage';
@@ -925,8 +1072,8 @@ function openFile(file){
   img.onload = () => {
     const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
-    selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
+    selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('This browser can’t read that image. HEIC photos need converting to JPG first.'); };
   img.src = url;
@@ -978,6 +1125,10 @@ $('#exportBtn').onclick = () => {
   const n = S.layers.filter(l => !l.hidden).length;
   if (tab==='collage'){ const [w,h] = collageSize(); $('#exTitle').textContent = 'Export collage'; $('#exportInfo').innerHTML = `Collage: <b>${w} × ${h}</b> px, empty cells left as background`; }
   else { $('#exTitle').textContent = 'Export photo'; $('#exportInfo').innerHTML = `Full size: <b>${S.base.width} × ${S.base.height}</b> px, with every edit applied${n ? ` and ${n} layer${n>1?'s':''} merged` : ''}`; }
+  if (tab!=='collage' && S.bg.mode==='remove' && bgMaskFor(S.base)){
+    if (fmt==='jpeg') document.querySelector('#fmtSeg button[data-f="png"]').click();
+    $('#exportInfo').innerHTML += '<br>Background removed: PNG keeps it see-through.';
+  }
   $('#exportModal').hidden = false; $('#exSave').focus();
 };
 function closeModal(){ $('#exportModal').hidden = true; }
@@ -1014,7 +1165,9 @@ async function renderEditorFull(){
   await document.fonts.ready;
   const b = S.base;
   const out = processImage(b.getContext('2d').getImageData(0,0,b.width,b.height), effective());
-  const c = mk(b.width, b.height), cx = c.getContext('2d'); cx.putImageData(out, 0, 0); drawLayers(cx, 1);
+  const c = mk(b.width, b.height), cx = c.getContext('2d'); cx.putImageData(out, 0, 0);
+  if (S.bg.mode !== 'original'){ const m = bgMaskFor(b); if (m) applyBackground(c, m, S.bg); }
+  drawLayers(cx, 1);
   return c;
 }
 function showFallback(blob){
@@ -1519,7 +1672,7 @@ $('#cAddCurrent').onclick = async () => {
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
   const [W, H] = collageSize(), tpl = C.tpl;
-  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100;
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; syncBg();
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
   // Template titles arrive as text layers, so they stay editable in the editor.
   const fitSize = d => {   // the same shrink-to-fit the collage uses
@@ -2163,8 +2316,61 @@ async function packCanvas(s){
   return key;
 }
 
-/* A sticker section: a row of category tabs and a grid of stickers (used for Emoji and Sticker packs). */
-function stickerSection(items, cats, tabsSel, gridSel, label){
+/* ---- emoji and sticker packs: tabs, search, Recent and Favourites ---- */
+const FLUENT = window.EMOJI_PACK || [];
+const FLUENT_CATS = [['faces','Faces'],['silly','Silly'],['love','Love'],['animals','Animals'],['food','Food'],['party','Party'],['sky','Sky & nature']];
+const STK_BY_ID = new Map();
+for (const s of FLUENT) STK_BY_ID.set(s.id, {...s, kind:'emoji', catName:(FLUENT_CATS.find(c => c[0]===s.cat)||[])[1] || ''});
+for (const s of PACK) STK_BY_ID.set(s.id, {...s, kind:'sticker', catName:(PACK_CATS.find(c => c[0]===s.cat)||[])[1] || ''});
+const loadIds = k => { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v.filter(id => STK_BY_ID.has(id)) : []; } catch { return []; } };
+const saveIds = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* not remembered */ } };
+let stkRecent = loadIds('tinto.stickers.recent'), stkFavs = loadIds('tinto.stickers.favourites');
+
+async function addPackItem(s){
+  if (!S.base){ toast('Open a photo first.'); return; }
+  try {
+    const key = await packCanvas(s), c = STICKER_IMG.get(key);
+    addLayer({type:'image', ref:key, name:s.name, w:c.width, h:c.height, scale: minSide()*0.35/Math.max(c.width, c.height)});
+    stkRecent = [s.id, ...stkRecent.filter(id => id !== s.id)].slice(0, 12);
+    saveIds('tinto.stickers.recent', stkRecent); renderStkRows();
+  } catch (e) { toast('Could not add that ' + (s.kind === 'emoji' ? 'emoji' : 'sticker') + '.'); }
+}
+function toggleFav(s){
+  const on = stkFavs.includes(s.id);
+  stkFavs = on ? stkFavs.filter(id => id !== s.id) : [s.id, ...stkFavs];
+  saveIds('tinto.stickers.favourites', stkFavs);
+  renderStkRows(); refreshFavMarks();
+  toast(on ? `Removed ${s.name} from Favourites.` : `Added ${s.name} to Favourites.`);
+}
+function refreshFavMarks(){
+  for (const t of document.querySelectorAll('#pane-stickers .stk[data-stk]')) t.classList.toggle('fav', stkFavs.includes(t.dataset.stk));
+}
+function stkTile(s){
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'stk' + (stkFavs.includes(s.id) ? ' fav' : ''); b.title = s.name;
+  b.dataset.stk = s.id; b.setAttribute('aria-label', s.name);
+  const im = document.createElement('img'); im.src = packURL(s); im.alt = ''; im.draggable = false; im.loading = 'lazy'; im.decoding = 'async';
+  b.appendChild(im);
+  b.onclick = () => addPackItem(s);
+  b.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    const fav = stkFavs.includes(s.id);
+    openCtx([
+      {label:'Add to photo', off:!S.base, act:() => addPackItem(s)},
+      {label: fav ? 'Remove from Favourites' : 'Add to Favourites', act:() => toggleFav(s)},
+    ], e.clientX, e.clientY);
+  });
+  return b;
+}
+function renderStkRows(){
+  const fill = (wrap, grid, ids) => { $(wrap).hidden = !ids.length; const g = $(grid); g.innerHTML = ''; for (const id of ids) g.appendChild(stkTile(STK_BY_ID.get(id))); };
+  fill('#stkFavWrap', '#stkFavGrid', stkFavs);
+  fill('#stkRecentWrap', '#stkRecentGrid', stkRecent);
+}
+$('#stkRecentClear').onclick = () => { stkRecent = []; saveIds('tinto.stickers.recent', stkRecent); renderStkRows(); };
+
+/* A section: a row of category tabs and a grid (used for Emoji and Sticker packs). */
+function stickerSection(items, cats, tabsSel, gridSel){
   let cur = cats[0][0];
   function build(){
     const tabs = $(tabsSel), grid = $(gridSel);
@@ -2178,28 +2384,41 @@ function stickerSection(items, cats, tabsSel, gridSel, label){
       tabs.appendChild(b);
     }
     grid.innerHTML = '';
-    for (const s of items){
-      if (s.cat !== cur) continue;
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'stk'; b.title = s.name; b.setAttribute('aria-label', s.name);
-      const im = document.createElement('img'); im.src = packURL(s); im.alt = ''; im.draggable = false; im.loading = 'lazy'; im.decoding = 'async';
-      b.appendChild(im);
-      b.onclick = async () => {
-        if (!S.base){ toast('Open a photo first.'); return; }
-        try {
-          const key = await packCanvas(s), c = STICKER_IMG.get(key);
-          addLayer({type:'image', ref:key, name:s.name, w:c.width, h:c.height, scale: minSide()*0.35/Math.max(c.width, c.height)});
-        } catch (e) { toast('Could not add that ' + label + '.'); }
-      };
-      grid.appendChild(b);
-    }
+    for (const s of items) if (s.cat === cur) grid.appendChild(stkTile(STK_BY_ID.get(s.id)));
   }
   build();
 }
-const FLUENT = window.EMOJI_PACK || [];
-const FLUENT_CATS = [['faces','Faces'],['silly','Silly'],['love','Love'],['animals','Animals'],['food','Food'],['party','Party'],['sky','Sky & nature']];
-stickerSection(FLUENT, FLUENT_CATS, '#emojiTabs', '#emojiPackGrid', 'emoji');
-stickerSection(PACK, PACK_CATS, '#packTabs', '#packGrid', 'sticker');
+stickerSection(FLUENT, FLUENT_CATS, '#emojiTabs', '#emojiPackGrid');
+stickerSection(PACK, PACK_CATS, '#packTabs', '#packGrid');
+renderStkRows();
+
+// search: every word typed must start a word in the name or the tab name ("hea" finds hearts)
+const STK_SYNONYMS = {lol:'laughing joy', haha:'laughing joy', love:'heart', kiss:'kiss', sad:'crying', cry:'crying', angry:'grumpy steam', mad:'grumpy steam', cute:'heart', food:'food snacks', dog:'dog', puppy:'dog', kitty:'cat', bunny:'rabbit bunny', party:'party', birthday:'cake party balloon gift', cool:'sunglasses cool', sleep:'sleeping sleepy zzz', poop:'poo', star:'star', sun:'sun', fire:'fire', drink:'beverage drink cocktail tea glass', sweet:'candy lollipop doughnut cupcake cake cookie chocolate'};
+function stkSearch(q){
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const out = [];
+  for (const s of STK_BY_ID.values()){
+    const hay = (s.name + ' ' + s.catName + ' ' + s.id.replace(/^fe-/, '').replace(/-/g, ' ')).toLowerCase().split(/[^a-z0-9]+/);
+    const ok = words.every(w => hay.some(h => h.startsWith(w)) || (STK_SYNONYMS[w] || '').split(' ').some(x => x && hay.some(h => h.startsWith(x))));
+    if (ok) out.push(s);
+  }
+  return out;
+}
+let stkSearchTimer = 0;
+$('#stkSearch').addEventListener('input', () => {
+  clearTimeout(stkSearchTimer);
+  stkSearchTimer = setTimeout(() => {
+    const res = stkSearch($('#stkSearch').value);
+    $('#stkResults').hidden = !res; $('#stkBrowse').hidden = !!res;
+    if (!res) return;
+    const g = $('#stkResultsGrid'); g.innerHTML = '';
+    for (const s of res.slice(0, 120)) g.appendChild(stkTile(s));
+    $('#stkResultsHead').textContent = res.length ? `${res.length} result${res.length === 1 ? '' : 's'}` : 'No results';
+    $('#stkNoResults').hidden = !!res.length;
+  }, 90);
+});
+$('#stkSearch').addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.value){ e.stopPropagation(); e.target.value = ''; e.target.dispatchEvent(new Event('input')); } });
 
 function placeSticker(id){
   const c = STICKER_IMG.get(id); if (!c) return;

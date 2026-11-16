@@ -48,6 +48,7 @@
     <nav class="rail" role="tablist" aria-label="Tools">
       <button class="tool" role="tab" data-tab="adjust" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Adjust</button>
       <button class="tool" role="tab" data-tab="filters" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="10" r="5"/><circle cx="12" cy="15" r="5"/></svg>Filters</button>
+      <button class="tool" role="tab" data-tab="background" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3" stroke-dasharray="3 2.5"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/></svg>Background</button>
       <button class="tool" role="tab" data-tab="crop" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2v16h16M2 6h16v16"/></svg>Crop</button>
       <button class="tool" role="tab" data-tab="resize" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="9" width="12" height="12" rx="1"/><path d="M13 3h8v8M21 3l-8 8"/></svg>Resize</button>
       <button class="tool" role="tab" data-tab="text" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</button>
@@ -69,6 +70,30 @@
             <input type="range" id="strength" min="0" max="100" value="100">
           </div>
           <p class="hint">Filters sit on top of your adjustments, so you can still fine-tune in Adjust.</p>
+        </div>
+
+        <div class="pane" id="pane-background" hidden>
+          <h2 class="pane-title">Background</h2>
+          <p class="hint" id="bgIntro">Tinto finds the person in your photo and changes everything behind them. Works best on people.</p>
+          <div class="chips" id="bgModes" role="radiogroup" aria-label="Background"></div>
+          <div class="sub" id="bgBlurRow" hidden>
+            <div class="row"><label for="bgBlur">Blur</label><output id="bgBlurOut"></output><input type="range" id="bgBlur" min="5" max="100" value="45"></div>
+          </div>
+          <div class="sub" id="bgColourRow" hidden>
+            <div class="field"><span>Colour</span><div class="swatches" id="bgColour"></div></div>
+          </div>
+          <div class="sub" id="bgGradRow" hidden>
+            <div class="field"><span>Gradient</span><div class="swatches" id="bgGrad"></div></div>
+          </div>
+          <div class="sub" id="bgEdgeRow" hidden>
+            <div class="row"><label for="bgEdge">Edge softness</label><output id="bgEdgeOut"></output><input type="range" id="bgEdge" min="0" max="100" value="30"></div>
+          </div>
+          <div class="bg-status" id="bgStatus" hidden>
+            <span id="bgStatusMsg"></span>
+            <div class="bar" id="bgBar" hidden><i id="bgBarFill"></i></div>
+          </div>
+          <p class="hint" id="bgRemoveHint" hidden>Export as PNG to keep the background see-through. Tinto picks PNG for you.</p>
+          <p class="hint" id="bgWebHint" hidden>Background tools need the Tinto desktop app.</p>
         </div>
 
         <div class="pane" id="pane-crop" hidden>
@@ -137,12 +162,32 @@
 
         <div class="pane" id="pane-stickers" hidden>
           <h2 class="pane-title">Stickers</h2>
+          <div class="stk-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            <input type="search" id="stkSearch" placeholder="Search stickers and emoji" aria-label="Search stickers and emoji" autocomplete="off" spellcheck="false">
+          </div>
+          <div id="stkResults" hidden>
+            <div class="group-h" id="stkResultsHead">Results</div>
+            <div class="stickers pack" id="stkResultsGrid"></div>
+            <p class="hint" id="stkNoResults" hidden>Nothing matches that. Try a simpler word, like “cat”, “heart” or “pizza”.</p>
+          </div>
+          <div id="stkBrowse">
+          <div id="stkFavWrap" hidden>
+            <div class="group-h">Favourites</div>
+            <div class="stickers pack small" id="stkFavGrid"></div>
+          </div>
+          <div id="stkRecentWrap" hidden>
+            <div class="group-h">Recent <button class="linkbtn" id="stkRecentClear" type="button">Clear</button></div>
+            <div class="stickers pack small" id="stkRecentGrid"></div>
+          </div>
           <div class="group-h">Emoji</div>
           <div class="chips packtabs" id="emojiTabs" role="tablist" aria-label="Emoji category"></div>
           <div class="stickers pack" id="emojiPackGrid"></div>
           <div class="group-h">Sticker packs</div>
           <div class="chips packtabs" id="packTabs" role="tablist" aria-label="Sticker pack"></div>
           <div class="stickers pack" id="packGrid"></div>
+          <p class="hint">Right-click any sticker or emoji to add it to Favourites.</p>
+          </div>
           <div class="group-h">My stickers</div>
           <div class="stickers mine" id="myStickers">
             <button class="stk import" id="importSticker" type="button" title="Import an image as a sticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Import</span></button>

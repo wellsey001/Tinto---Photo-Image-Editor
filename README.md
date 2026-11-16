@@ -52,6 +52,8 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Crop and rotate:** free or fixed ratios (1:1, 4:5, 3:2, 16:9, 9:16), rotate 90°, flip horizontal or vertical.
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
+- **Background:** Tinto finds the person in your photo with the same AI as the sticker cutout, then blurs everything behind them (portrait mode), swaps it for a colour or gradient, or removes it (exported as a see-through PNG). Edge softness is adjustable. Works best on people; the AI model downloads once, the first time you use it.
+- **Sticker search:** search all emoji and stickers by name, with a Recent row and Favourites (right-click to star).
 - **Emoji:** 186 Microsoft Fluent Emoji in seven tabs (Faces, Silly, Love, Animals, Food, Party, Sky & nature), added as stickers with a white die-cut border. They're vector art, so they stay sharp at any size.
 - **Sticker packs:** 80 illustrated stickers in 13 packs: Faces, Silly, Animals, Snacks, Food, Cosy, Love, Party, Summer, Retro, Space, Dreamy and Nature. They're vector art with cute faces, white die-cut borders and a soft shadow, so they stay sharp at any size.
 - **Stickers:** 25 vector shapes with colour, outline and drop shadow, plus 28 emoji.
