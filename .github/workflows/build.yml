@@ -189,9 +189,9 @@ jobs:
           mkdir -p www/vendor/transformers
           T=node_modules/@huggingface/transformers/dist
           ls $T
-          if [ -f $T/transformers.web.min.js ]; then cp $T/transformers.web.min.js www/vendor/transformers/transformers.min.js; else cp $T/transformers.min.js www/vendor/transformers/transformers.min.js; fi
-          cp $T/*.wasm $T/ort*.mjs www/vendor/transformers/ 2>/dev/null || true
-          cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.wasm node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.mjs www/vendor/transformers/ 2>/dev/null || true
+          # transformers.min.js is the self-contained build (onnxruntime-web inside); it loads the "jsep" WebAssembly
+          cp $T/transformers.min.js www/vendor/transformers/transformers.min.js
+          cp $T/ort-wasm-simd-threaded.jsep.* www/vendor/transformers/ 2>/dev/null || cp node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.* www/vendor/transformers/
           ls -la www/vendor/transformers
           # and they need WebAssembly, the model downloads and the update check, which the desktop page doesn't
           sed -i "s#script-src 'self'#script-src 'self' 'wasm-unsafe-eval'#; s#connect-src 'self' blob: data:#connect-src 'self' blob: data: https:#" www/index.html

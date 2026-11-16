@@ -25,7 +25,7 @@ try {
   page.on('console', m => { if (m.type() === 'error') console.log('console:', m.text()); });
   await page.evaluateOnNewDocument(() => { window.TINTO_WEB_AI = true; });
   await page.goto('http://localhost:8799/index.html', { waitUntil: 'load' });
-  await page.waitForFunction(() => window.WEB_AI && window.S && S.base, { timeout: 30000 });
+  await page.waitForFunction(() => window.WEB_AI && typeof S !== 'undefined' && S.base, { timeout: 30000 });
   const result = await page.evaluate(async () => {
     const out = {};
     // a warm round "face" on a flat blue-grey background
