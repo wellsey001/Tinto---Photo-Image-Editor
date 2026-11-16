@@ -65,12 +65,16 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
 - **Projects:** File → Save Project (Ctrl+S) saves a `.tinto` file with the photo and every layer still editable. Open it again (double-click it, or Open photo) to carry on later.
 - **Retouch:** brush away blemishes, smooth skin (edges like eyes and hair stay sharp) and whiten teeth.
+- **Object eraser:** in Retouch, choose Erase object and paint over something you don't want (a stranger in the background, a bin, a wire). Let go and it's filled in from the rest of the photo. Works on your computer or phone, no internet needed.
 - **Frames:** 11 frames (Border, Rounded, Polaroid, Gallery, Film, Stamp, Scallop, Stitched, Soft edge, Neon, Gold) with colour and thickness. They sit over the photo's edges, under text and stickers, and filters don't tint them.
 - **Social sizes:** one click for Instagram post or portrait, Story/TikTok, YouTube thumbnail, Facebook, X, Pinterest or a phone wallpaper. Drag to choose what's kept, or keep the whole photo with blurred edges.
 - **Text effects:** curved text (arch or dip), gradient fills, 3D depth and neon glow, with new styles: Sunset, Rainbow, 3D Pop, Arch, Smile, Ocean and Ice neon.
 - **Sky replacement:** in Background, swap the sky for Blue sky, Sunset, Golden hour, Cotton candy, Storm, Starry night, Aurora or a photo of your own. An AI model (SegFormer, about 15 MB, downloaded once) finds the sky, the edges are tidied using the photo's own colours, and the rest of the photo can take on the new sky's light.
 - **Effects:** Glitch, Double exposure (with built-in forest, clouds or city lights, or your own photo; optionally only inside the person), Motion blur (optionally keeping the person sharp), Focus blur (tap to choose what stays sharp, circle or tilt-shift band), Light leak, Film dust, and a Pixelate/Blur brush for hiding faces or number plates. Apply one to lock it in, then add another on top.
 - **Templates:** nine single-photo designs (Birthday card, Quote post, YouTube thumbnail, Weekend story, Polaroid note, Event poster, Save the date, Postcard, Magazine cover). Your photo drops in, and the words and stickers arrive as normal layers you can change. Zoom and move the photo inside the design, or swap it.
+- **Animation:** give any sticker or text an animation in Layers (Pop in, Slide in, Fade in, Type on, Bounce, Float, Pulse, Wiggle, Swing, Spin) and press Play. Export as a looping **GIF** (up to 600 px) or **Video** (MP4, up to 1080 px) of 2, 3 or 5 seconds. Animate everything gives every layer a movement in one tap.
+- **Autosave:** your work is saved in the background a few seconds after each change and when Tinto closes. If it closes without saving (or crashes), the next start offers to carry on where you left off.
+- **Recent files:** File › Open Recent, or the arrow next to Open, lists the photos and projects you used last. On Android it lists the projects saved in Documents › Tinto.
 - **Layer blend modes:** Multiply, Screen, Overlay, Soft light, Colour dodge and 11 more, in Layers.
 - **Zoom and pan:** scroll or pinch to zoom up to 800%, drag an empty spot (or hold Space, or the middle mouse button) to move around, Ctrl + / − / 0. The view redraws sharper as you zoom.
 - **Background:** Tinto finds the person in your photo with the same AI as the sticker cutout, then blurs everything behind them (portrait mode), swaps it for a colour or gradient, or removes it (exported as a see-through PNG). Edge softness is adjustable. Works best on people; the AI model downloads once, the first time you use it.
@@ -148,6 +152,7 @@ git push origin v1.3.0
 | Ctrl+D | Duplicate the selected layer |
 | Shift while rotating | Snap to 15° steps |
 | Esc | Deselect |
+| Ctrl+Shift+S | Save project as |
 | Ctrl+ / Ctrl− / Ctrl+0 | Zoom in / out / fit |
 | Hold Space and drag | Move around a zoomed photo |
 
@@ -169,6 +174,8 @@ tinto/
 │       ├── emoji/         Fluent Emoji pack and its MIT licence
 │       ├── fonts/         The text fonts (WOFF) and their licences
 │       ├── ai-web.js      The same AI tools running in the page, for Android
+│       ├── inpaint-worker.js  The object eraser's fill (PatchMatch), run in a worker
+│       ├── gif.js         Animated GIF writer
 │       └── app.js         Editor: image processing, layers, collage, export
 ├── scripts/             Sticker pack generator and the AI checks (desktop and in-page)
 ├── docs/                  The animated logo at the top of this page
@@ -186,9 +193,8 @@ The editor page runs with context isolation, the sandbox on and Node integration
 
 ## Roadmap
 
-- One-tap background removal, running locally
-- Object eraser
-- Recent files and autosave
+- Batch edit a folder of photos
+- Selective adjustments (brighten or recolour just the sky, or just the person)
 
 ## Licence
 
