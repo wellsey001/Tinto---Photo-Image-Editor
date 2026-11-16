@@ -117,6 +117,7 @@
             <button type="button" data-t="heal" aria-pressed="true">Blemish</button>
             <button type="button" data-t="smooth" aria-pressed="false">Smooth skin</button>
             <button type="button" data-t="whiten" aria-pressed="false">Whiten</button>
+            <button type="button" data-t="erase" aria-pressed="false">Erase object</button>
           </div>
           <p class="hint" id="rtHint"></p>
           <div class="row"><label for="rtSize">Brush size</label><output id="rtSizeOut"></output><input type="range" id="rtSize" min="1" max="100" value="25"></div>
@@ -462,7 +463,8 @@
 <div class="toast" id="toast" hidden></div>
 <script src="stickerpack.js"></script>
 <script src="emoji/emojipack.js"></script>
-<script src="ai-web.js"></script>
+<script src="inpaint-worker.js"></script>
+  <script src="ai-web.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

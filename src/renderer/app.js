@@ -749,6 +749,7 @@ const RT_HINTS = {
   heal: 'Tap or brush over a spot, blemish or small mark. Tinto covers it with nearby skin.',
   smooth: 'Brush over skin to soften it. Edges like eyes, lips and hair stay sharp.',
   whiten: 'Brush over teeth (or eyes) to lift yellow tones and brighten them.',
+  erase: 'Paint over something you want gone (a person in the background, a bin, a wire) and let go. Cover all of it, with a little room around it. Brush again to erase more.',
 };
 const rtCursor = document.createElement('div'); rtCursor.className = 'rt-cursor'; rtCursor.hidden = true; stage.appendChild(rtCursor);
 const rtRadius = () => Math.max(2, minSide() * 0.07 * RT.size / 100);
@@ -761,11 +762,12 @@ function rtMoveCursor(e){
   Object.assign(rtCursor.style, {left:(e.clientX - sr.left)+'px', top:(e.clientY - sr.top)+'px', width:d+'px', height:d+'px'});
 }
 function rtStart(p){
-  if (!S.base) return;
+  if (!S.base || ER.busy) return;
   const src = S.base, W = src.width, H = src.height, work = mk(W, H), wx = work.getContext('2d', {willReadFrequently:true});
   wx.drawImage(src, 0, 0);
   const st = RT.stroke = {src, work, wx, W, H, r:rtRadius(), last:null, dirty:null, mask:null, blur:null};
   if (RT.tool !== 'heal') st.mask = new Uint8Array(W*H);
+  if (RT.tool === 'erase') st.srcData = src.getContext('2d').getImageData(0, 0, W, H).data;
   if (RT.tool === 'smooth'){
     const rad = Math.max(1.5, Math.min(W, H) * 0.006);
     st.blur = mk(W, H); const bx = st.blur.getContext('2d', {willReadFrequently:true});
@@ -774,7 +776,7 @@ function rtStart(p){
   rtDab(p); rtPreview(); st.last = p;
 }
 function rtMove(p){
-  const st = RT.stroke, step = Math.max(1, st.r * (RT.tool === 'heal' ? 0.6 : 0.3));
+  const st = RT.stroke, step = Math.max(1, st.r * (RT.tool === 'heal' ? 0.6 : RT.tool === 'erase' ? 0.25 : 0.3));
   const dx = p.x - st.last.x, dy = p.y - st.last.y, dist = Math.hypot(dx, dy);
   if (dist < step) return;
   const n = Math.floor(dist / step);
@@ -784,6 +786,7 @@ function rtMove(p){
 function rtEnd(){
   const st = RT.stroke; RT.stroke = null;
   if (!st || !st.dirty) return;
+  if (st.erase){ eraseObject(st); return; }
   const m = bgMasks.get(st.src); if (m) bgMasks.set(st.work, m); const sm = skyMasks.get(st.src); if (sm) skyMasks.set(st.work, sm);    // same person, same outline
   S.base = st.work; commit(); rebuildPreview();
 }
@@ -799,6 +802,7 @@ const smooth01 = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b -
 function rtDab(p){
   const st = RT.stroke, r = st.r;
   if (RT.tool === 'heal'){ rtHeal(st, p, r); return; }
+  if (RT.tool === 'erase'){ eraseDab(st, p, r); return; }
   // paint the soft brush into the stroke mask (strongest value wins), then redo those pixels
   const rect = rtGrow(st, p.x - r, p.y - r, p.x + r + 1, p.y + r + 1); if (!rect) return;
   const [x0, y0, x1, y1] = rect, w = x1 - x0, h = y1 - y0;
@@ -885,6 +889,91 @@ function rtPreview(){
   for (let y=0; y<ph; y++) D.set(s.subarray(y*pw*4, (y+1)*pw*4), ((py0 + y)*prevData.width + px0)*4);
   render();
 }
+/* ---------- object eraser: paint over it, and it's filled in from the rest of the photo (inpaint-worker.js) ---------- */
+const ER = {busy:false, worker:null, seq:0, waiting:new Map()};
+function eraseDab(st, p, r){
+  st.erase = true;
+  const rect = rtGrow(st, p.x - r, p.y - r, p.x + r + 1, p.y + r + 1); if (!rect) return;
+  const [x0, y0, x1, y1] = rect, w = x1 - x0, h = y1 - y0, sd = st.srcData, out = new ImageData(w, h), d = out.data;
+  for (let y=0; y<h; y++) for (let x=0; x<w; x++){
+    const gx = x0 + x, gy = y0 + y, gi = gy*st.W + gx, i = (y*w + x)*4, si = gi*4;
+    if (Math.hypot(gx + 0.5 - p.x, gy + 0.5 - p.y) < r) st.mask[gi] = 255;
+    // painted parts show red, so it's clear what will go
+    if (st.mask[gi]){ d[i] = sd[si]*0.45 + 255*0.55; d[i+1] = sd[si+1]*0.45 + 40*0.55; d[i+2] = sd[si+2]*0.45 + 70*0.55; }
+    else { d[i] = sd[si]; d[i+1] = sd[si+1]; d[i+2] = sd[si+2]; }
+    d[i+3] = 255;
+  }
+  st.wx.putImageData(out, x0, y0);
+}
+function inpaint(rgba, w, h, hole){
+  const here = () => window.TintoInpaint(rgba, w, h, hole);
+  if (ER.worker === false) return Promise.resolve().then(here);
+  try {
+    if (!ER.worker){
+      ER.worker = new Worker('inpaint-worker.js');
+      ER.worker.onmessage = e => { const f = ER.waiting.get(e.data.id); if (f){ ER.waiting.delete(e.data.id); f(e.data); } };
+    }
+  } catch { ER.worker = false; return Promise.resolve().then(here); }
+  const id = ++ER.seq, keep = {rgba: rgba.slice(), hole: hole.slice()};
+  return new Promise((res, rej) => {
+    // if the worker can't run here, do the work on the page instead
+    ER.worker.onerror = ev => { ev.preventDefault(); ER.worker = false; ER.waiting.delete(id); try { res(window.TintoInpaint(keep.rgba, w, h, keep.hole)); } catch (e) { rej(e); } };
+    ER.waiting.set(id, d => d.error ? rej(new Error(d.error)) : res(d.rgba));
+    ER.worker.postMessage({id, w, h, rgba, hole}, [rgba.buffer, hole.buffer]);
+  });
+}
+async function eraseObject(st){
+  const src = st.src, W = st.W, H = st.H, [bx0, by0, bx1, by1] = st.dirty;
+  // work on the painted area and plenty of photo around it, at up to 720 px
+  const bw = bx1 - bx0, bh = by1 - by0, m = Math.max(48, Math.max(bw, bh) * 1.25);
+  const rx0 = Math.max(0, Math.floor(bx0 - m)), ry0 = Math.max(0, Math.floor(by0 - m)), rx1 = Math.min(W, Math.ceil(bx1 + m)), ry1 = Math.min(H, Math.ceil(by1 + m));
+  const rw = rx1 - rx0, rh = ry1 - ry0, k = Math.min(1, 720 / Math.max(rw, rh));
+  const ww = Math.max(8, Math.round(rw*k)), wh = Math.max(8, Math.round(rh*k));
+  const maskC = mk(W, H), mx = maskC.getContext('2d'), mi = mx.createImageData(W, H);
+  for (let i=0; i<W*H; i++) if (st.mask[i]){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = mi.data[i*4+3] = 255; }
+  mx.putImageData(mi, 0, 0);
+  const crop = mk(ww, wh), cx = crop.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(src, rx0, ry0, rw, rh, 0, 0, ww, wh);
+  const cm = mk(ww, wh), cmx = cm.getContext('2d'); cmx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, ww, wh);
+  const md = cmx.getImageData(0, 0, ww, wh).data, hole = new Uint8Array(ww*wh);
+  // a pixel more all round, so no edge of the old object is left behind
+  for (let y=0; y<wh; y++) for (let x=0; x<ww; x++){
+    let on = 0;
+    for (let dy=-1; dy<=1 && !on; dy++) for (let dx=-1; dx<=1; dx++){ const xx = x+dx, yy = y+dy; if (xx >= 0 && yy >= 0 && xx < ww && yy < wh && md[(yy*ww + xx)*4 + 3] > 8){ on = 1; break; } }
+    hole[y*ww + x] = on;
+  }
+  ER.busy = true; stage.classList.add('erasing'); bgStatusMini('Erasing…');
+  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  try {
+    const filled = await inpaint(cx.getImageData(0, 0, ww, wh).data, ww, wh, hole);
+    const fc = mk(ww, wh); fc.getContext('2d').putImageData(new ImageData(filled, ww, wh), 0, 0);
+    // back to full size, blended in along a soft edge
+    const patch = mk(rw, rh), px = patch.getContext('2d'); px.imageSmoothingQuality = 'high'; px.drawImage(fc, 0, 0, rw, rh);
+    const soft = mk(rw, rh), sx = soft.getContext('2d'), feather = Math.max(1.2, 1.5 / k);
+    sx.filter = `blur(${feather.toFixed(1)}px)`; sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh); sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh); sx.filter = 'none';
+    sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh);
+    px.globalCompositeOperation = 'destination-in'; px.drawImage(soft, 0, 0);
+    if (k < 1) addGrain(patch, src, rx0, ry0);
+    const out = mk(W, H), ox = out.getContext('2d'); ox.drawImage(src, 0, 0); ox.drawImage(patch, rx0, ry0);
+    const bm = bgMasks.get(src); if (bm) bgMasks.set(out, bm); const sm = skyMasks.get(src); if (sm) skyMasks.set(out, sm);
+    S.base = out; commit();
+  } catch (e){
+    toast('That couldn’t be erased. Try a smaller area.');
+  } finally {
+    ER.busy = false; stage.classList.remove('erasing'); bgStatusMini('');
+    rebuildPreview();
+  }
+}
+/* a fill made at a smaller size is a little soft: give it the same fine grain as the photo around it */
+function addGrain(patch, src, rx, ry){
+  const w = patch.width, h = patch.height, s = src.getContext('2d').getImageData(rx, ry, w, h).data;
+  let sum = 0, n = 0;
+  for (let y=1; y<h-1; y+=3) for (let x=1; x<w-1; x+=3){ const i = (y*w + x)*4, l = s[i]+s[i+1]+s[i+2], r = s[i+4]+s[i+5]+s[i+6]; sum += Math.abs(l - r)/3; n++; }
+  const amp = Math.min(10, (sum / Math.max(1, n)) * 0.6); if (amp < 0.8) return;
+  const x = patch.getContext('2d'), d = x.getImageData(0, 0, w, h), p = d.data;
+  for (let i=0; i<p.length; i+=4){ if (!p[i+3]) continue; const g = (Math.random() - 0.5) * 2 * amp; p[i] += g; p[i+1] += g; p[i+2] += g; }
+  x.putImageData(d, 0, 0);
+}
+function bgStatusMini(msg){ if (msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(tt); } else $('#toast').hidden = true; }
 document.querySelectorAll('#rtTools button').forEach(b => b.onclick = () => { RT.tool = b.dataset.t; syncRetouch(); });
 const paintRtSize = bindRange('rtSize', () => RT.size, v => { RT.size = v; }, v => String(v));
 const paintRtStrength = bindRange('rtStrength', () => RT.strength, v => { RT.strength = v; }, v => v + '%');
@@ -893,7 +982,7 @@ $('#rtSize').removeEventListener('change', commit); $('#rtStrength').removeEvent
 function syncRetouch(){
   document.querySelectorAll('#rtTools button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === RT.tool)));
   $('#rtHint').textContent = RT_HINTS[RT.tool];
-  $('#rtStrengthRow').hidden = RT.tool === 'heal';
+  $('#rtStrengthRow').hidden = RT.tool === 'heal' || RT.tool === 'erase';
   paintRtSize(); paintRtStrength();
 }
 syncRetouch();
