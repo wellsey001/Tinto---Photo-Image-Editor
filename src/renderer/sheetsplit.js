@@ -236,49 +236,58 @@
     return pieces.slice(0, 400);
   }
 
-  /* Tidies a cut-out: keeps the drawing, drops leftover background and specks around it,
-     and gives it a fresh, even white die-cut border. Returns a new canvas. */
+  /* Tidies a cut-out: keeps only the drawing (up to its own outline), drops the old white border,
+     sketchy rim lines, leftover background and specks around it, and gives it one thin, even
+     white die-cut edge. Returns a new canvas (or the same one if there is nothing to keep). */
   function tidySticker(src){
     const W = src.width, H = src.height, N = W*H;
     const d = src.getContext('2d').getImageData(0, 0, W, H).data;
     const fillHoles = m => { const inv = new Uint8Array(N); for (let i=0; i<N; i++) inv[i] = m[i] ? 0 : 1; const out = floodFromEdge(inv, W, H), r = new Uint8Array(N); for (let i=0; i<N; i++) r[i] = out[i] ? 0 : 1; return r; };
-    // the drawing: anything visible that isn't white border or grey check pattern
-    let art = new Uint8Array(N), solid = new Uint8Array(N);
+    // anything visible that isn't white (old border) or pale grey (check pattern)
+    const ink = new Uint8Array(N), solid = new Uint8Array(N);
     for (let i=0, j=0; i<N; i++, j+=4){
       const r = d[j], g = d[j+1], b = d[j+2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
       solid[i] = d[j+3] > 128 ? 1 : 0;
-      art[i] = solid[i] && !((mx - mn) < 30 && (r+g+b)/3 > 195) ? 1 : 0;
+      ink[i] = solid[i] && !((mx - mn) < 30 && (r+g+b)/3 > 195) ? 1 : 0;
     }
-    art = close(art, W, H, 1);
-    // white-bodied drawings with small gaps in their outline: close the gaps just to find the inside
-    const inside = fillHoles(close(art, W, H, 6));
-    for (let i=0; i<N; i++) if (inside[i] && solid[i]) art[i] = 1;
-    art = fillHoles(art);
-    let count = 0; for (let i=0; i<N; i++) count += art[i];
+    // thin rim lines vanish under opening; the drawing and its proper outline survive
+    const thick = dilate(erode(ink, W, H, 1), W, H, 1);
+    for (let i=0; i<N; i++) thick[i] &= ink[i];
+    const L = label(thick, W, H);
+    if (!L.n) return src;
+    const size = new Int32Array(L.n+1); for (let i=0; i<N; i++) size[L.lab[i]]++;
+    let bigId = 1; for (let c=2; c<=L.n; c++) if (size[c] > size[bigId]) bigId = c;
+    const big = size[bigId];
+    // grow outwards from the biggest part: keep parts that sit close to what is already kept
+    const kept = new Uint8Array(L.n+1); kept[bigId] = 1;
+    let core = new Uint8Array(N); for (let i=0; i<N; i++) core[i] = L.lab[i] === bigId ? 1 : 0;
+    for (let round=0; round<12; round++){
+      const notCore = new Uint8Array(N); for (let i=0; i<N; i++) notCore[i] = core[i] ? 0 : 1;
+      const dist = distance(notCore, W, H), best = new Float32Array(L.n+1).fill(1e9);
+      for (let i=0; i<N; i++){ const c = L.lab[i]; if (c && !kept[c] && dist[i] < best[c]) best[c] = dist[i]; }
+      let added = false;
+      for (let c=1; c<=L.n; c++){
+        if (kept[c] || size[c] < 6) continue;
+        if (best[c] <= (size[c] >= 0.04*big ? 8 : 3)){ kept[c] = 1; added = true; }
+      }
+      if (!added) break;
+      for (let i=0; i<N; i++) if (kept[L.lab[i]]) core[i] = 1;
+    }
+    // the inside of the drawing (white faces, bodies) counts too, even where its outline has small gaps
+    const closed = fillHoles(close(core, W, H, 4)), filledCore = fillHoles(core);
+    let body = new Uint8Array(N);
+    for (let i=0; i<N; i++) body[i] = (closed[i] && solid[i]) || filledCore[i] ? 1 : 0;
+    // put back fine detail and edge pixels hugging the drawing (but not a rim further out)
+    const grown = dilate(body, W, H, 1);
+    for (let i=0; i<N; i++) if (grown[i] && ink[i]) body[i] = 1;
+    body = fillHoles(body);
+    let count = 0; for (let i=0; i<N; i++) count += body[i];
     if (count < 30) return src;
-    // drop specks: keep big parts, and small parts touching a big one
-    const L = label(art, W, H), size = new Int32Array(L.n+1);
-    for (let i=0; i<N; i++) size[L.lab[i]]++;
-    let big = 0; for (let c=1; c<=L.n; c++) big = Math.max(big, size[c]);
-    const keepBig = new Uint8Array(N); for (let i=0; i<N; i++) keepBig[i] = L.lab[i] && size[L.lab[i]] >= 0.05*big ? 1 : 0;
-    const nearBig = dilate(keepBig, W, H, 2), keepSmall = new Uint8Array(L.n+1);
-    for (let i=0; i<N; i++){ const c = L.lab[i]; if (c && !keepBig[i] && size[c] >= 4 && nearBig[i]) keepSmall[c] = 1; }
-    for (let i=0; i<N; i++) art[i] = keepBig[i] || keepSmall[L.lab[i]] ? 1 : 0;
-    art = fillHoles(art);
-    // border width: how far the original white border reached past the drawing (typical value)
-    const notArt = new Uint8Array(N); for (let i=0; i<N; i++) notArt[i] = art[i] ? 0 : 1;
-    const dist0 = distance(notArt, W, H), ring = [];
-    for (let y=0; y<H; y++) for (let x=0; x<W; x++){
-      const i = y*W+x; if (!solid[i]) continue;
-      const edge = x===0 || y===0 || x===W-1 || y===H-1 || !solid[i-1] || !solid[i+1] || !solid[i-W] || !solid[i+W];
-      if (edge && dist0[i] > 0 && dist0[i] < 20) ring.push(dist0[i]);
-    }
-    ring.sort((a, b) => a-b);
-    const R = Math.min(8, Math.max(3.5, ring.length ? ring[ring.length >> 1] : 5)) * Math.max(1, Math.max(W, H)/400);
-    // new sticker: the drawing as it was, then a clean white band with a soft edge
+    // one thin, even white edge
+    const R = Math.max(2.5, 0.022 * Math.max(W, H));
     const pad = Math.ceil(R) + 2, W2 = W + pad*2, H2 = H + pad*2, N2 = W2*H2;
     const big2 = new Uint8Array(N2);
-    for (let y=0; y<H; y++) for (let x=0; x<W; x++) big2[(y+pad)*W2 + x+pad] = art[y*W+x];
+    for (let y=0; y<H; y++) for (let x=0; x<W; x++) big2[(y+pad)*W2 + x+pad] = body[y*W+x];
     const outside = new Uint8Array(N2); for (let i=0; i<N2; i++) outside[i] = big2[i] ? 0 : 1;
     const D = distance(outside, W2, H2);
     const c = document.createElement('canvas'); c.width = W2; c.height = H2;
@@ -288,7 +297,7 @@
       if (big2[i]){
         const s = ((y-pad)*W + x-pad)*4;
         const rim = x>0 && y>0 && x<W2-1 && y<H2-1 && (!big2[i-1] || !big2[i+1] || !big2[i-W2] || !big2[i+W2]);
-        const t = rim ? 0.35 : 0;
+        const t = rim ? 0.3 : 0;
         od[k] = d[s] + (255-d[s])*t; od[k+1] = d[s+1] + (255-d[s+1])*t; od[k+2] = d[s+2] + (255-d[s+2])*t;
         od[k+3] = d[s+3];                       // see-through gaps inside a drawing stay see-through
       } else {
@@ -297,7 +306,6 @@
       }
     }
     cx.putImageData(o, 0, 0);
-    // trim to what's visible
     let x0 = W2, y0 = H2, x1 = -1, y1 = -1;
     for (let y=0; y<H2; y++) for (let x=0; x<W2; x++) if (od[(y*W2+x)*4+3] > 0){ if (x<x0) x0=x; if (x>x1) x1=x; if (y<y0) y0=y; if (y>y1) y1=y; }
     if (x1 < 0) return src;
