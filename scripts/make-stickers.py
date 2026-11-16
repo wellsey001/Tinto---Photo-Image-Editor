@@ -802,182 +802,189 @@ S['pickle'] = ('silly', 'Cool pickle', svg(
     lg('pk', '#a8e07a', '#4fae4a')))
 
 
-# ---------- Dark: for goths, emos and metalheads. Same build, an inky outline and moody colours ----------
-D = '#120d14'
-def dol(d, fill, w=SW):
-    return f'<path d="{d}" fill="{fill}" stroke="{D}" stroke-width="{w}"/>'
-def shine(x, y, s=1.0, rot=-35, op=.5):
-    return (f'<g transform="translate({x} {y}) rotate({rot})" fill="#fff" opacity="{op}">'
-            f'<ellipse cx="0" cy="0" rx="{9*s}" ry="{3.6*s}"/></g>')
+# ---------- Dark: tattoo-flash style (bold black line, flat traditional colours, stipple shading, white highlight dashes) ----------
+K='#151215'; RED='#c4262e'; RED2='#8f1820'; GOLD='#e5a42a'; TEAL='#2c8a78'; TEAL2='#1d6658'; BONE='#f1e6cb'; BLK='#1c181c'; WH='#fffaf0'; PURP='#5b3d78'
+LW=7
+def fsvg(body, defs=''):
+    pat=('<pattern id="dt" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="1.5" cy="1.5" r="1.25" fill="#151215"/></pattern>'
+         '<pattern id="dtl" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="1.5" cy="1.5" r="1.1" fill="#fffaf0"/></pattern>')
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs>{pat}{defs}</defs><g stroke-linejoin="round" stroke-linecap="round">{body}</g></svg>'
+def P(d, fill, w=LW, extra=''): return f'<path d="{d}" fill="{fill}" stroke="{K}" stroke-width="{w}" {extra}/>'
+def L(d, w=4, col=K, op=1): return f'<path d="{d}" fill="none" stroke="{col}" stroke-width="{w}" opacity="{op}"/>'
+def dots(d, light=False, op=0.9): return f'<path d="{d}" fill="url(#{"dtl" if light else "dt"})" opacity="{op}" stroke="none"/>'
+def clip(id, d, inner): return f'<clipPath id="{id}"><path d="{d}"/></clipPath><g clip-path="url(#{id})">{inner}</g>'
+def hl(d, w=4.5): return L(d, w, WH)
+F={}
+cr='M100 20 C150 20 172 56 168 98 C166 116 158 126 150 132 L150 146 C150 152 146 156 140 156 L60 156 C54 156 50 152 50 146 L50 132 C42 126 34 116 32 98 C28 56 50 20 100 20 Z'
+eye='M58 96 C58 76 74 70 86 74 C96 78 96 94 92 104 C88 114 74 118 66 114 C60 110 58 104 58 96Z'
+F['skull']=fsvg(
+  P('M66 150 L66 174 C66 183 72 188 80 188 L120 188 C128 188 134 183 134 174 L134 150 Z', BONE)
+  + clip('skj','M66 150 L66 174 C66 183 72 188 80 188 L120 188 C128 188 134 183 134 174 L134 150 Z', dots('M110 150 H140 V190 H110Z'))
+  + L('M80 156 V182 M93 156 V186 M107 156 V186 M120 156 V182',4)
+  + P(cr, BONE)
+  + clip('skc', cr, dots('M138 26 C176 50 178 120 146 140 L144 170 L190 170 L190 10 Z') + dots('M40 112 C48 128 58 136 70 138 L70 160 L30 160 Z', op=.6) + dots('M84 120 C92 130 108 130 116 120 L116 140 L84 140Z',op=.5))
+  + L('M74 138 V156 M87 140 V156 M100 140 V156 M113 140 V156 M126 138 V156',4)
+  + P(eye, BLK, 5) + P(eye, BLK, 5, 'transform="translate(200 0) scale(-1 1)"')
+  + P('M100 112 C93 122 88 130 92 134 C95 136 98 133 100 130 C102 133 105 136 108 134 C112 130 107 122 100 112 Z', BLK, 4)
+  + L('M128 30 L120 48 L130 56 L124 66',3.5)
+  + hl('M62 44 Q74 32 90 28') + hl('M54 60 Q55 56 57 53', 4) )
+rose_outer='M40 86 C36 52 64 30 100 32 C136 30 164 52 160 86 C158 110 140 128 100 130 C60 128 42 110 40 86Z'
+front='M44 84 C60 74 80 86 100 92 C120 86 140 74 156 84 C150 112 128 126 100 126 C72 126 50 112 44 84Z'
+F['rose']=fsvg(
+  P('M100 124 C100 148 96 168 90 190', 'none', 13) + L('M100 124 C100 148 96 168 90 190', 6, TEAL)
+  + P('M74 122 C50 116 26 128 16 150 C42 158 64 146 74 122Z', TEAL) + clip('rl','M74 122 C50 116 26 128 16 150 C42 158 64 146 74 122Z', dots('M10 150 C40 150 60 140 74 122 L80 160 L10 170Z',op=.8)) + L('M70 126 C54 132 36 140 22 148',3.5)
+  + P('M126 122 C150 116 174 128 184 150 C158 158 136 146 126 122Z', TEAL) + clip('rr','M126 122 C150 116 174 128 184 150 C158 158 136 146 126 122Z', dots('M190 150 C160 150 140 140 126 122 L120 160 L190 170Z',op=.8)) + L('M130 126 C146 132 164 140 178 148',3.5)
+  + P(rose_outer, RED)
+  + P('M62 64 C70 46 130 46 138 64 C128 80 72 80 62 64 Z', RED2, 6)
+  + L('M84 62 C86 52 114 52 116 62 C116 70 100 72 94 66 C90 62 96 58 102 60', 5)
+  + L('M62 64 C52 72 46 80 44 84', 5) + L('M138 64 C148 72 154 80 156 84', 5)
+  + clip('rf', front, '') + P(front, RED, 6)
+  + clip('rf2', front, dots('M30 100 C60 130 140 130 170 100 L170 140 L30 140Z'))
+  + clip('ro', rose_outer, dots('M30 40 C44 60 54 66 62 64 C58 80 50 84 44 84 L30 84Z',op=.7) + dots('M170 40 C156 60 146 66 138 64 C142 80 150 84 156 84 L170 84Z',op=.7))
+  + L('M100 92 C99 102 97 110 94 118', 4)
+  + hl('M70 42 Q84 36 96 36') + hl('M66 90 Q78 92 88 96',4) + hl('M118 96 Q130 92 140 90',4) + hl('M150 62 Q152 66 153 70',4))
+blade='M100 6 L116 40 L114 116 L86 116 L84 40 Z'
+F['dagger']=fsvg('<g transform="rotate(35 100 100)">'
+  + P(blade, '#eceae4') + clip('bl', blade, dots('M100 0 H130 V120 H100Z')) + L('M100 22 V110',3.5) + hl('M92 44 V96',4)
+  + P('M90 124 H110 V166 H90 Z', BLK, 6) + L('M90 132 L110 140 M90 144 L110 152 M90 156 L110 164', 3.5, RED)
+  + P('M48 120 C46 106 62 106 64 114 L136 114 C138 106 154 106 152 120 C150 134 136 132 134 126 L66 126 C64 132 50 134 48 120Z', GOLD)
+  + clip('cg','M48 120 C46 106 62 106 64 114 L136 114 C138 106 154 106 152 120 C150 134 136 132 134 126 L66 126 C64 132 50 134 48 120Z', dots('M40 122 H160 V140 H40Z'))
+  + P('M100 166 C110 166 114 172 114 178 C114 186 108 190 100 190 C92 190 86 186 86 178 C86 172 90 166 100 166Z', GOLD, 6) + hl('M94 174 Q96 171 99 170',3)
+  + '</g>')
+wing='M100 72 C88 62 72 64 64 74 C56 62 36 56 12 64 C24 72 28 84 24 98 C38 90 52 94 58 106 C66 96 78 98 84 108 C90 100 94 98 100 98 C106 98 110 100 116 108 C122 98 134 96 142 106 C148 94 162 90 176 98 C172 84 176 72 188 64 C164 56 144 62 136 74 C128 64 112 62 100 72 Z'
+F['bat']=fsvg(
+  P(wing, BLK) + L('M64 76 C50 80 36 88 26 96 M64 76 C58 86 58 96 58 104 M136 76 C150 80 164 88 174 96 M136 76 C142 86 142 96 142 104',3,'#55485c')
+  + hl('M30 68 Q44 64 58 68',3.5) + hl('M142 68 Q156 64 170 68',3.5)
+  + P('M84 76 L80 54 L93 67 Z', BLK, 5) + P('M116 76 L120 54 L107 67 Z', BLK, 5)
+  + P('M100 66 C114 66 122 76 122 88 C122 102 112 110 100 110 C88 110 78 102 78 88 C78 76 86 66 100 66Z', BLK, 6)
+  + '<path d="M89 84 L97 86 L90 90 Z M111 84 L103 86 L110 90 Z" fill="#e5352f"/>'
+  + P('M93 97 L96 104 L99 98 M101 98 L104 104 L107 97', WH, 2.5) + hl('M86 72 Q90 69 94 68',3))
+cat='M60 186 C50 150 58 120 80 108 C70 96 66 80 70 64 L58 24 L86 44 C94 42 106 42 114 44 L142 24 L130 64 C136 80 130 96 120 108 C142 120 150 150 140 186 Z'
+F['blackcat']=fsvg(
+  P('M146 184 C172 170 188 140 176 116 C168 100 150 106 156 122', 'none', 16) + L('M146 184 C172 170 188 140 176 116 C168 100 150 106 156 122', 6, BLK)
+  + P(cat, BLK) + P('M72 112 C88 120 112 120 128 112 L126 124 C110 130 90 130 74 124Z', RED, 5)
+  + P('M100 124 C107 124 110 129 110 134 C110 140 106 144 100 144 C94 144 90 140 90 134 C90 129 93 124 100 124Z', GOLD, 4)
+  + P('M76 76 C80 68 92 68 94 78 C90 84 80 84 76 76Z', GOLD, 4) + P('M124 76 C120 68 108 68 106 78 C110 84 120 84 124 76Z', GOLD, 4)
+  + '<path d="M85 70 V83 M115 70 V83" stroke="#151215" stroke-width="3.5"/>'
+  + '<path d="M96 90 L104 90 L100 95 Z" fill="#e28aa0"/>'
+  + L('M70 90 L46 86 M70 96 L48 100 M130 90 L154 86 M130 96 L152 100', 2, '#8a7f8e')
+  + hl('M64 32 L70 50',3.5) + hl('M136 32 L130 50',3.5) + hl('M62 150 Q60 136 66 124',4) + hl('M178 120 Q180 128 178 136',3.5))
+wax='M70 84 C82 78 118 78 130 84 L130 182 C130 188 70 188 70 182 Z'
+F['candle']=fsvg(
+  P(wax, BONE) + clip('cw', wax, dots('M112 70 H140 V190 H112Z'))
+  + P('M70 86 C82 80 118 80 130 86 C130 100 124 106 120 100 C116 114 110 120 106 108 C102 96 96 98 94 114 C92 128 84 128 84 114 C84 100 78 96 74 104 C71 110 70 104 70 96 Z', RED, 5)
+  + hl('M80 140 V170',4) + hl('M104 94 Q106 92 109 92',3)
+  + L('M100 70 V80',4)
+  + P('M100 14 C118 34 122 50 112 64 C107 72 93 72 88 64 C78 50 84 32 100 14 Z', RED, 5)
+  + P('M100 32 C108 44 110 54 104 61 C101 64 97 64 95 61 C90 54 92 44 100 32 Z', GOLD, 0)
+  + L('M58 36 L66 42 M142 36 L134 42 M100 0 V6 M50 62 H60 M150 62 H140', 3.5))
+MET='#c9c6cf'
+# spider
+legs=['M86 104 C66 86 48 88 34 70','M84 114 C62 106 42 114 26 106','M86 124 C66 128 52 142 42 156','M90 132 C78 146 72 162 68 178',
+      'M114 104 C134 86 152 88 166 70','M116 114 C138 106 158 114 174 106','M114 124 C134 128 148 142 158 156','M110 132 C122 146 128 162 132 178']
+abd='M100 98 C126 98 132 116 130 130 C128 148 114 158 100 158 C86 158 72 148 70 130 C68 116 74 98 100 98 Z'
+F['spider']=fsvg(L('M100 0 V76',3,'#e9e4ef') + ''.join(L(d,9) for d in legs)
+  + P(abd, BLK) + P('M100 72 C112 72 117 80 117 88 C117 97 109 102 100 102 C91 102 83 97 83 88 C83 80 88 72 100 72Z', BLK, 6)
+  + P('M100 114 L110 126 L100 142 L90 126 Z', RED, 3.5)
+  + '<circle cx="94" cy="88" r="3.5" fill="#e5352f"/><circle cx="106" cy="88" r="3.5" fill="#e5352f"/>'
+  + hl('M80 116 Q84 106 92 104',4) + hl('M88 80 Q91 77 95 76',3))
+# web
+def web(col,w1,w2):
+    out=''.join(f'<path d="M10 10 L{10+190*math.cos(a):.1f} {10+190*math.sin(a):.1f}" stroke="{col}" stroke-width="{w1}" fill="none"/>' for a in [i*math.pi/10 for i in range(6)])
+    for r in (42,84,126,168):
+        pts=[(10+r*math.cos(i*math.pi/10),10+r*math.sin(i*math.pi/10)) for i in range(6)]
+        d=f'M{pts[0][0]:.1f} {pts[0][1]:.1f}'
+        for i in range(1,6):
+            m=((i-.5)*math.pi/10); rr=r*0.86
+            d+=f' Q{10+rr*math.cos(m):.1f} {10+rr*math.sin(m):.1f} {pts[i][0]:.1f} {pts[i][1]:.1f}'
+        out+=f'<path d="{d}" stroke="{col}" stroke-width="{w2}" fill="none"/>'
+    return out
+F['web']=fsvg(web(K,9,8)+web(BONE,3.5,3) + L('M134 96 V126',2.5,'#e9e4ef')
+  + P('M134 124 C142 124 146 130 146 136 C146 144 140 148 134 148 C128 148 122 144 122 136 C122 130 126 124 134 124Z', BLK, 4)
+  + ''.join(L(f'M134 134 l{dx} {dy} l{dx//2} {abs(dy)//2+6}',4) for dx,dy in [(-14,-8),(-15,2),(-13,10),(14,-8),(15,2),(13,10)])
+  + '<path d="M131 132 L137 132 L134 138Z" fill="#c4262e"/>')
+# gothic cross
+cross='M88 22 L100 6 L112 22 V56 H146 L162 68 L146 80 H112 V164 L100 192 L88 164 V80 H54 L38 68 L54 56 H88 Z'
+F['gothcross']=fsvg(L('M100 40 V30 M70 50 L64 44 M130 50 L136 44 M60 90 L52 96 M140 90 L148 96',4)
+  + P(cross, GOLD) + clip('gx', cross, dots('M100 0 H170 V200 H100Z',op=.85))
+  + P('M100 54 L112 68 L100 82 L88 68 Z', RED, 5) + hl('M97 62 L100 59',3)
+  + L('M100 92 V156 M100 18 V44 M52 68 H76 M124 68 H148',2.5,K,.45)
+  + hl('M93 26 V46',4) + hl('M93 92 V130',4) + hl('M58 62 H78',4))
+# coffin
+cof='M74 10 H126 L162 58 L138 190 H62 L38 58 Z'
+F['coffin']=fsvg(P(cof, BLK) + P('M80 22 H120 L150 60 L128 178 H72 L50 60 Z','none',3,'stroke-opacity=".0"') + L('M80 22 H120 L150 60 L128 178 H72 L50 60 Z',3,'#4a404e')
+  + P('M92 60 H108 V82 H126 V98 H108 V146 H92 V98 H74 V82 H92 Z', BONE, 5) + clip('cc','M92 60 H108 V82 H126 V98 H108 V146 H92 V98 H74 V82 H92 Z', dots('M100 50 H140 V160 H100Z',op=.6))
+  + hl('M70 18 L48 54',4.5) + hl('M48 70 L58 120',4) + hl('M94 66 V76',3))
+# pentagram
+star=" ".join(("M" if i==0 else "L")+f"{100+76*math.cos(-math.pi/2+i*4*math.pi/5):.1f} {100+76*math.sin(-math.pi/2+i*4*math.pi/5):.1f}" for i in range(6))
+F['pentagram']=fsvg(f'<circle cx="100" cy="100" r="84" fill="none" stroke="{K}" stroke-width="20"/><circle cx="100" cy="100" r="84" fill="none" stroke="{BONE}" stroke-width="8"/>'
+  + f'<path d="{star}" fill="none" stroke="{K}" stroke-width="17"/><path d="{star}" fill="none" stroke="{RED}" stroke-width="6"/>'
+  + hl('M42 52 Q54 36 72 26',4))
+# broken heart
+H='M100 186 C70 160 22 130 22 82 C22 52 44 34 66 34 C82 34 94 44 100 56 C106 44 118 34 134 34 C156 34 178 52 178 82 C178 130 130 160 100 186 Z'
+crack='M100 56 L90 84 L108 104 L92 128 L104 150 L100 186'
+def half(side):
+    clipd = 'M0 0 H100 L90 84 L108 104 L92 128 L104 150 L100 200 H0Z' if side<0 else 'M200 0 H100 L90 84 L108 104 L92 128 L104 150 L100 200 H200Z'
+    rot=f'rotate({-8 if side<0 else 8} 100 186) translate({-6 if side<0 else 6} 0)'
+    return (f'<g transform="{rot}"><clipPath id="bh{side}"><path d="{clipd}"/></clipPath><g clip-path="url(#bh{side})">'
+            + P(H, RED, 14) + P(H, RED, 0) + clip(f'bhh{side}', H, dots('M10 120 C50 150 150 150 190 120 V200 H10Z') + L(crack, 14)) + '</g></g>')
+F['brokenheart']=fsvg('<g transform="translate(100 100) scale(.84) translate(-100 -104)">'+half(-1)+half(1) + hl('M40 70 Q44 54 58 48',5) + hl('M150 56 Q160 62 164 74',4)
+  + '</g>')
+# chain
+links=''
+pts=[(36,164),(64,136),(92,108),(120,80),(148,52),(172,28)]
+for i,(x,y) in enumerate(pts[:5]):
+    if i%2==0:
+        links+=f'<g transform="translate({x} {y}) rotate(-45)"><rect x="-30" y="-17" width="60" height="34" rx="17" fill="none" stroke="{K}" stroke-width="17"/><rect x="-30" y="-17" width="60" height="34" rx="17" fill="none" stroke="{MET}" stroke-width="7"/><path d="M-18 -17 H10" stroke="{WH}" stroke-width="3"/></g>'
+for i,(x,y) in enumerate(pts[:5]):
+    if i%2==1:
+        links+=f'<g transform="translate({x} {y}) rotate(-45)"><rect x="-30" y="-8" width="60" height="16" rx="8" fill="{MET}" stroke="{K}" stroke-width="6"/><path d="M-20 0 H20" stroke="{K}" stroke-width="3"/><path d="M-20 -3 H0" stroke="{WH}" stroke-width="2.5"/></g>'
+F['chain']=fsvg(links)
+# safety pin
+F['safetypin']=fsvg('<g transform="rotate(-35 100 100)">'
+  + L('M54 112 H150 C172 112 172 88 150 88 H44',15) + L('M54 112 H150 C172 112 172 88 150 88 H44',6,MET)
+  + f'<circle cx="160" cy="100" r="13" fill="none" stroke="{K}" stroke-width="14"/><circle cx="160" cy="100" r="13" fill="none" stroke="{MET}" stroke-width="5"/>'
+  + P('M22 78 H64 V122 H22 C12 122 8 114 8 106 V94 C8 86 12 78 22 78 Z', MET)
+  + clip('sp','M22 78 H64 V122 H22 C12 122 8 114 8 106 V94 C8 86 12 78 22 78 Z', dots('M0 104 H70 V130 H0Z',op=.8))
+  + hl('M18 86 H54',3.5) + hl('M80 86 H140',3) + '</g>')
+# moon
+mo='M120 18 C74 22 44 60 46 104 C48 150 88 184 134 180 C154 178 170 170 182 158 C134 166 94 134 92 94 C90 60 108 34 134 22 C130 20 124 18 120 18 Z'
+def star4(x,y,r,fill):
+    return P(f'M{x} {y-r} Q{x+r*.18} {y-r*.18} {x+r} {y} Q{x+r*.18} {y+r*.18} {x} {y+r} Q{x-r*.18} {y+r*.18} {x-r} {y} Q{x-r*.18} {y-r*.18} {x} {y-r}Z', fill, 4)
+F['moon']=fsvg(P(mo, GOLD) + clip('mn', mo, dots('M60 40 C70 100 110 160 182 160 L190 200 L20 200 L20 20Z',op=.75))
+  + hl('M76 52 Q66 70 64 92',5) + hl('M70 112 Q72 120 76 128',4)
+  + star4(150,70,17,BONE) + star4(172,112,9,BONE) + star4(34,36,11,BONE) + '<circle cx="132" cy="38" r="4" fill="#151215"/><circle cx="40" cy="150" r="4" fill="#151215"/>')
+# raven
+rv='M38 118 C38 86 64 62 96 62 C102 44 118 34 136 38 C148 40 156 48 160 56 L190 64 L160 72 C160 82 156 90 148 98 C170 116 174 144 158 160 C138 176 102 178 76 168 L36 186 L52 160 C42 150 38 134 38 118 Z'
+F['raven']=fsvg(L('M20 184 C70 178 130 180 186 172',12,'#5a3a2e') + L('M20 184 C70 178 130 180 186 172',12,K,0) + P('M20 184 C70 178 130 180 186 172','none',4)
+  + L('M86 166 L84 184 M104 170 L104 186',5)
+  + P(rv, BLK) + P('M82 90 C110 98 132 120 140 150 C112 146 86 130 70 108 Z', BLK, 5)
+  + L('M96 112 L120 136 M88 124 L110 142',2.5,'#5a5070') + P('M160 56 L190 64 L160 72 Z', '#2a2530', 4)
+  + '<circle cx="138" cy="52" r="6" fill="#e5a42a" stroke="#151215" stroke-width="3"/><circle cx="138" cy="52" r="2.4" fill="#151215"/>'
+  + hl('M104 70 Q118 64 128 62',4) + hl('M50 112 Q54 94 66 84',4.5) + hl('M166 61 L176 63',2.5))
+# potion
+bt='M88 36 H112 V66 C140 76 160 102 160 130 C160 166 132 188 100 188 C68 188 40 166 40 130 C40 102 60 76 88 66 Z'
+liq='M44 128 C68 118 88 136 112 124 C128 116 144 120 156 128 C156 164 130 184 100 184 C70 184 44 164 44 128 Z'
+F['potion']=fsvg(P(bt, '#dfe9e6') + clip('pb', bt, P(liq, PURP, 5) + dots('M120 110 H170 V200 H120Z',op=.7))
+  + P(bt,'none') + P('M82 16 H118 V38 H82 Z', '#9a6a44', 6) + L('M82 26 H118',2.5,K,.5)
+  + P('M80 136 H120 V166 H80 Z', BONE, 4)
+  + '<circle cx="100" cy="148" r="7" fill="#151215"/><rect x="96" y="152" width="8" height="6" fill="#151215"/><path d="M90 162 L110 156 M90 156 L110 162" stroke="#151215" stroke-width="2.5"/>'
+  + '<circle cx="97" cy="147" r="1.8" fill="#f1e6cb"/><circle cx="103" cy="147" r="1.8" fill="#f1e6cb"/>'
+  + ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#fffaf0" stroke="#151215" stroke-width="2.5"/>' for x,y,r in [(66,128,5),(136,120,4),(118,100,3.5)])
+  + hl('M56 104 Q60 92 70 84',5) + hl('M92 44 V60',3.5))
+# emo ghost
+gh='M100 22 C144 22 162 60 162 104 L162 178 L146 166 L132 182 L116 166 L100 182 L84 166 L68 182 L54 166 L38 178 L38 104 C38 60 56 22 100 22 Z'
+F['ghostie']=fsvg(P(gh, BONE) + clip('gh', gh, dots('M134 40 C170 80 170 150 150 190 L200 200 L200 0Z',op=.8))
+  + P('M58 64 C64 34 100 18 136 30 C150 36 156 46 156 56 C140 48 120 50 112 70 C104 84 92 92 70 96 C76 84 76 74 58 64 Z', BLK, 5)
+  + hl('M94 34 Q108 30 124 32',3.5)
+  + '<ellipse cx="124" cy="96" rx="8" ry="11" fill="#151215"/>' + hl('M121 90 Q123 88 126 88',2.5)
+  + L('M100 130 Q108 124 116 130',4.5)
+  + P('M128 112 C131 118 131 124 128 126 C125 124 125 118 128 112Z', '#7fb9ff', 3)
+  + hl('M50 104 V140',5))
 
-S['bat'] = ('dark', 'Bat', svg(
-    dol('M100 70 C88 60 72 62 64 72 C56 60 36 54 14 62 C26 70 30 82 26 96 C40 88 54 92 60 104 C68 94 80 96 86 106 C92 98 96 96 100 96 C104 96 108 98 114 106 C120 96 132 94 140 104 C146 92 160 88 174 96 C170 82 174 70 186 62 C164 54 144 60 136 72 C128 62 112 60 100 70 Z', 'url(#bat)')
-    + dol('M84 74 L80 52 L92 66 Z M116 74 L120 52 L108 66 Z', '#2b2033', 4)
-    + '<ellipse cx="100" cy="86" rx="20" ry="18" fill="#2b2033"/>'
-    + '<circle cx="92" cy="82" r="4.5" fill="#ff3355"/><circle cx="108" cy="82" r="4.5" fill="#ff3355"/><circle cx="93.5" cy="80.5" r="1.4" fill="#fff"/><circle cx="109.5" cy="80.5" r="1.4" fill="#fff"/>'
-    + f'<path d="M93 93 L96 99 L99 94 M101 94 L104 99 L107 93" fill="#fff" stroke="{D}" stroke-width="2"/>'
-    + shine(60, 74, .9, -20, .25) + shine(140, 74, .9, 20, .25),
-    lg('bat', '#4a3a5c', '#1d1524')))
+for _id, _name in [('bat', 'Bat'), ('skull', 'Skull'), ('rose', 'Rose'), ('spider', 'Spider'), ('web', 'Cobweb'), ('gothcross', 'Gothic cross'), ('coffin', 'Coffin'), ('pentagram', 'Pentagram'), ('brokenheart', 'Broken heart'), ('chain', 'Chain'), ('safetypin', 'Safety pin'), ('blackcat', 'Black cat'), ('moon', 'Moon'), ('candle', 'Candle'), ('raven', 'Raven'), ('dagger', 'Dagger'), ('potion', 'Poison'), ('ghostie', 'Emo ghost')]:
+    S[_id] = ('dark', _name, F[_id])
 
-S['skull'] = ('dark', 'Skull', svg(
-    dol('M100 22 C146 22 172 54 170 94 C168 120 156 132 146 138 L146 162 C146 172 138 178 128 178 L72 178 C62 178 54 172 54 162 L54 138 C44 132 32 120 30 94 C28 54 54 22 100 22 Z', 'url(#sk)')
-    + f'<path d="M58 104 C58 86 70 78 82 80 C94 82 96 96 92 108 C88 120 74 124 66 120 C60 116 58 112 58 104 Z" fill="{D}"/>'
-    + f'<path d="M142 104 C142 86 130 78 118 80 C106 82 104 96 108 108 C112 120 126 124 134 120 C140 116 142 112 142 104 Z" fill="{D}"/>'
-    + '<circle cx="80" cy="100" r="5" fill="#ff3355" opacity=".9"/><circle cx="120" cy="100" r="5" fill="#ff3355" opacity=".9"/>'
-    + f'<path d="M100 120 L92 138 L108 138 Z" fill="{D}"/>'
-    + f'<path d="M72 152 V176 M86 152 V178 M100 152 V178 M114 152 V178 M128 152 V176" stroke="{D}" stroke-width="4"/>'
-    + f'<path d="M66 152 H134" stroke="{D}" stroke-width="4"/>'
-    + f'<path d="M128 38 L120 56 L130 64" fill="none" stroke="{D}" stroke-width="3"/>'
-    + shine(64, 52, 1, -40, .7),
-    lg('sk', '#f4f0ea', '#c9c0d6')))
-
-S['rose'] = ('dark', 'Black rose', svg(
-    dol('M98 120 C96 150 92 170 88 194', 'none', 7) + dol('M98 120 C96 150 92 170 88 194', 'none', 0)
-    + f'<path d="M98 120 C96 150 92 170 88 194" fill="none" stroke="#3b6b3a" stroke-width="5"/>'
-    + dol('M94 156 C76 150 62 156 56 168 C72 172 86 168 94 156 Z', '#3b6b3a', 4)
-    + dol('M98 140 C114 132 130 134 138 144 C122 152 108 150 98 140 Z', '#3b6b3a', 4)
-    + dol('M100 30 C134 28 160 52 156 84 C152 112 128 128 100 126 C72 128 46 112 44 84 C40 52 66 28 100 30 Z', 'url(#rs)')
-    + f'<path d="M100 54 C118 52 130 64 128 80 C126 96 110 102 98 98 C84 94 80 80 88 70" fill="none" stroke="{D}" stroke-width="4"/>'
-    + f'<path d="M100 72 C108 70 112 78 106 84" fill="none" stroke="{D}" stroke-width="4"/>'
-    + f'<path d="M58 70 C66 96 82 112 100 114 M142 70 C134 96 118 112 100 114" fill="none" stroke="{D}" stroke-width="3.5"/>'
-    + '<path d="M120 112 C122 118 126 122 128 122" stroke="#d6144a" stroke-width="5"/><circle cx="128" cy="130" r="4" fill="#d6144a"/>'
-    + shine(74, 50, .8, -40, .35),
-    rg('rs', '#4b1528', '#140810', .4, .35, .8)))
-
-S['spider'] = ('dark', 'Spider', svg(
-    f'<path d="M100 0 V70" stroke="#cfc8da" stroke-width="2"/>'
-    + ''.join(f'<path d="{d}" fill="none" stroke="{D}" stroke-width="6"/>' for d in [
-        'M84 100 C64 84 46 86 34 70', 'M82 110 C60 104 42 112 28 104', 'M84 120 C64 124 50 138 40 152', 'M88 128 C76 142 70 160 66 176',
-        'M116 100 C136 84 154 86 166 70', 'M118 110 C140 104 158 112 172 104', 'M116 120 C136 124 150 138 160 152', 'M112 128 C124 142 130 160 134 176'])
-    + dol('M100 94 C124 94 128 112 126 124 C124 140 112 148 100 148 C88 148 76 140 74 124 C72 112 76 94 100 94 Z', 'url(#sp)')
-    + dol('M100 70 C112 70 116 80 116 88 C116 96 108 100 100 100 C92 100 84 96 84 88 C84 80 88 70 100 70 Z', '#2b2033', 4)
-    + '<circle cx="94" cy="86" r="4" fill="#ff3355"/><circle cx="106" cy="86" r="4" fill="#ff3355"/><circle cx="95" cy="84.6" r="1.3" fill="#fff"/><circle cx="107" cy="84.6" r="1.3" fill="#fff"/>'
-    + '<path d="M100 110 L108 120 L100 132 L92 120 Z" fill="#d6144a"/>'
-    + shine(88, 106, .7, -40, .3),
-    lg('sp', '#3a2c47', '#120d14')))
-
-def web_lines(col, w1, w2):
-    spokes = ''.join(f'<path d="M10 10 L{190*math.cos(a)+10:.1f} {190*math.sin(a)+10:.1f}" stroke="{col}" stroke-width="{w1}" stroke-linecap="round"/>' for a in [i*math.pi/2/5 for i in range(6)])
-    rings = ''.join('<path d="' + ' '.join(('M' if i == 0 else 'Q') + (f'{10+r*0.62*math.cos((i-.5)*math.pi/10):.1f} {10+r*0.62*math.sin((i-.5)*math.pi/10):.1f} ' if i else '') + f'{10+r*math.cos(i*math.pi/10):.1f} {10+r*math.sin(i*math.pi/10):.1f}' for i in range(6)) + f'" fill="none" stroke="{col}" stroke-width="{w2}" stroke-linecap="round"/>' for r in (40, 80, 122, 166))
-    return spokes + rings
-S['web'] = ('dark', 'Cobweb', svg(
-    web_lines(D, 8, 7) + web_lines('#efeaf5', 3.5, 2.8)
-    + f'<path d="M128 70 V118" stroke="#efeaf5" stroke-width="2"/>'
-    + f'<circle cx="128" cy="128" r="11" fill="{D}"/><circle cx="128" cy="118" r="7" fill="{D}"/><circle cx="125" cy="117" r="2" fill="#ff3355"/><circle cx="131" cy="117" r="2" fill="#ff3355"/>'
-    + ''.join(f'<path d="M128 126 l{dx} {dy} l{dx//2} {abs(dy)//2+6}" fill="none" stroke="{D}" stroke-width="3.5"/>' for dx, dy in [(-14,-8),(-15,2),(-13,10),(14,-8),(15,2),(13,10)]),
-    ''))
-
-S['gothcross'] = ('dark', 'Gothic cross', svg(
-    dol('M88 14 H112 V56 H150 L162 68 L150 80 H112 V170 L100 190 L88 170 V80 H50 L38 68 L50 56 H88 Z', 'url(#gc)')
-    + f'<circle cx="100" cy="68" r="12" fill="#d6144a" stroke="{D}" stroke-width="4"/><circle cx="96" cy="64" r="3.5" fill="#fff" opacity=".7"/>'
-    + f'<path d="M100 92 V160 M64 68 H82 M118 68 H136 M100 28 V48" stroke="{D}" stroke-width="2" opacity=".35"/>'
-    + shine(96, 26, .6, -70, .5),
-    lg('gc', '#e7e2ee', '#9a90a8', 0, 0, 1, 1)))
-
-S['coffin'] = ('dark', 'Coffin', svg(
-    dol('M74 12 H126 L160 58 L138 190 H62 L40 58 Z', 'url(#cf)')
-    + dol('M78 22 H122 L150 60 L130 180 H70 L50 60 Z', 'none', 3)
-    + f'<path d="M100 64 V140 M80 88 H120" stroke="#d9b45a" stroke-width="9" stroke-linecap="square"/>'
-    + f'<path d="M100 64 V140 M80 88 H120" stroke="{D}" stroke-width="2" stroke-linecap="square" opacity=".4"/>'
-    + shine(66, 60, .9, -60, .25),
-    lg('cf', '#5a3a2e', '#24140f')))
-
-S['pentagram'] = ('dark', 'Pentagram', svg(
-    f'<circle cx="100" cy="100" r="82" fill="none" stroke="{D}" stroke-width="{SW*2+6}"/>'
-    + '<circle cx="100" cy="100" r="82" fill="none" stroke="url(#pg)" stroke-width="6"/>'
-    + f'<path d="{" ".join(("M" if i==0 else "L") + f"{100+80*math.cos(-math.pi/2+i*4*math.pi/5):.1f} {100+80*math.sin(-math.pi/2+i*4*math.pi/5):.1f}" for i in range(6))}" fill="none" stroke="{D}" stroke-width="{SW*2+4}" stroke-linejoin="round"/>'
-    + f'<path d="{" ".join(("M" if i==0 else "L") + f"{100+80*math.cos(-math.pi/2+i*4*math.pi/5):.1f} {100+80*math.sin(-math.pi/2+i*4*math.pi/5):.1f}" for i in range(6))}" fill="none" stroke="url(#pg)" stroke-width="5" stroke-linejoin="round"/>'
-    + ''.join(f'<circle cx="{100+82*math.cos(-math.pi/2+i*2*math.pi/5):.1f}" cy="{100+82*math.sin(-math.pi/2+i*2*math.pi/5):.1f}" r="6" fill="#d6144a" stroke="{D}" stroke-width="3"/>' for i in range(5)),
-    lg('pg', '#f0e6ff', '#a68fc9')))
-
-S['brokenheart'] = ('dark', 'Broken heart', svg(
-    f'<clipPath id="bhH"><path d="{heart_path(100, 96, 1.5)}"/></clipPath><clipPath id="bhL"><path d="M0 0 H98 L88 52 L106 80 L90 112 L102 200 H0 Z"/></clipPath><clipPath id="bhR"><path d="M200 0 H98 L88 52 L106 80 L90 112 L102 200 H200 Z"/></clipPath>'
-    + f'<g clip-path="url(#bhL)" transform="rotate(-7 96 170) translate(-6 0)"><path d="{heart_path(100, 96, 1.5)}" fill="url(#bh)" stroke="{D}" stroke-width="{SW*1.4}"/><g clip-path="url(#bhH)"><path d="M98 0 L88 52 L106 80 L90 112 L102 200" fill="none" stroke="{D}" stroke-width="{SW*1.4}"/></g></g>'
-    + f'<g clip-path="url(#bhR)" transform="rotate(7 104 170) translate(6 0)"><path d="{heart_path(100, 96, 1.5)}" fill="url(#bh)" stroke="{D}" stroke-width="{SW*1.4}"/><g clip-path="url(#bhH)"><path d="M98 0 L88 52 L106 80 L90 112 L102 200" fill="none" stroke="{D}" stroke-width="{SW*1.4}"/></g></g>'
-    + shine(52, 54, 1, -40, .5) + '<path d="M150 150 C152 160 152 168 148 172" stroke="#7fb9ff" stroke-width="5" fill="none"/>',
-    lg('bh', '#e8203f', '#7a0418')))
-
-S['chain'] = ('dark', 'Chain', svg(
-    ''.join(f'<g transform="translate({x} {y}) rotate(-35)"><rect x="-26" y="-14" width="52" height="28" rx="14" fill="none" stroke="{D}" stroke-width="15"/><rect x="-26" y="-14" width="52" height="28" rx="14" fill="none" stroke="url(#ch)" stroke-width="8"/></g>'
-            if i % 2 == 0 else
-            f'<g transform="translate({x} {y}) rotate(55)"><rect x="-26" y="-12" width="52" height="24" rx="12" fill="none" stroke="{D}" stroke-width="15"/><rect x="-26" y="-12" width="52" height="24" rx="12" fill="none" stroke="url(#ch)" stroke-width="8"/></g>'
-            for i, (x, y) in enumerate([(40, 160), (70, 130), (100, 100), (130, 70), (160, 40)])),
-    lg('ch', '#ffffff', '#8c8796', 0, 0, 1, 1)))
-
-S['safetypin'] = ('dark', 'Safety pin', svg(
-    f'<g transform="rotate(-35 100 100)">'
-    + f'<path d="M40 112 H150 C176 112 176 88 150 88 H52" fill="none" stroke="{D}" stroke-width="16"/>'
-    + f'<path d="M40 112 H150 C176 112 176 88 150 88 H52" fill="none" stroke="url(#pin)" stroke-width="8"/>'
-    + f'<circle cx="160" cy="100" r="9" fill="none" stroke="{D}" stroke-width="4"/>'
-    + dol('M22 80 H62 V120 H22 C14 120 10 114 10 106 V94 C10 86 14 80 22 80 Z', 'url(#pin)', 5)
-    + f'<path d="M30 92 H52 M30 100 H52 M30 108 H52" stroke="{D}" stroke-width="2.5" opacity=".5"/></g>',
-    lg('pin', '#ffffff', '#9a96a3', 0, 0, 1, 1)))
-
-S['blackcat'] = ('dark', 'Black cat', svg(
-    dol('M150 172 C170 160 186 138 176 116 C168 100 150 108 156 122', 'none', 14)
-    + f'<path d="M150 172 C170 160 186 138 176 116 C168 100 150 108 156 122" fill="none" stroke="#231a2b" stroke-width="7"/>'
-    + dol('M60 186 C50 150 58 120 80 108 C70 96 66 80 70 64 L58 26 L86 46 C94 44 106 44 114 46 L142 26 L130 64 C136 80 130 96 120 108 C142 120 150 150 140 186 Z', 'url(#bc)')
-    + '<ellipse cx="86" cy="76" rx="9" ry="10" fill="#c8f04a"/><ellipse cx="114" cy="76" rx="9" ry="10" fill="#c8f04a"/>'
-    + f'<ellipse cx="86" cy="77" rx="2.6" ry="8" fill="{D}"/><ellipse cx="114" cy="77" rx="2.6" ry="8" fill="{D}"/>'
-    + '<circle cx="89" cy="72" r="2" fill="#fff"/><circle cx="117" cy="72" r="2" fill="#fff"/>'
-    + '<path d="M96 92 L104 92 L100 97 Z" fill="#ff7aa2"/>'
-    + f'<path d="M70 92 L48 88 M70 98 L50 102 M130 92 L152 88 M130 98 L150 102" stroke="#6d5d7a" stroke-width="2"/>'
-    + f'<path d="M78 146 C80 160 82 176 80 186 M122 146 C120 160 118 176 120 186" fill="none" stroke="#3b2f45" stroke-width="3"/>'
-    + shine(80, 120, .9, -60, .2),
-    lg('bc', '#3b2f45', '#120d14')))
-
-S['moon'] = ('dark', 'Witchy moon', svg(
-    dol('M120 20 C76 24 46 60 48 104 C50 148 88 182 132 178 C152 176 168 168 180 156 C132 164 94 132 92 92 C90 60 108 34 134 22 C130 20 124 20 120 20 Z', 'url(#mn)')
-    + ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#b9a8d9" opacity=".6"/>' for x, y, r in [(78, 80, 7), (70, 130, 5), (100, 156, 6)])
-    + star4(152, 70, 16, '#f6e7a8') + star4(170, 110, 9, '#f6e7a8', rot=20) + star4(30, 40, 10, '#d9cdf2')
-    + face(84, 104, .7, mood='sleep', blush=False),
-    lg('mn', '#efe6ff', '#9f8fd0', 0, 0, 1, 1)))
-
-S['candle'] = ('dark', 'Candle', svg(
-    f'<path d="M100 18 C114 36 118 50 110 62 C106 70 94 70 90 62 C82 50 88 34 100 18 Z" fill="#ffcf5a" stroke="{D}" stroke-width="4"/>'
-    + '<path d="M100 36 C106 46 106 54 102 58 C99 60 96 58 96 54 C95 48 97 42 100 36 Z" fill="#fff6c8"/>'
-    + f'<path d="M100 70 V78" stroke="{D}" stroke-width="4"/>'
-    + dol('M68 82 C80 76 120 76 132 82 L132 182 C132 188 68 188 68 182 Z', 'url(#cd)')
-    + dol('M68 84 C80 78 120 78 132 84 C132 98 126 104 122 100 C118 112 112 118 108 108 C104 96 98 98 96 112 C94 126 86 126 86 112 C86 100 80 96 76 104 C72 110 68 106 68 96 Z', '#efe9f2', 4)
-    + glint(84, 128, .5, rot=-80),
-    lg('cd', '#dcd2e4', '#a796b6')))
-
-S['raven'] = ('dark', 'Raven', svg(
-    dol('M40 120 C40 86 66 62 98 62 C104 44 120 34 138 38 C150 40 158 48 162 56 L188 62 L162 70 C162 80 158 90 150 98 C172 116 176 144 160 160 C140 176 104 178 78 168 L40 186 L54 160 C44 150 40 136 40 120 Z', 'url(#rv)')
-    + dol('M84 92 C110 100 132 120 140 150 C112 146 88 130 72 108 Z', '#2a2035', 4)
-    + '<circle cx="140" cy="52" r="5.5" fill="#d6144a"/><circle cx="141.8" cy="50.2" r="1.8" fill="#fff"/>'
-    + f'<path d="M88 168 L84 190 M102 172 L102 192 M84 190 L76 194 M84 190 L90 196 M102 192 L96 196 M102 192 L108 196" stroke="#4a4050" stroke-width="4"/>'
-    + shine(110, 66, .8, -20, .3),
-    lg('rv', '#3a2f48', '#0d0910')))
-
-S['dagger'] = ('dark', 'Dagger', svg(
-    f'<g transform="rotate(30 100 100)">'
-    + dol('M100 8 L114 34 L114 120 L86 120 L86 34 Z', 'url(#dg)')
-    + f'<path d="M100 14 V118" stroke="{D}" stroke-width="2" opacity=".35"/>'
-    + dol('M56 120 H144 C150 120 152 132 144 132 H56 C48 132 50 120 56 120 Z', '#d9b45a', 4)
-    + dol('M90 132 H110 V170 H90 Z', '#4a2a22', 4)
-    + f'<path d="M90 144 H110 M90 156 H110" stroke="#2a1812" stroke-width="3"/>'
-    + f'<circle cx="100" cy="180" r="11" fill="#d6144a" stroke="{D}" stroke-width="4"/><circle cx="96" cy="176" r="3" fill="#fff" opacity=".7"/>'
-    + '<path d="M100 60 C104 70 104 80 100 86 C96 80 96 70 100 60 Z" fill="#d6144a"/></g>',
-    lg('dg', '#ffffff', '#9aa3b0', 0, 0, 1, 0)))
-
-S['potion'] = ('dark', 'Potion', svg(
-    dol('M84 20 H116 V36 H84 Z', '#8a5a3a', 4)
-    + dol('M88 36 H112 V66 C140 76 160 102 160 130 C160 166 132 188 100 188 C68 188 40 166 40 130 C40 102 60 76 88 66 Z', 'url(#gl)')
-    + f'<path d="M46 132 C70 122 90 140 114 128 C130 120 146 124 154 132 C152 162 130 182 100 182 C70 182 48 164 46 132 Z" fill="url(#pt)"/>'
-    + '<circle cx="76" cy="152" r="6" fill="#d9ffb0" opacity=".8"/><circle cx="118" cy="158" r="4" fill="#d9ffb0" opacity=".8"/><circle cx="100" cy="112" r="5" fill="#d9ffb0" opacity=".5"/><circle cx="110" cy="96" r="3" fill="#d9ffb0" opacity=".4"/>'
-    + face(100, 150, .75, mood='smile', blush=False)
-    + shine(66, 104, 1, -60, .55),
-    lg('gl', '#e8e4f0', '#b2a7c4') + lg('pt', '#7cf05a', '#2f9a3a')))
-
-S['ghostie'] = ('dark', 'Emo ghost', svg(
-    dol('M100 24 C144 24 162 60 162 104 L162 176 L146 164 L132 180 L116 164 L100 180 L84 164 L68 180 L54 164 L38 176 L38 104 C38 60 56 24 100 24 Z', 'url(#eg)')
-    + f'<path d="M62 46 C78 30 112 26 140 40 C128 46 112 50 110 72 C100 60 84 58 62 66 Z" fill="{D}"/>'
-    + f'<path d="M80 100 Q86 94 92 100" fill="none" stroke="{D}" stroke-width="4"/><circle cx="118" cy="100" r="5" fill="{D}"/><circle cx="119.6" cy="98.4" r="1.6" fill="#fff"/>'
-    + f'<path d="M94 126 Q100 120 106 126" fill="none" stroke="{D}" stroke-width="4"/>'
-    + '<path d="M80 104 C79 112 79 118 82 120" stroke="#7fb9ff" stroke-width="4" fill="none"/>'
-    + shine(64, 82, .8, -60, .5),
-    lg('eg', '#ffffff', '#d7d2e6')))
 
 pack = [{'id': sid, 'cat': cat, 'name': name, 'svg': body} for sid, (cat, name, body) in S.items()]
 with open(OUT, 'w') as f:

@@ -68,7 +68,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
   - Filters: Crypt, Bloodmoon, Noir Lace, Scene Kid, Cassette, Doom, Witch House, Ghost and Ink.
   - Effects: Grunge, Xerox, VHS (with a date stamp), Smoke, Infrared, Chroma, Blood (paint drips) and Eye glow (tap the eyes; red, white, ice, violet or gold).
   - Frames: Gothic, Barbed wire, Burnt, Cracked, Coffin and Cameo.
-  - 18 stickers in a Dark pack (bat, skull, rose, raven, coffin, candle, chain, safety pin and more) and four fonts: Blackletter, Metal Mania, Creepster and Nosifer.
+  - 18 stickers in a Dark pack drawn in old-school tattoo flash style (skull, rose, dagger, bat, raven, coffin, candle, chain and more) and four fonts: Blackletter, Metal Mania, Creepster and Nosifer.
   - Templates for work: Gig poster, Punk zine, Club night, Band promo, Setlist, Flash day, Photo credits and Merch mockup, plus a Fresh & healed tattoo collage.
   - Text made for this photo suggests darker words and fonts once a dark look is on.
 - **Crop and rotate:** free or fixed ratios (1:1, 4:5, 3:2, 16:9, 9:16), rotate 90°, flip horizontal or vertical.
