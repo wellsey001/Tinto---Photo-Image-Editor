@@ -2142,9 +2142,9 @@ function skFinish(){
 }
 
 /* ---- illustrated sticker packs: vector art, rasterised on demand with a white die-cut border and soft shadow ---- */
-const PACK = [...(window.STICKER_ART || []), ...(window.STICKER_PACK || [])];
-const PACK_CATS = [['kawaii','Kawaii'],['y2k','Y2K'],['street','Street'],['aesthetic','Aesthetic'],['food','Food'],['summer','Summer'],['love','Love'],['party','Party'],['dreamy','Dreamy'],['nature','Nature']];
-let packCat = 'kawaii';
+const PACK = window.STICKER_PACK || [];
+const PACK_CATS = [['animals','Animals'],['food','Food'],['cosy','Cosy'],['love','Love'],['party','Party'],['summer','Summer'],['retro','Retro'],['space','Space'],['dreamy','Dreamy'],['nature','Nature']];
+let packCat = 'animals';
 const packURL = s => s.src || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg));
 
 async function packCanvas(s){
