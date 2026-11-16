@@ -109,7 +109,7 @@
           <p class="hint" id="rtHint"></p>
           <div class="row"><label for="rtSize">Brush size</label><output id="rtSizeOut"></output><input type="range" id="rtSize" min="1" max="100" value="25"></div>
           <div class="row" id="rtStrengthRow"><label for="rtStrength">Strength</label><output id="rtStrengthOut"></output><input type="range" id="rtStrength" min="10" max="100" value="60"></div>
-          <p class="hint">Zoom in with a bigger window for fine work. Undo takes back a stroke at a time.</p>
+          <p class="hint">Zoom in for fine work: scroll, pinch, or Ctrl +. Undo takes back a stroke at a time.</p>
         </div>
 
         <div class="pane" id="pane-crop" hidden>
@@ -258,6 +258,13 @@
           <ul class="layers" id="layerList"></ul>
           <div class="sub" id="layerEdit" hidden>
             <div class="row"><label for="lopacity">Opacity</label><output id="lopacityOut"></output><input type="range" id="lopacity" min="5" max="100"></div>
+            <label class="field"><span>Blend</span><select class="input" id="lblend">
+              <option value="source-over">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option>
+              <option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="hard-light">Hard light</option>
+              <option value="color-dodge">Colour dodge</option><option value="color-burn">Colour burn</option><option value="darken">Darken</option>
+              <option value="lighten">Lighten</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option>
+              <option value="hue">Hue</option><option value="saturation">Saturation</option><option value="color">Colour</option><option value="luminosity">Luminosity</option>
+            </select></label>
             <div class="split">
               <button class="btn" id="ldup" type="button">Duplicate</button>
               <button class="btn" id="ldel" type="button">Delete</button>

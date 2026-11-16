@@ -314,6 +314,7 @@ function fromLocal(l, lx, ly){
 function drawLayer(ctx, l){
   ctx.save();
   ctx.globalAlpha = l.opacity;
+  if (l.blend && l.blend !== 'source-over') ctx.globalCompositeOperation = l.blend;
   ctx.translate(l.x, l.y); ctx.rotate(l.rot*RAD); ctx.scale(l.scale*(l.flip?-1:1), l.scale);
   if (l.type==='text') drawText(ctx, l);
   else if (l.type==='shape') drawShape(ctx, l);
@@ -416,16 +417,23 @@ function layerName(l){
 let prevData = null, comparing = false, raf = 0;
 const photoC = mk(10,10), photoX = photoC.getContext('2d');
 const rawC = mk(10,10), rawX = rawC.getContext('2d');
-function rebuildPreview(){
+let lastDims = '';
+function rebuildPreview(zoomOnly){
   const b = S.base, st = stage.getBoundingClientRect();
+  // a different photo (or a crop or resize) starts back at "fit"
+  const dims = b.width + 'x' + b.height;
+  if (!zoomOnly && dims !== lastDims && typeof zoomLevel !== 'undefined' && zoomLevel !== 1){ zoomLevel = 1; panX = panY = 0; view.style.transform = ''; zoomUI.querySelector('.zv').textContent = '100%'; zoomUI.classList.remove('on'); }
+  lastDims = dims;
   const dpr = Math.min(window.devicePixelRatio||1, 2);
-  const maxD = Math.min(1800, Math.max(700, Math.max(st.width, st.height)*dpr));
+  // zoomed in, the preview is drawn at a higher resolution so detail stays sharp
+  const maxD = Math.min(zoomLevel > 1 ? 4096 : 1800, Math.max(700, Math.max(st.width, st.height)*dpr*Math.max(1, zoomLevel)));
   const sc = Math.min(1, maxD/Math.max(b.width, b.height));
   const w = Math.max(1, Math.round(b.width*sc)), h = Math.max(1, Math.round(b.height*sc));
   prevData = scaleCanvas(b, w, h).getContext('2d').getImageData(0,0,w,h);
   for (const c of [view, photoC, rawC]){ c.width = w; c.height = h; }
   rawX.putImageData(prevData, 0, 0);
-  buildThumbs(); draw(); updateInfo();
+  if (!zoomOnly) buildThumbs();
+  draw(); updateInfo();
   if (tab==='crop') requestAnimationFrame(placeOverlay);
 }
 function render(){ if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
@@ -1045,6 +1053,8 @@ document.querySelectorAll('.tool').forEach(t => t.addEventListener('click', () =
 function setTab(name){
   if (tab==='draw' && name!=='draw') drawSession = null;
   tab = name;
+  if ((name === 'crop' || name === 'collage') && zoomLevel !== 1) resetZoom();
+  zoomUI.hidden = name === 'collage';
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
   ['adjust','filters','background','retouch','crop','resize','text','stickers','draw','frames','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
   stage.classList.toggle('retouching', name==='retouch'); if (name!=='retouch') rtCursor.hidden = true;
@@ -1402,6 +1412,7 @@ function refreshLayerList(){
 }
 const paintOpacity = bindRange('lopacity', () => { const l = getSel(); return l ? Math.round(l.opacity*100) : null; }, v => { const l = getSel(); if (l){ l.opacity = v/100; composite(); } }, v => v+'%');
 $('#ldup').onclick = duplicateSel;
+$('#lblend').addEventListener('change', e => { const l = getSel(); if (!l) return; l.blend = e.target.value === 'source-over' ? '' : e.target.value; composite(); commit(); });
 $('#ldel').onclick = () => { if (selId) deleteLayer(selId); };
 
 function syncPanels(){
@@ -1422,7 +1433,7 @@ function syncPanels(){
   $('#stickerEdit').hidden = !s;
   if (s){ sColor.set(s.color); document.querySelectorAll('#soutline .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v===s.outline))); $('#sshadow').setAttribute('aria-pressed', String(!!s.shadow)); }
   else sColor.set(stickerColour);
-  $('#layerEdit').hidden = !getSel(); paintOpacity();
+  $('#layerEdit').hidden = !getSel(); paintOpacity(); $('#lblend').value = (getSel() || {}).blend || 'source-over';
 }
 function refreshLayerUI(){ refreshLayerList(); syncPanels(); placeSel(); }
 
@@ -1440,6 +1451,74 @@ function placeSel(){
   Object.assign(selEl.style, {left:s.x+'px', top:s.y+'px', width:((b[2]-b[0])*l.scale*s.k + 10)+'px', height:((b[3]-b[1])*l.scale*s.k + 10)+'px', transform:`translate(-50%,-50%) rotate(${l.rot}deg)`});
 }
 
+
+/* ================= zoom and pan ================= */
+// The photo is scaled with a CSS transform, so every tool's maths (which reads the canvas's
+// on-screen rectangle) keeps working. When zooming stops, the preview is redrawn sharper.
+let zoomLevel = 1, panX = 0, panY = 0, panDrag = null, spaceHeld = false, zoomTimer = 0;
+const ZMIN = 1, ZMAX = 8;
+const zoomUI = document.createElement('div'); zoomUI.className = 'zoom-ui';
+zoomUI.innerHTML = '<button type="button" data-z="out" title="Zoom out (Ctrl −)" aria-label="Zoom out">−</button><button type="button" data-z="fit" class="zv" title="Fit the photo (Ctrl 0)">100%</button><button type="button" data-z="in" title="Zoom in (Ctrl +)" aria-label="Zoom in">+</button>';
+stage.appendChild(zoomUI);
+function viewCentre(){ const r = $('#viewWrap').getBoundingClientRect(); return {x:r.left + r.width/2, y:r.top + r.height/2}; }
+function clampPan(){
+  const w = view.offsetWidth, h = view.offsetHeight, sr = stage.getBoundingClientRect();
+  const mx = Math.max(0, (w*zoomLevel - sr.width)/2 + 40), my = Math.max(0, (h*zoomLevel - sr.height)/2 + 40);
+  if (zoomLevel <= 1){ panX = panY = 0; return; }
+  panX = clamp(panX, -mx, mx); panY = clamp(panY, -my, my);
+}
+function applyZoom(sharpen = true){
+  clampPan();
+  view.style.transform = zoomLevel === 1 && !panX && !panY ? '' : `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+  zoomUI.querySelector('.zv').textContent = Math.round(zoomLevel*100) + '%';
+  zoomUI.classList.toggle('on', zoomLevel > 1);
+  placeSel(); if (tab==='crop') placeOverlay();
+  if (sharpen){ clearTimeout(zoomTimer); zoomTimer = setTimeout(() => { if (S.base && tab !== 'collage') rebuildPreview(true); }, 260); }
+}
+/* zoom to z, keeping the screen point (cx, cy) over the same spot of the photo */
+function zoomTo(z, cx, cy){
+  z = clamp(z, ZMIN, ZMAX);
+  const c = viewCentre(); if (cx === undefined){ cx = c.x; cy = c.y; }
+  const f = z / zoomLevel;
+  panX = (cx - c.x) - ((cx - c.x) - panX) * f; panY = (cy - c.y) - ((cy - c.y) - panY) * f;
+  zoomLevel = z; applyZoom();
+}
+function resetZoom(){ zoomLevel = 1; panX = panY = 0; applyZoom(false); }
+function startPan(e){
+  e.preventDefault();
+  panDrag = {id:e.pointerId, x:e.clientX, y:e.clientY, px:panX, py:panY};
+  stage.classList.add('panning');
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+}
+stage.addEventListener('pointermove', e => {
+  if (!panDrag || e.pointerId !== panDrag.id) return;
+  e.stopImmediatePropagation();
+  panX = panDrag.px + e.clientX - panDrag.x; panY = panDrag.py + e.clientY - panDrag.y; applyZoom(false);
+}, true);
+const endPan = e => { if (panDrag && e.pointerId === panDrag.id){ panDrag = null; stage.classList.remove('panning'); e.stopImmediatePropagation(); } };
+stage.addEventListener('pointerup', endPan, true); stage.addEventListener('pointercancel', endPan, true);
+stage.addEventListener('wheel', e => {
+  if (!S.base || tab === 'collage') return;
+  e.preventDefault();
+  // trackpad pinch arrives as a wheel with Ctrl; a two-finger scroll without Ctrl pans when zoomed in
+  if (!e.ctrlKey && zoomLevel > 1 && Math.abs(e.deltaX) + Math.abs(e.deltaY) < 60 && e.deltaMode === 0 && e.deltaX !== 0){ panX -= e.deltaX; panY -= e.deltaY; applyZoom(false); return; }
+  zoomTo(zoomLevel * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0012)), e.clientX, e.clientY);
+}, {passive:false});
+zoomUI.addEventListener('pointerdown', e => e.stopPropagation());
+zoomUI.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.z === 'in') zoomTo(zoomLevel * 1.5); else if (b.dataset.z === 'out') zoomTo(zoomLevel / 1.5); else resetZoom();
+});
+window.addEventListener('keydown', e => {
+  if (e.key === ' ' && !typing() && tab !== 'collage'){ if (!spaceHeld){ spaceHeld = true; stage.classList.add('can-pan'); } e.preventDefault(); return; }
+  if (!(e.ctrlKey || e.metaKey) || typing() || tab === 'collage') return;
+  if (e.key === '=' || e.key === '+'){ e.preventDefault(); zoomTo(zoomLevel * 1.5); }
+  else if (e.key === '-'){ e.preventDefault(); zoomTo(zoomLevel / 1.5); }
+  else if (e.key === '0'){ e.preventDefault(); resetZoom(); }
+});
+window.addEventListener('keyup', e => { if (e.key === ' '){ spaceHeld = false; stage.classList.remove('can-pan'); } });
+window.addEventListener('blur', () => { spaceHeld = false; stage.classList.remove('can-pan'); });
+
 /* ================= stage pointer: select, move, scale, rotate, draw ================= */
 let ldrag = null;
 function clientToImg(e){
@@ -1451,6 +1530,7 @@ function layerCentreClient(l){
   return {x: s.x + s.sr.left, y: s.y + s.sr.top};
 }
 stage.addEventListener('pointerdown', e => {
+  if (tab!=='collage' && S.base && (e.button === 1 || spaceHeld)){ startPan(e); return; }
   if (tab==='crop' || tab==='collage' || e.button > 0) return;
   const sh = e.target.dataset && e.target.dataset.sh;
   if (sh==='del'){ if (selId) deleteLayer(selId); return; }
@@ -1473,7 +1553,7 @@ stage.addEventListener('pointerdown', e => {
   } else {
     const hit = hitTest(p);
     if (hit){ select(hit.id, {switchTab:true}); ldrag = {type:'move', l:hit, p0:p, x0:hit.x, y0:hit.y, moved:false}; }
-    else { if (selId) select(null); return; }
+    else { if (selId) select(null); if (zoomLevel > 1) startPan(e); return; }
   }
   stage.setPointerCapture(e.pointerId);
 });
@@ -3349,10 +3429,20 @@ stage.addEventListener('pointerdown', e => {
     }, 550)};
     return;
   }
-  if (touchPts.size === 2 && tab !== 'retouch' && tab !== 'draw'){
+  if (touchPts.size === 2){
     clearTimeout(longPress && longPress.t); longPress = null;
-    const l = (ldrag && ldrag.l) || getSel();
-    if (!l) return;
+    const l = tab === 'retouch' || tab === 'draw' ? null : (ldrag && ldrag.l) || getSel();
+    if (!l){
+      // two fingers on the photo itself zoom and move the view; a brush stroke the first finger began is dropped
+      if (RT.stroke){ RT.stroke = null; rebuildPreview(true); }
+      if (ldrag && ldrag.type === 'stroke'){ const i = ldrag.l.strokes.indexOf(ldrag.st); if (i >= 0) ldrag.l.strokes.splice(i, 1); if (!ldrag.l.strokes.length){ S.layers = S.layers.filter(x => x !== ldrag.l); drawSession = null; selId = null; } composite(); }
+      ldrag = null; panDrag = null;
+      const info = pinchInfo();
+      pinch = {view:true, z0:zoomLevel, px:panX, py:panY, ...info};
+      try { stage.setPointerCapture(e.pointerId); } catch {}
+      e.stopImmediatePropagation(); e.preventDefault();
+      return;
+    }
     if (ldrag && ldrag.type === 'move'){ l.x = ldrag.x0; l.y = ldrag.y0; }
     ldrag = null;
     const k = S.base.width / view.getBoundingClientRect().width, info = pinchInfo();
@@ -3367,6 +3457,14 @@ stage.addEventListener('pointermove', e => {
   if (longPress && Math.hypot(e.clientX - longPress.x, e.clientY - longPress.y) > 10){ clearTimeout(longPress.t); longPress = null; }
   if (!pinch || touchPts.size < 2) return;
   e.stopImmediatePropagation();
+  if (pinch.view){
+    const p = pinch, n = pinchInfo(), c = viewCentre();
+    const z = clamp(p.z0 * n.d / p.d, ZMIN, ZMAX), f = z / p.z0;
+    // keep the spot under the fingers' midpoint under it, and follow the midpoint as it moves
+    panX = (n.mx - c.x) - ((p.mx - c.x) - p.px) * f; panY = (n.my - c.y) - ((p.my - c.y) - p.py) * f;
+    zoomLevel = z; applyZoom();
+    return;
+  }
   const p = pinch, l = p.l, n = pinchInfo(), f = n.d / p.d;
   if (l.type==='text') l.size = clamp(p.s0*f, 4, minSide()*1.5); else l.scale = clamp(p.s0*f, 0.02, 100);
   let r = p.r0 + (n.a - p.a) / RAD; r = ((r + 540) % 360) - 180;
@@ -3381,7 +3479,10 @@ const touchEnd = e => {
   if (longPress){ clearTimeout(longPress.t); longPress = null; }
   if (pinch){
     e.stopImmediatePropagation();
-    if (touchPts.size < 2){ const l = pinch.l; pinch = null; selId = l.id; commit(); syncPanels(); refreshLayerUI(); }
+    if (touchPts.size < 2){
+      if (pinch.view){ pinch = null; if (zoomLevel < 1.03) resetZoom(); return; }
+      const l = pinch.l; pinch = null; selId = l.id; commit(); syncPanels(); refreshLayerUI();
+    }
   }
 };
 stage.addEventListener('pointerup', touchEnd, true);
