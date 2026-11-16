@@ -133,6 +133,8 @@ const TEXT_PRESETS = [
 /* ================= state + history ================= */
 const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30};
 const FRAME_DEFAULT = {style:'none', colour:'', size:40};
+// the AI tools: the desktop app's background process, or (Android) the page itself, see ai-web.js
+const AI = () => (window.tinto && window.tinto.removeBackground) ? window.tinto : (window.WEB_AI || null);
 let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:null, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
 const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx) + JSON.stringify(S.tpl || null) + JSON.stringify(S.sky || null), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null, sky:S.sky ? {...S.sky} : null, tpl:S.tpl ? {...S.tpl} : null});
@@ -611,7 +613,8 @@ function bgStatus(msg, progress){
 async function ensureBgMask(){
   const base = S.base;
   if (!base || bgMasks.has(base) || bgJob === base) return;
-  if (!desktop || !window.tinto.removeBackground){ $('#bgWebHint').hidden = false; return; }
+  const ai = AI();
+  if (!ai){ $('#bgWebHint').hidden = false; return; }
   bgJob = base;
   // the model works at about 512 px, so a 1024 px copy is plenty and keeps it quick
   const k = Math.min(1, 1024 / Math.max(base.width, base.height));
@@ -619,7 +622,7 @@ async function ensureBgMask(){
   const d = scaleCanvas(base, w, h).getContext('2d').getImageData(0, 0, w, h).data, rgb = new Uint8Array(w*h*3);
   for (let i=0, j=0, q=0; i<w*h; i++, j+=4, q+=3){ rgb[q]=d[j]; rgb[q+1]=d[j+1]; rgb[q+2]=d[j+2]; }
   let downloading = false;
-  const stop = window.tinto.onRemoveBgProgress(pr => {
+  const stop = ai.onRemoveBgProgress(pr => {
     if (bgJob !== base) return;
     if (pr.phase === 'loading') bgStatus('Getting the background tool ready…');
     else if (pr.phase === 'download'){ downloading = true; bgStatus('Downloading the AI model (first time only)…', pr.progress || 0); }
@@ -628,7 +631,7 @@ async function ensureBgMask(){
   bgStatus('Finding the person in your photo…');
   for (let attempt = 0; attempt < 20; attempt++){
     try {
-      const mask = await window.tinto.removeBackground(rgb, w, h);
+      const mask = await ai.removeBackground(rgb, w, h);
       const mc = mk(w, h), mx = mc.getContext('2d'), id = mx.createImageData(w, h);
       let solid = 0;
       for (let i=0; i<w*h; i++){ id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=255; id.data[i*4+3]=mask[i]; if (mask[i] > 128) solid++; }
@@ -732,7 +735,7 @@ function syncBg(){
   bgColourSw.set(S.bg.colour);
   document.querySelectorAll('#bgGrad .swc').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.i === S.bg.grad)));
   paintBgBlur(); paintBgEdge();
-  if (!window.tinto) $('#bgWebHint').hidden = false;
+  $('#bgWebHint').hidden = !!AI();
 }
 syncBg();
 
@@ -1816,7 +1819,7 @@ function syncFx(){
   document.querySelectorAll('#fxGrid button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === fx.id)));
   $('#fxOpts').hidden = !on;
   $('#fxHint').textContent = f.hint || '';
-  const ai = !!(window.tinto && window.tinto.removeBackground);
+  const ai = !!AI();
   document.querySelectorAll('#fxOpts [data-for]').forEach(el => { el.hidden = !el.dataset.for.split(' ').includes(fx.id) || (el.classList.contains('fx-ai') && !ai); });
   $('#fxAmtLabel').textContent = fx.id === 'brush' ? (fx.mode === 'blur' ? 'Blur amount' : 'Block size') : 'Strength';
   const own = !['forest','clouds','city'].includes(fx.tex);
@@ -2152,7 +2155,7 @@ function refineSky(prob, d, w, h){
 async function ensureSkyMask(){
   const base = S.base;
   if (!base || skyMasks.has(base) || skyJob === base) return;
-  const ai = window.tinto && window.tinto.skyMask ? window.tinto : (typeof WEB_AI !== 'undefined' ? WEB_AI : null);
+  const ai = AI();
   if (!ai){ $('#bgWebHint').hidden = false; return; }
   skyJob = base;
   const k = Math.min(1, 1024 / Math.max(base.width, base.height));
@@ -3570,7 +3573,7 @@ async function openStickerEditor(file){
   SK.orig = SK.mask.slice();
   SK.pad = Math.round(Math.max(SK.w, SK.h) * 0.1);
   SK.undo = [];
-  $('#skAi').hidden = $('#skAiHint').hidden = !desktop;
+  $('#skAi').hidden = $('#skAiHint').hidden = !AI();
   $('#skSaveRow').hidden = !STICKERS;
   setSkBusy(null);
   $('#stickerModal').hidden = false;
@@ -3686,18 +3689,19 @@ function setSkBusy(msg, progress){
 }
 
 async function skRemoveWithAI(){
-  if (!desktop || SK.busy) return;
+  const ai = AI();
+  if (!ai || SK.busy) return;
   const {w, h} = SK, s = SK.src.data, rgb = new Uint8Array(w*h*3);
   for (let i=0, j=0, k=0; i<w*h; i++, j+=4, k+=3){ rgb[k]=s[j]; rgb[k+1]=s[j+1]; rgb[k+2]=s[j+2]; }
   let downloading = false;
-  const stop = window.tinto.onRemoveBgProgress(pr => {
+  const stop = ai.onRemoveBgProgress(pr => {
     if (pr.phase === 'loading') setSkBusy('Getting the background remover ready…');
     else if (pr.phase === 'download'){ downloading = true; setSkBusy('Downloading the AI model (first time only)…', pr.progress || 0); }
     else if (pr.phase === 'working') setSkBusy('Removing the background…');
   });
   setSkBusy('Removing the background…');
   try {
-    const mask = await window.tinto.removeBackground(rgb, w, h);
+    const mask = await ai.removeBackground(rgb, w, h);
     skPush();
     const m = SK.mask;
     for (let i=0; i<m.length; i++) m[i] = Math.min(m[i], mask[i]);   // keeps anything already erased
@@ -4027,6 +4031,7 @@ function photoMenu(at){
     ...(NATIVE ? [] : [{label:'Copy picture', act:copyPicture}]),
     {label:'Export…', act:() => $('#exportBtn').click()},
     {label:'Open photo…', act:() => openPhoto()},
+    ...(NATIVE ? ['-', {label:'Check for updates', act:() => { toast('Checking for updates…'); checkAndroidUpdate(true); }}] : []),
   ];
 }
 
@@ -4208,8 +4213,6 @@ stage.addEventListener('contextmenu', e => { if (e.isTrusted && Date.now() - las
 if (NATIVE){
   $('#exShare').hidden = false; $('#exSave').textContent = 'Save to gallery';
   $('#fileInput').setAttribute('accept', 'image/*,.tinto,application/json,application/octet-stream');
-  // the AI background tools run in the desktop app's background process
-  const bgTool = document.querySelector('.tool[data-tab="background"]'); if (bgTool) bgTool.hidden = true;
   const App = plugin('App');
   if (App) App.addListener('backButton', () => {
     if (CTX.el){ closeCtx(); return; }
@@ -4221,6 +4224,50 @@ if (NATIVE){
     if (tab !== 'adjust'){ setTab('adjust'); return; }
     App.minimizeApp();
   });
+}
+
+/* Android updates: Tinto looks at the newest GitHub release once a day. When it has a newer APK,
+   a bar offers it; the download opens in the phone's browser and Android installs it from there. */
+const RELEASES = 'https://api.github.com/repos/wellsey001/Tinto---Photo-Image-Editor/releases/latest';
+const verNum = v => String(v || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0).reduce((s, n) => s*1000 + n, 0);
+let androidUpdate = null;
+async function checkAndroidUpdate(manual = false){
+  try {
+    const App = plugin('App'), info = App ? await App.getInfo() : {version: ''};
+    const r = await fetch(RELEASES, {headers: {Accept: 'application/vnd.github+json'}, cache: 'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    const rel = await r.json(), apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name) && !/-test\.apk$/i.test(a.name));
+    const latest = String(rel.tag_name || '').replace(/^v/, '');
+    try { localStorage.setItem('tinto.updateChecked', String(Date.now())); } catch {}
+    if (apk && verNum(latest) > verNum(info.version)){
+      androidUpdate = {version: latest, url: apk.browser_download_url, size: apk.size};
+      let skipped = ''; try { skipped = localStorage.getItem('tinto.updateSkipped') || ''; } catch {}
+      if (manual || skipped !== latest) showAndroidUpdate();
+    } else if (manual) toast(`You have the latest version of Tinto${info.version ? ` (${info.version})` : ''}.`);
+  } catch {
+    if (manual) toast('Couldn’t check for updates. Check your internet connection and try again.');
+  }
+}
+function showAndroidUpdate(){
+  const u = androidUpdate; if (!u) return;
+  $('#updateMsg').textContent = `Tinto ${u.version} is out${u.size ? ` (${Math.round(u.size/1048576)} MB)` : ''}`;
+  $('#updateTrack').hidden = true;
+  $('#updateGo').textContent = 'Download'; $('#updateGo').hidden = false; $('#updateGo').disabled = false;
+  $('#updateBar').hidden = false;
+}
+if (NATIVE){
+  $('#updateGo').onclick = async () => {
+    const u = androidUpdate; if (!u) return;
+    const B = plugin('Browser');
+    try { if (B) await B.open({url: u.url}); else window.open(u.url, '_blank'); }
+    catch { window.open(u.url, '_blank'); }
+    toast('When the download finishes, open it and tap Install. Your photos and stickers stay put.');
+    $('#updateBar').hidden = true;
+  };
+  $('#updateHide').onclick = () => { $('#updateBar').hidden = true; try { if (androidUpdate) localStorage.setItem('tinto.updateSkipped', androidUpdate.version); } catch {} };
+  const due = () => { let t = 0; try { t = +localStorage.getItem('tinto.updateChecked') || 0; } catch {} return Date.now() - t > 20*3600*1000; };
+  setTimeout(() => { if (due()) checkAndroidUpdate(); }, 4000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && due()) checkAndroidUpdate(); });
 }
 
 loadMyStickers();

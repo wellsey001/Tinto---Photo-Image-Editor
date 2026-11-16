@@ -455,3 +455,4 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 
 /* Sky */
 .sky-grid canvas{aspect-ratio:5/3}
+@media (max-width:640px){ .update-bar{top:calc(env(safe-area-inset-top, 0px) + 72px);bottom:auto;left:12px;right:12px;transform:none;width:auto} }

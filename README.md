@@ -45,9 +45,9 @@ To add Tinto to your app menu, with its icon and **Open with** for images, open 
 2. Open the downloaded file. The first time, Android asks to allow your browser (or Files app) to **install unknown apps**: tap **Settings**, turn it on, then go back and tap **Install**.
 3. Open Tinto from your app drawer.
 
-On a phone the photo sits at the top, the tool's controls slide up underneath it (tap the open tool again to fold them away), and all the tools are in the bar along the bottom. Pinch and twist with two fingers to resize and rotate stickers and text, and long-press for the menu. **Export** saves to your gallery (**Pictures › Tinto**) or opens the share sheet; projects save to **Documents › Tinto**.
+On a phone the photo sits at the top, the tool's controls slide up underneath it (tap the open tool again to fold them away), and all the tools are in the bar along the bottom. Pinch and twist with two fingers to resize and rotate stickers and text; pinch the photo itself to zoom in; long-press for the menu. **Export** saves to your gallery (**Pictures › Tinto**) or opens the share sheet; projects save to **Documents › Tinto**.
 
-The AI background tools (Background, and the AI cutout for custom stickers) are only in the desktop app for now. To update on Android, download and install the newest APK; it installs over the old one and keeps your stickers.
+The AI tools (Background, Sky and the AI cutout for custom stickers) run on the phone too: each model downloads once, the first time you use it, so you'll need a connection then. Tinto checks for a newer version once a day and shows a **Download** bar when there is one (or long-press the photo › **Check for updates**). Open the downloaded APK and tap **Install**; it installs over the old one and keeps your stickers.
 
 ### Updates
 
@@ -68,6 +68,11 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Frames:** 11 frames (Border, Rounded, Polaroid, Gallery, Film, Stamp, Scallop, Stitched, Soft edge, Neon, Gold) with colour and thickness. They sit over the photo's edges, under text and stickers, and filters don't tint them.
 - **Social sizes:** one click for Instagram post or portrait, Story/TikTok, YouTube thumbnail, Facebook, X, Pinterest or a phone wallpaper. Drag to choose what's kept, or keep the whole photo with blurred edges.
 - **Text effects:** curved text (arch or dip), gradient fills, 3D depth and neon glow, with new styles: Sunset, Rainbow, 3D Pop, Arch, Smile, Ocean and Ice neon.
+- **Sky replacement:** in Background, swap the sky for Blue sky, Sunset, Golden hour, Cotton candy, Storm, Starry night, Aurora or a photo of your own. An AI model (SegFormer, about 15 MB, downloaded once) finds the sky, the edges are tidied using the photo's own colours, and the rest of the photo can take on the new sky's light.
+- **Effects:** Glitch, Double exposure (with built-in forest, clouds or city lights, or your own photo; optionally only inside the person), Motion blur (optionally keeping the person sharp), Focus blur (tap to choose what stays sharp, circle or tilt-shift band), Light leak, Film dust, and a Pixelate/Blur brush for hiding faces or number plates. Apply one to lock it in, then add another on top.
+- **Templates:** nine single-photo designs (Birthday card, Quote post, YouTube thumbnail, Weekend story, Polaroid note, Event poster, Save the date, Postcard, Magazine cover). Your photo drops in, and the words and stickers arrive as normal layers you can change. Zoom and move the photo inside the design, or swap it.
+- **Layer blend modes:** Multiply, Screen, Overlay, Soft light, Colour dodge and 11 more, in Layers.
+- **Zoom and pan:** scroll or pinch to zoom up to 800%, drag an empty spot (or hold Space, or the middle mouse button) to move around, Ctrl + / − / 0. The view redraws sharper as you zoom.
 - **Background:** Tinto finds the person in your photo with the same AI as the sticker cutout, then blurs everything behind them (portrait mode), swaps it for a colour or gradient, or removes it (exported as a see-through PNG). Edge softness is adjustable. Works best on people; the AI model downloads once, the first time you use it.
 - **Sticker search:** search all emoji and stickers by name, with a Recent row and Favourites (right-click to star).
 - **Emoji:** 186 Microsoft Fluent Emoji in seven tabs (Faces, Silly, Love, Animals, Food, Party, Sky & nature), added as stickers with a white die-cut border. They're vector art, so they stay sharp at any size.
@@ -143,6 +148,8 @@ git push origin v1.3.0
 | Ctrl+D | Duplicate the selected layer |
 | Shift while rotating | Snap to 15° steps |
 | Esc | Deselect |
+| Ctrl+ / Ctrl− / Ctrl+0 | Zoom in / out / fit |
+| Hold Space and drag | Move around a zoomed photo |
 
 ## Project structure
 
@@ -153,15 +160,16 @@ tinto/
 │   ├── main.js            Main process: window, menu, native open/save, Explorer files
 │   ├── preload.js         The small, fixed bridge the editor page can call (window.tinto)
 │   ├── splash.html        Startup screen with the logo animation
-│   ├── cutout.js          AI background removal for custom stickers (MODNet, runs locally)
+│   ├── cutout.js          AI tools: person finder (MODNet) and sky finder (SegFormer), run locally
 │   ├── assets/icon.png    Window icon
 │   └── renderer/
 │       ├── index.html     Editor layout
 │       ├── styles.css     Editor styles
 │       ├── stickerpack.js Illustrated sticker pack (generated by scripts/make-stickers.py)
 │       ├── emoji/         Fluent Emoji pack and its MIT licence
+│       ├── ai-web.js      The same AI tools running in the page, for Android
 │       └── app.js         Editor: image processing, layers, collage, export
-├── scripts/             Sticker pack generator and the AI cutout check
+├── scripts/             Sticker pack generator and the AI checks (desktop and in-page)
 ├── .github/workflows/     GitHub Actions build
 └── package.json           Scripts and electron-builder settings
 ```
