@@ -1027,6 +1027,18 @@ function syncFrame(){
 }
 syncFrame();
 
+
+/* Phone layout: tap the open tool again, or the sheet handle, to fold the controls away and see the whole photo. */
+const phoneMQ = window.matchMedia('(max-width: 640px)');
+function syncPhone(){ $('#sheetGrab').hidden = !phoneMQ.matches; if (!phoneMQ.matches) $('.work').classList.remove('sheet-down'); }
+phoneMQ.addEventListener('change', syncPhone); syncPhone();
+$('#sheetGrab').onclick = () => $('.work').classList.toggle('sheet-down');
+document.querySelectorAll('.tool').forEach(t => t.addEventListener('click', () => {
+  if (!phoneMQ.matches) return;
+  if (t.dataset.tab === tab) $('.work').classList.toggle('sheet-down'); else $('.work').classList.remove('sheet-down');
+  t.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+}));
+
 /* ================= tools / tabs ================= */
 let tab = 'adjust';
 document.querySelectorAll('.tool').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));

@@ -17,3 +17,8 @@ desktop.ini
 .vscode/
 .idea/
 __pycache__/
+
+# Android build (generated in CI)
+mobile/node_modules/
+mobile/www/
+mobile/android/

@@ -1,0 +1,9 @@
+{
+  "appId": "com.tinto.photoeditor",
+  "appName": "Tinto",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#121316",
+    "adjustMarginsForEdgeToEdge": "force"
+  }
+}
