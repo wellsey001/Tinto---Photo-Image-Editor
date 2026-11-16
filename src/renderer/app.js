@@ -1341,7 +1341,7 @@ new ResizeObserver(() => { if (tab==='crop') placeOverlay(); placeSel(); }).obse
 /* ================= resize ================= */
 let locked = true;
 const rw = $('#rw'), rh = $('#rh');
-function syncResize(){ rw.value = S.base.width; rh.value = S.base.height; resizeReadout(); }
+function syncResize(){ rw.value = S.base.width; rh.value = S.base.height; resizeReadout(); if (typeof syncUpscale === 'function') syncUpscale(); }
 function resizeReadout(){
   const w = +rw.value||0, h = +rh.value||0, b = S.base;
   const pct = Math.round(w/b.width*100);
@@ -1366,6 +1366,68 @@ $('#resizeApply').onclick = () => {
   const fx = w/b.width, fy = h/b.height, fs = Math.sqrt(fx*fy);
   for (const l of S.layers){ l.x *= fx; l.y *= fy; if (l.type==='text') l.size *= fs; else l.scale *= fs; }
   S.base = scaleCanvas(b, w, h); commit(); rebuildPreview(); syncResize(); toast(`Resized to ${w} × ${h} px`);
+};
+
+/* ---------- AI upscale (Swin2SR; desktop: the background process, Android: the page, see ai-web.js) ---------- */
+// The largest photo each size can start from, so the result stays manageable (and the phone isn't busy for ages)
+// (worked out when used: the Android check further down hasn't run yet when this part loads)
+const upMax = () => NATIVE ? {2: 1024, 4: 512} : {2: 2048, 4: 1024};
+let upF = 2, upBusy = false;
+const upEngine = () => { const a = AI(); return a && a.upscale ? a : null; };
+function syncUpscale(){
+  const box = $('#upscaleBox'); if (!box) return;
+  const ai = upEngine(); box.hidden = !ai || !S.base;
+  if (box.hidden) return;
+  document.querySelectorAll('#upFactor button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.f === upF)));
+  const b = S.base, long = Math.max(b.width, b.height), max = upMax()[upF], fits = long <= max;
+  // a rough guide, from the build checks: about 30 tiles a minute at 2x on a typical computer, fewer at 4x
+  const tiles = Math.ceil(b.width / 104) * Math.ceil(b.height / 104), perMin = (upF === 2 ? 30 : 8) / (NATIVE ? 4 : 1);
+  const mins = tiles / perMin, eta = mins < 1 ? 'under a minute' : mins < 1.5 ? 'about a minute' : `about ${Math.round(mins)} minutes`;
+  $('#upReadout').innerHTML = fits
+    ? `${b.width} × ${b.height} → <b>${b.width*upF} × ${b.height*upF}</b> px · ${eta}`
+    : `This photo is ${b.width} × ${b.height}. ${upF}× works on photos up to ${max} px across${upF === 4 && long <= upMax()[2] ? '. Try 2×' : '. Shrink it first in Resize, or crop it'}.`;
+  $('#upGo').disabled = !fits || upBusy; $('#upGo').hidden = upBusy;
+}
+document.querySelectorAll('#upFactor button').forEach(b => b.onclick = () => { upF = +b.dataset.f; syncUpscale(); });
+$('#upCancel').onclick = () => { const a = upEngine(); if (a) a.cancelUpscale(); $('#upMsg').textContent = 'Stopping…'; };
+$('#upGo').onclick = async () => {
+  const ai = upEngine(), src = S.base, f = upF; if (!ai || !src || upBusy) return;
+  if (Math.max(src.width, src.height) > upMax()[f]) return;
+  upBusy = true; syncUpscale();
+  const w = src.width, h = src.height, d = src.getContext('2d').getImageData(0, 0, w, h).data, rgb = new Uint8Array(w*h*3);
+  let hasAlpha = false;
+  for (let i=0, j=0, q=0; i<w*h; i++, j+=4, q+=3){ rgb[q] = d[j]; rgb[q+1] = d[j+1]; rgb[q+2] = d[j+2]; if (d[j+3] < 255) hasAlpha = true; }
+  $('#upStatus').hidden = false; $('#upBar').style.width = '0%'; $('#upMsg').textContent = 'Getting the upscaler ready…';
+  const t0 = performance.now();
+  const stop = ai.onUpscaleProgress(p => {
+    if (p.phase === 'loading') $('#upMsg').textContent = 'Getting the upscaler ready…';
+    else if (p.phase === 'download'){ $('#upMsg').textContent = `Downloading the upscale model (first time only)… ${Math.round((p.progress || 0)*100)}%`; $('#upBar').style.width = Math.round((p.progress || 0)*100) + '%'; }
+    else if (p.phase === 'working'){
+      const pr = p.progress || 0; $('#upBar').style.width = Math.round(pr*100) + '%';
+      if (p.done){ const left = (performance.now() - t0) / p.done * (p.total - p.done) / 1000; $('#upMsg').textContent = `Upscaling… ${Math.round(pr*100)}%` + (p.done > 1 ? (left < 60 ? ` · under a minute left` : ` · about ${Math.round(left/60)} min left`) : ''); }
+      else $('#upMsg').textContent = 'Upscaling…';
+    }
+  });
+  try {
+    const big = await ai.upscale(rgb, w, h, f), W = w*f, H = h*f;
+    const out = mk(W, H), ox = out.getContext('2d'), id = ox.createImageData(W, H), od = id.data;
+    for (let i=0, j=0, q=0; i<W*H; i++, j+=4, q+=3){ od[j] = big[q]; od[j+1] = big[q+1]; od[j+2] = big[q+2]; od[j+3] = 255; }
+    ox.putImageData(id, 0, 0);
+    if (hasAlpha){
+      // see-through parts: enlarge the transparency smoothly and put it back
+      const a = mk(W, H), ax = a.getContext('2d'); ax.imageSmoothingQuality = 'high'; ax.drawImage(src, 0, 0, W, H);
+      ox.globalCompositeOperation = 'destination-in'; ox.drawImage(a, 0, 0); ox.globalCompositeOperation = 'source-over';
+    }
+    for (const l of S.layers){ l.x *= f; l.y *= f; if (l.type === 'text') l.size *= f; else l.scale *= f; }
+    const bm = bgMasks.get(src); if (bm) bgMasks.set(out, bm); const sm = skyMasks.get(src); if (sm) skyMasks.set(out, sm);
+    S.base = out; commit(); rebuildPreview(); syncResize();
+    toast(`Upscaled to ${W} × ${H} px. Hold Compare to see the difference.`);
+  } catch (e){
+    if (/cancel/i.test(String(e && e.message))) toast('Upscale stopped. Your photo is unchanged.');
+    else toast('The photo couldn’t be upscaled. The first time, Tinto needs the internet to download the model.');
+  } finally {
+    stop(); upBusy = false; $('#upStatus').hidden = true; syncUpscale();
+  }
 };
 
 /* ================= adding layers ================= */

@@ -6,7 +6,7 @@
 
 const os = require('node:os');
 const path = require('node:path');
-const { createCutout, SEG_MODEL, SKY_MODEL } = require('../src/cutout');
+const { createCutout, SEG_MODEL, SKY_MODEL, UPSCALE_MODELS } = require('../src/cutout');
 
 (async () => {
   const w = 320, h = 240;
@@ -38,4 +38,19 @@ const { createCutout, SEG_MODEL, SKY_MODEL } = require('../src/cutout');
   const top = avg(0, 80), bottom = avg(170, 240);
   console.log(`${SKY_MODEL}: sky mask in ${Date.now() - t1} ms; top ${top.toFixed(1)}, bottom ${bottom.toFixed(1)}`);
   if (sm.length !== sw * sh || !(top > bottom + 60)) throw new Error('The sky finder didn’t find the sky.');
+
+  // Upscale: a 160x120 picture with a sharp-edged square, at 2x and 4x. Bigger, and still the same picture.
+  const uw = 160, uh = 120, up = new Uint8Array(uw * uh * 3);
+  for (let y = 0; y < uh; y++) for (let x = 0; x < uw; x++) up.set(x > 50 && x < 110 && y > 30 && y < 90 ? [230, 80, 60] : [40 + x, 90, 160 - y], (y * uw + x) * 3);
+  for (const f of [2, 4]) {
+    const t2 = Date.now(); let tiles = 0;
+    const big = await cutout.upscale(up, uw, uh, f, p => { if (p.total) tiles = p.total; });
+    const ms = Date.now() - t2;
+    if (!(big instanceof Uint8Array) || big.length !== uw * f * uh * f * 3) throw new Error(`Upscale ${f}x gave the wrong size: ${big && big.length}`);
+    // the middle of the red square should still be red, and the corner still blue-ish
+    const at = (x, y) => big.subarray(((y * f) * uw * f + x * f) * 3, ((y * f) * uw * f + x * f) * 3 + 3);
+    const mid = at(80, 60), corner = at(5, 110);
+    console.log(`${UPSCALE_MODELS[f].id}: ${uw}x${uh} -> ${uw * f}x${uh * f} in ${ms} ms (${tiles} tiles, ${Math.round(ms / Math.max(1, tiles))} ms each); middle ${[...mid]}, corner ${[...corner]}`);
+    if (!(mid[0] > 180 && mid[1] < 130) || !(corner[2] > corner[0])) throw new Error(`Upscale ${f}x changed the picture.`);
+  }
 })().catch(err => { console.error(err); process.exit(1); });

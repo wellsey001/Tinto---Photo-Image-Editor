@@ -46,10 +46,22 @@ try {
     t = performance.now(); m = await WEB_AI.skyMask(rgb, w, h);
     const avg = (y0, y1) => { let s = 0, n = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) { s += m[y * w + x]; n++; } return s / n; };
     out.sky = { ms: Math.round(performance.now() - t), length: m.length, top: avg(0, 80), bottom: avg(170, 240) };
+    // upscale a 160x120 picture with a red square, 2x and 4x
+    const uw = 160, uh = 120, up = new Uint8Array(uw * uh * 3);
+    for (let y = 0; y < uh; y++) for (let x = 0; x < uw; x++) up.set(x > 50 && x < 110 && y > 30 && y < 90 ? [230, 80, 60] : [40 + x, 90, 160 - y], (y * uw + x) * 3);
+    out.upscale = {};
+    for (const f of [2, 4]) {
+      t = performance.now(); let tiles = 0;
+      const stop = WEB_AI.onUpscaleProgress(p => { if (p.total) tiles = p.total; });
+      const big = await WEB_AI.upscale(up, uw, uh, f); stop();
+      const at = (x, y) => [...big.subarray(((y * f) * uw * f + x * f) * 3, ((y * f) * uw * f + x * f) * 3 + 3)];
+      out.upscale[f] = { ms: Math.round(performance.now() - t), tiles, length: big.length, mid: at(80, 60), corner: at(5, 110) };
+    }
     return out;
   });
   console.log(JSON.stringify(result));
-  const ok = result.person.length === 320 * 240 && result.person.max > result.person.min && result.sky.length === 320 * 240 && result.sky.top > result.sky.bottom + 60;
+  const ok = result.person.length === 320 * 240 && result.person.max > result.person.min && result.sky.length === 320 * 240 && result.sky.top > result.sky.bottom + 60
+    && [2, 4].every(f => { const u = result.upscale[f]; return u.length === 160 * f * 120 * f * 3 && u.mid[0] > 180 && u.mid[1] < 130 && u.corner[2] > u.corner[0]; });
   if (!ok) throw new Error('The in-page AI tools gave the wrong answer.');
   console.log('Web AI tools work.');
 } finally {

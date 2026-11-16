@@ -7,11 +7,18 @@
 const SEG_MODEL = 'Xenova/modnet';
 // Sky finding: SegFormer trained on ADE20K (150 kinds of things, "sky" among them), about 15 MB.
 const SKY_MODEL = 'Xenova/segformer-b0-finetuned-ade-512-512';
+// AI upscale (Swin2SR): a small, quick model for 2x (8 MB) and a "real-world" one for 4x, made for photos
+// with noise and JPEG blockiness (21 MB, 8-bit).
+const UPSCALE_MODELS = {
+  2: { id: 'Xenova/swin2SR-lightweight-x2-64', dtype: 'fp32' },
+  4: { id: 'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr', dtype: 'q8' },
+};
+const { upscaleTiles } = require('./renderer/upscale-tiles.js');
 
 function createCutout({ cacheDir } = {}) {
   const ready = {}, loading = {};
 
-  function load(id, onProgress) {
+  function load(id, onProgress, { cls = 'AutoModel', dtype = 'fp32' } = {}) {
     if (ready[id]) return Promise.resolve(ready[id]);
     if (!loading[id]) {
       loading[id] = (async () => {
@@ -27,7 +34,7 @@ function createCutout({ cacheDir } = {}) {
           const all = Object.values(files);
           onProgress({ phase: 'download', progress: all.reduce((s, f) => s + f[0], 0) / all.reduce((s, f) => s + f[1], 0) });
         };
-        const model = await T.AutoModel.from_pretrained(id, { dtype: 'fp32', progress_callback });
+        const model = await T[cls].from_pretrained(id, { dtype, progress_callback });
         const processor = await T.AutoProcessor.from_pretrained(id);
         ready[id] = { T, model, processor };
         return ready[id];
@@ -35,6 +42,17 @@ function createCutout({ cacheDir } = {}) {
     }
     return loading[id];
   }
+
+  /** RGB bytes (w*h*3) in, the photo f times larger (2 or 4) out, as RGB bytes. */
+  let stopUpscale = false;
+  async function upscale(rgb, w, h, f, onProgress = () => {}) {
+    const m = UPSCALE_MODELS[f]; if (!m) throw new Error('Upscale works at 2x or 4x.');
+    const { T, model, processor } = await load(m.id, onProgress, { cls: 'AutoModelForImageToImage', dtype: m.dtype });
+    stopUpscale = false;
+    onProgress({ phase: 'working', progress: 0 });
+    return upscaleTiles(T, model, processor, rgb, w, h, f, onProgress, () => stopUpscale);
+  }
+  function cancelUpscale() { stopUpscale = true; }
 
   /** RGB bytes (w*h*3) in, a 0-255 mask of where the sky is (w*h) out; all zeros if there's no sky. */
   async function skyMaskFor(rgb, w, h, onProgress = () => {}) {
@@ -70,7 +88,7 @@ function createCutout({ cacheDir } = {}) {
     return new Uint8Array(mask.data);
   }
 
-  return { maskFor, skyMaskFor };
+  return { maskFor, skyMaskFor, upscale, cancelUpscale };
 }
 
-module.exports = { createCutout, SEG_MODEL, SKY_MODEL };
+module.exports = { createCutout, SEG_MODEL, SKY_MODEL, UPSCALE_MODELS };

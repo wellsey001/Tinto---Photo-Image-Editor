@@ -8,7 +8,9 @@
   if (!native && !window.TINTO_WEB_AI) return;
   const LIB = new URL('vendor/transformers/transformers.min.js', document.baseURI).href;
   const SEG_MODEL = 'Xenova/modnet', SKY_MODEL = 'Xenova/segformer-b0-finetuned-ade-512-512';
-  const listeners = {person: new Set(), sky: new Set()};
+  const UPSCALE = {2: {id:'Xenova/swin2SR-lightweight-x2-64', dtype:'fp32'}, 4: {id:'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr', dtype:'q8'}};
+  const listeners = {person: new Set(), sky: new Set(), upscale: new Set()};
+  let stopUpscale = false;
   const ready = {}, loading = {};
   let T = null, busy = false;
 
@@ -22,7 +24,7 @@
     T.env.backends.onnx.wasm.wasmPaths = new URL('vendor/transformers/', document.baseURI).href;
     return T;
   }
-  function load(id, emit){
+  function load(id, emit, cls = 'AutoModel', dtype = 'fp32'){
     if (ready[id]) return Promise.resolve(ready[id]);
     if (!loading[id]) loading[id] = (async () => {
       emit({phase:'loading'});
@@ -33,7 +35,7 @@
         const all = Object.values(files);
         emit({phase:'download', progress: all.reduce((s, f) => s + f[0], 0) / all.reduce((s, f) => s + f[1], 0)});
       };
-      const model = await T.AutoModel.from_pretrained(id, {dtype:'fp32', device:'wasm', progress_callback});
+      const model = await T[cls].from_pretrained(id, {dtype, device:'wasm', progress_callback});
       const processor = await T.AutoProcessor.from_pretrained(id);
       return (ready[id] = {T, model, processor});
     })().finally(() => { delete loading[id]; });
@@ -74,6 +76,14 @@
       return new Uint8Array(big.data);
     });
   }
+  async function upscale(rgb, w, h, f){
+    const m = UPSCALE[f]; if (!m) throw new Error('Upscale works at 2x or 4x.');
+    return exclusive(async () => {
+      const emit = emitter('upscale'), {T, model, processor} = await load(m.id, emit, 'AutoModelForImageToImage', m.dtype);
+      stopUpscale = false; emit({phase:'working', progress:0});
+      return window.TintoUpscaleTiles(T, model, processor, rgb, w, h, f, emit, () => stopUpscale);
+    });
+  }
   const on = kind => cb => { listeners[kind].add(cb); return () => listeners[kind].delete(cb); };
-  window.WEB_AI = {removeBackground, onRemoveBgProgress: on('person'), skyMask, onSkyProgress: on('sky')};
+  window.WEB_AI = {removeBackground, onRemoveBgProgress: on('person'), skyMask, onSkyProgress: on('sky'), upscale, cancelUpscale: () => { stopUpscale = true; }, onUpscaleProgress: on('upscale')};
 })();

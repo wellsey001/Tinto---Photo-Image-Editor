@@ -472,3 +472,12 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 .anim-row .field{flex:1;min-width:0}
 #fmtSeg{grid-auto-columns:minmax(0,1fr)}
 #animOpts .seg{margin-bottom:8px}
+
+/* AI upscale */
+.upscale{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.upscale .seg{margin:8px 0}
+.up-status{display:grid;gap:8px;margin-top:10px}
+.up-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.up-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.up-line{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.btn.small{padding:5px 10px;font-size:12.5px}

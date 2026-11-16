@@ -187,7 +187,18 @@
           <div class="chips" id="pctChips"></div>
           <div class="readout" id="resizeReadout"></div>
           <button class="btn primary wide" id="resizeApply" type="button">Apply resize</button>
-          <p class="hint">Shrinking is done in halving steps so fine detail stays crisp. Enlarging past 200% will look soft.</p>
+          <p class="hint">Shrinking is done in halving steps so fine detail stays crisp. Enlarging past 200% will look soft, so use AI upscale below.</p>
+          <div class="sub upscale" id="upscaleBox">
+            <div class="group-h">AI upscale</div>
+            <p class="hint">Makes a small or soft photo bigger and adds real detail, instead of just stretching it. Runs on your device.</p>
+            <div class="seg" id="upFactor"><button type="button" data-f="2" aria-pressed="true">2× sharper</button><button type="button" data-f="4" aria-pressed="false">4× bigger</button></div>
+            <div class="readout" id="upReadout"></div>
+            <button class="btn primary wide" id="upGo" type="button">Upscale</button>
+            <div class="up-status" id="upStatus" hidden>
+              <div class="up-bar"><i id="upBar"></i></div>
+              <div class="up-line"><span id="upMsg">Getting ready…</span><button class="btn small" id="upCancel" type="button">Cancel</button></div>
+            </div>
+          </div>
         </div>
 
         <div class="pane" id="pane-text" hidden>
@@ -473,6 +484,7 @@
 <script src="emoji/emojipack.js"></script>
 <script src="inpaint-worker.js"></script>
   <script src="gif.js"></script>
+  <script src="upscale-tiles.js"></script>
   <script src="ai-web.js"></script>
   <script src="app.js"></script>
 </body>

@@ -452,6 +452,22 @@ ipcMain.handle('sticker:remove-bg', async (event, req) => {
   }
 });
 
+ipcMain.handle('photo:upscale', async (event, req) => {
+  if (cutoutBusy) throw new Error('Tinto is still busy with the last picture.');
+  const { rgb, w, h, f } = req || {};
+  if (!(rgb instanceof Uint8Array) || !Number.isInteger(w) || !Number.isInteger(h) || rgb.length !== w * h * 3 || (f !== 2 && f !== 4)) {
+    throw new Error('There’s no picture to upscale.');
+  }
+  const send = p => { if (!event.sender.isDestroyed()) event.sender.send('photo:upscale-progress', p); };
+  cutoutBusy = true;
+  try {
+    return await cutout.upscale(rgb, w, h, f, send);
+  } finally {
+    cutoutBusy = false;
+  }
+});
+ipcMain.on('photo:upscale-cancel', () => cutout.cancelUpscale());
+
 ipcMain.handle('photo:sky-mask', async (event, req) => {
   if (cutoutBusy) throw new Error('Tinto is still busy with the last picture.');
   const { rgb, w, h } = req || {};
