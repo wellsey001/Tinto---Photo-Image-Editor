@@ -1522,6 +1522,62 @@ cmp.addEventListener('pointerdown', e => { e.preventDefault(); setCompare(true);
 /* ================= open ================= */
 /* In the desktop app, window.tinto (from preload.js) gives native dialogs. In a plain browser it is absent and file inputs are used. */
 const desktop = !!window.tinto;
+/* ---------- Android (Capacitor): the same editor, with the phone's own file, share and back-button features ---------- */
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const plugin = n => (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[n]) || null;
+const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); });
+const b64ToBytes = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0));
+let nativePermOk = null;
+async function nativeStoragePermission(){
+  if (nativePermOk !== null) return nativePermOk;
+  const FS = plugin('Filesystem'); if (!FS) return (nativePermOk = false);
+  try {
+    let p = await FS.checkPermissions();
+    if (p.publicStorage !== 'granted') p = await FS.requestPermissions();
+    nativePermOk = p.publicStorage === 'granted';
+  } catch { nativePermOk = false; }
+  return nativePermOk;
+}
+/* Saves a file where people can find it: pictures in Pictures/Tinto (they show in the gallery),
+   projects in Documents/Tinto. Resolves to {uri, where} or throws. */
+async function nativeSave(blob, name, kind){
+  const FS = plugin('Filesystem'); if (!FS) throw new Error('no files');
+  const data = await blobToB64(blob);
+  await nativeStoragePermission();
+  const tries = kind === 'image'
+    ? [{directory:'EXTERNAL_STORAGE', path:`Pictures/Tinto/${name}`, where:'Pictures › Tinto'}, {directory:'DOCUMENTS', path:`Tinto/${name}`, where:'Documents › Tinto'}]
+    : [{directory:'DOCUMENTS', path:`Tinto/${name}`, where:'Documents › Tinto'}];
+  let last;
+  for (const t of tries){
+    try { const r = await FS.writeFile({path:t.path, data, directory:t.directory, recursive:true}); return {uri:r.uri, where:t.where}; }
+    catch (e) { last = e; }
+  }
+  throw last || new Error('save');
+}
+/* Opens Android's share sheet (WhatsApp, Instagram, Drive, Bluetooth…) with a file. */
+async function nativeShare(blob, name, title){
+  const FS = plugin('Filesystem'), SH = plugin('Share'); if (!FS || !SH) throw new Error('no share');
+  const r = await FS.writeFile({path:`share/${name}`, data:await blobToB64(blob), directory:'CACHE', recursive:true});
+  try { await SH.share({title, files:[r.uri], dialogTitle:title}); }
+  catch (e) { if (!/cancel/i.test(String(e && e.message || e))) throw e; }
+}
+/* My stickers live in Tinto's own storage on the phone. */
+const STICKERS = desktop ? window.tinto.stickers : (NATIVE ? {
+  async list(){
+    const FS = plugin('Filesystem'), out = [];
+    let files = [];
+    try { files = (await FS.readdir({path:'stickers', directory:'DATA'})).files || []; } catch { return out; }
+    for (const f of files){
+      const name = typeof f === 'string' ? f : f.name;
+      if (!/^stk-[\w-]+\.png$/.test(name)) continue;
+      try { const r = await FS.readFile({path:`stickers/${name}`, directory:'DATA'}); out.push({id:name.slice(0, -4), data:b64ToBytes(r.data)}); } catch { /* skip */ }
+    }
+    return out;
+  },
+  async save(id, bytes){ await plugin('Filesystem').writeFile({path:`stickers/${id}.png`, data:await blobToB64(new Blob([bytes], {type:'image/png'})), directory:'DATA', recursive:true}); return true; },
+  async remove(id){ try { await plugin('Filesystem').deleteFile({path:`stickers/${id}.png`, directory:'DATA'}); return true; } catch { return false; } },
+} : null);
+if (NATIVE) document.documentElement.classList.add('android');
 const MIME = {jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp', gif:'image/gif', bmp:'image/bmp'};
 function nativeToFile(f){
   const ext = (f.name.split('.').pop() || '').toLowerCase();
@@ -1604,6 +1660,13 @@ async function saveProject(saveAs){
       const res = await window.tinto.saveProject(fname, data, saveAs ? null : projectPath);
       if (res.saved){ projectPath = res.path; savedAt = hist[hi]; S.label = res.path.split(/[\\/]/).pop(); updateInfo(); toast('Project saved. Open it any time to keep editing.'); }
       else if (res.error) toast(`Couldn’t save the project: ${res.error}`);
+    } else if (NATIVE){
+      const blob = new Blob([data], {type:'application/json'});
+      if (saveAs) { await nativeShare(blob, fname, 'Share project'); }
+      else {
+        try { const r = await nativeSave(blob, fname, 'project'); savedAt = hist[hi]; toast(`Project saved to ${r.where}`, 'Share', () => nativeShare(blob, fname, 'Share project').catch(() => {})); }
+        catch { await nativeShare(blob, fname, 'Save or share your project'); }
+      }
     } else {
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type:'application/json'})); a.download = fname;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
@@ -1711,6 +1774,8 @@ document.querySelectorAll('#fmtSeg button').forEach(b => b.onclick = () => {
 const q = $('#quality');
 const paintQ = () => { fill(q, +q.value, 40); $('#qualityOut').textContent = q.value; };
 q.addEventListener('input', paintQ); paintQ();
+let exportShare = false;
+$('#exShare').onclick = () => { exportShare = true; $('#exSave').click(); };
 $('#exSave').onclick = async () => {
   const btn = $('#exSave'); btn.disabled = true; btn.textContent = 'Preparing…';
   await new Promise(r => setTimeout(r, 30));
@@ -1727,9 +1792,16 @@ $('#exSave').onclick = async () => {
       const res = await window.tinto.saveImage(filename, new Uint8Array(await blob.arrayBuffer()), ext);
       if (res.saved){ closeModal(); toast(`Saved ${res.path.split(/[\\/]/).pop()}`, 'Show in folder', () => window.tinto.showInFolder(res.path)); }
       else if (res.error) toast(`Couldn’t save: ${res.error}`);
+    } else if (NATIVE){
+      const stamped = filename.replace(/(\.\w+)$/, `-${Date.now().toString(36)}$1`);
+      if (exportShare){ await nativeShare(blob, stamped, 'Share your photo'); closeModal(); }
+      else {
+        try { const r = await nativeSave(blob, stamped, 'image'); closeModal(); toast(`Saved to ${r.where}`, 'Share', () => nativeShare(blob, stamped, 'Share your photo').catch(() => {})); }
+        catch { await nativeShare(blob, stamped, 'Save or share your photo'); closeModal(); }
+      }
     } else showFallback(blob);
   } catch (e) { toast('The photo couldn’t be encoded. Try PNG, or a smaller size.'); }
-  btn.disabled = false; btn.textContent = 'Save file';
+  btn.disabled = false; btn.textContent = NATIVE ? 'Save to gallery' : 'Save file'; exportShare = false;
 };
 async function renderEditorFull(){
   await document.fonts.ready;
@@ -2706,7 +2778,7 @@ async function openStickerEditor(file){
   SK.pad = Math.round(Math.max(SK.w, SK.h) * 0.1);
   SK.undo = [];
   $('#skAi').hidden = $('#skAiHint').hidden = !desktop;
-  $('#skSaveRow').hidden = !desktop;
+  $('#skSaveRow').hidden = !STICKERS;
   setSkBusy(null);
   $('#stickerModal').hidden = false;
   renderSk();
@@ -3002,14 +3074,14 @@ async function skAdd(){
   if (!c) { toast('Nothing is left to make a sticker from. Undo, or Start over.'); return; }
   const id = stickerId();
   STICKER_IMG.set(id, c);
-  const save = desktop && $('#skSave').checked;
+  const save = !!STICKERS && $('#skSave').checked;
   closeStickerEditor();
   if (tab !== 'stickers') setTab('stickers');
   placeSticker(id);
   if (save){
     try {
       const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-      await window.tinto.stickers.save(id, new Uint8Array(await blob.arrayBuffer()));
+      await STICKERS.save(id, new Uint8Array(await blob.arrayBuffer()));
       addMyStickerTile(id, c);
       toast('Sticker added and saved to My stickers.');
     } catch { toast('Sticker added, but it couldn’t be saved to My stickers.'); }
@@ -3025,18 +3097,18 @@ function addMyStickerTile(id, canvas){
   const img = document.createElement('img'); img.alt = 'My sticker'; img.src = canvas.toDataURL('image/png');
   add.appendChild(img); add.onclick = () => placeSticker(id);
   b.appendChild(add);
-  if (desktop){
+  if (STICKERS){
     const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.title = 'Delete from My stickers'; del.setAttribute('aria-label', 'Delete from My stickers');
     del.innerHTML = '<svg viewBox="0 0 12 12" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg>';
-    del.onclick = async () => { if (await window.tinto.stickers.remove(id)) b.remove(); };
+    del.onclick = async () => { if (await STICKERS.remove(id)) b.remove(); };
     b.appendChild(del);
   }
   wrap.insertBefore(b, $('#importSticker').nextSibling);
 }
 async function loadMyStickers(){
-  if (!desktop) return;
+  if (!STICKERS) return;
   try {
-    const list = await window.tinto.stickers.list();
+    const list = await STICKERS.list();
     for (const s of list){
       try {
         const bmp = await createImageBitmap(new Blob([s.data], {type:'image/png'}));
@@ -3159,7 +3231,7 @@ function photoMenu(at){
     {label:'Undo', kbd:'Ctrl+Z', off:hi <= 0, act:undo},
     {label:'Redo', kbd:'Ctrl+Y', off:hi >= hist.length-1, act:redo},
     '-',
-    {label:'Copy picture', act:copyPicture},
+    ...(NATIVE ? [] : [{label:'Copy picture', act:copyPicture}]),
     {label:'Export…', act:() => $('#exportBtn').click()},
     {label:'Open photo…', act:() => openPhoto()},
   ];
@@ -3179,7 +3251,7 @@ function openCtx(items, x, y){
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ctx-item' + (it.danger ? ' danger' : '');
     b.setAttribute('role', 'menuitem'); b.disabled = !!it.off;
     const t = document.createElement('span'); t.textContent = it.label; b.appendChild(t);
-    if (it.kbd){ const k = document.createElement('kbd'); k.textContent = kbd(it.kbd); b.appendChild(k); }
+    if (it.kbd && !NATIVE){ const k = document.createElement('kbd'); k.textContent = kbd(it.kbd); b.appendChild(k); }
     b.onclick = () => { closeCtx(); it.act(); };
     m.appendChild(b);
   }
@@ -3209,7 +3281,7 @@ $('#myStickers').addEventListener('contextmenu', e => {
   const id = tile.dataset.id, c = STICKER_IMG.get(id); if (!c) return;
   openCtx([
     {label:'Add to photo', off:!S.base, act:() => placeSticker(id)},
-    ...(desktop ? ['-', {label:'Delete from My stickers', danger:true, act:async () => { if (await window.tinto.stickers.remove(id)) tile.remove(); }}] : []),
+    ...(STICKERS ? ['-', {label:'Delete from My stickers', danger:true, act:async () => { if (await STICKERS.remove(id)) tile.remove(); }}] : []),
   ], e.clientX, e.clientY);
 });
 // right-click on a row in the Layers panel
@@ -3256,5 +3328,84 @@ window.addEventListener('copy', e => {
   e.preventDefault(); e.clipboardData.setData('text/plain', CLIP_MARK);
   layerClip = clone(l); toast(`Copied ${layerName(l)}. Paste with ${kbd('Ctrl+V')}.`);
 });
+
+
+/* ================= touch: two-finger pinch and twist, long-press menu ================= */
+const touchPts = new Map();
+let pinch = null, longPress = null, lastLongPress = 0;
+const pinchInfo = () => { const [a, b] = [...touchPts.values()]; return {d:Math.hypot(b.x-a.x, b.y-a.y) || 1, a:Math.atan2(b.y-a.y, b.x-a.x), mx:(a.x+b.x)/2, my:(a.y+b.y)/2}; };
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !S.base || tab==='collage' || tab==='crop') return;
+  touchPts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (touchPts.size === 1){
+    clearTimeout(longPress && longPress.t);
+    if (tab === 'retouch' || tab === 'draw') return;
+    longPress = {x:e.clientX, y:e.clientY, t:setTimeout(() => {
+      if (!longPress) return;
+      if (ldrag && ldrag.type === 'move'){ ldrag.l.x = ldrag.x0; ldrag.l.y = ldrag.y0; ldrag = null; }
+      lastLongPress = Date.now();
+      stage.dispatchEvent(new MouseEvent('contextmenu', {clientX:longPress.x, clientY:longPress.y, bubbles:true, cancelable:true}));
+      longPress = null;
+    }, 550)};
+    return;
+  }
+  if (touchPts.size === 2 && tab !== 'retouch' && tab !== 'draw'){
+    clearTimeout(longPress && longPress.t); longPress = null;
+    const l = (ldrag && ldrag.l) || getSel();
+    if (!l) return;
+    if (ldrag && ldrag.type === 'move'){ l.x = ldrag.x0; l.y = ldrag.y0; }
+    ldrag = null;
+    const k = S.base.width / view.getBoundingClientRect().width, info = pinchInfo();
+    pinch = {l, k, ...info, x0:l.x, y0:l.y, s0: l.type==='text' ? l.size : l.scale, r0:l.rot};
+    stage.setPointerCapture(e.pointerId);
+    e.stopImmediatePropagation(); e.preventDefault();
+  }
+}, true);
+stage.addEventListener('pointermove', e => {
+  if (!touchPts.has(e.pointerId)) return;
+  touchPts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (longPress && Math.hypot(e.clientX - longPress.x, e.clientY - longPress.y) > 10){ clearTimeout(longPress.t); longPress = null; }
+  if (!pinch || touchPts.size < 2) return;
+  e.stopImmediatePropagation();
+  const p = pinch, l = p.l, n = pinchInfo(), f = n.d / p.d;
+  if (l.type==='text') l.size = clamp(p.s0*f, 4, minSide()*1.5); else l.scale = clamp(p.s0*f, 0.02, 100);
+  let r = p.r0 + (n.a - p.a) / RAD; r = ((r + 540) % 360) - 180;
+  const near = Math.round(r/45)*45; if (Math.abs(r - near) < 3) r = near;
+  l.rot = r;
+  l.x = p.x0 + (n.mx - p.mx) * p.k; l.y = p.y0 + (n.my - p.my) * p.k;
+  composite();
+}, true);
+const touchEnd = e => {
+  if (!touchPts.has(e.pointerId)) return;
+  touchPts.delete(e.pointerId);
+  if (longPress){ clearTimeout(longPress.t); longPress = null; }
+  if (pinch){
+    e.stopImmediatePropagation();
+    if (touchPts.size < 2){ const l = pinch.l; pinch = null; selId = l.id; commit(); syncPanels(); refreshLayerUI(); }
+  }
+};
+stage.addEventListener('pointerup', touchEnd, true);
+stage.addEventListener('pointercancel', touchEnd, true);
+// the phone's own long-press menu would arrive too; ours already opened
+stage.addEventListener('contextmenu', e => { if (e.isTrusted && Date.now() - lastLongPress < 900){ e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+
+/* ================= Android: back button, and hiding what only the desktop app can do ================= */
+if (NATIVE){
+  $('#exShare').hidden = false; $('#exSave').textContent = 'Save to gallery';
+  $('#fileInput').setAttribute('accept', 'image/*,.tinto,application/json,application/octet-stream');
+  // the AI background tools run in the desktop app's background process
+  const bgTool = document.querySelector('.tool[data-tab="background"]'); if (bgTool) bgTool.hidden = true;
+  const App = plugin('App');
+  if (App) App.addListener('backButton', () => {
+    if (CTX.el){ closeCtx(); return; }
+    if (!$('#exportModal').hidden){ closeModal(); return; }
+    if (!$('#stickerModal').hidden){ if (!SK.busy) closeStickerEditor(); return; }
+    const anyModal = [...document.querySelectorAll('.modal')].find(m => !m.hidden);
+    if (anyModal){ anyModal.hidden = true; return; }
+    if (selId){ select(null); return; }
+    if (tab !== 'adjust'){ setTab('adjust'); return; }
+    App.minimizeApp();
+  });
+}
 
 loadMyStickers();

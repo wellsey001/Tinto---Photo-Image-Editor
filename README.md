@@ -19,6 +19,7 @@ Get Tinto from the **[latest release](https://github.com/wellsey001/Tinto---Phot
 | --- | --- |
 | Windows 10 and 11 (64-bit) | `Tinto-Setup-<version>.exe` |
 | Linux (64-bit), including Bazzite, Fedora, Ubuntu and SteamOS | `Tinto-<version>.AppImage` |
+| Android 6 and newer (phones and tablets) | `Tinto-<version>.apk` |
 
 ### Windows
 
@@ -37,6 +38,16 @@ An AppImage is a single file that runs on most Linux distributions without insta
 3. Double-click it to open Tinto.
 
 To add Tinto to your app menu, with its icon and **Open with** for images, open the AppImage with **[Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)**. On Bazzite it's in the Bazaar app store. Gear Lever also keeps the AppImage in one tidy place.
+
+### Android
+
+1. On your phone, open the **[latest release](https://github.com/wellsey001/Tinto---Photo-Image-Editor/releases/latest)** and tap **`Tinto-<version>.apk`** under **Assets**.
+2. Open the downloaded file. The first time, Android asks to allow your browser (or Files app) to **install unknown apps**: tap **Settings**, turn it on, then go back and tap **Install**.
+3. Open Tinto from your app drawer.
+
+On a phone the photo sits at the top, the tool's controls slide up underneath it (tap the open tool again to fold them away), and all the tools are in the bar along the bottom. Pinch and twist with two fingers to resize and rotate stickers and text, and long-press for the menu. **Export** saves to your gallery (**Pictures › Tinto**) or opens the share sheet; projects save to **Documents › Tinto**.
+
+The AI background tools (Background, and the AI cutout for custom stickers) are only in the desktop app for now. To update on Android, download and install the newest APK; it installs over the old one and keeps your stickers.
 
 ### Updates
 
