@@ -351,6 +351,32 @@ ipcMain.handle('sticker:remove-bg', async (event, req) => {
   }
 });
 
+ipcMain.handle('photo:sky-mask', async (event, req) => {
+  if (cutoutBusy) throw new Error('Tinto is still busy with the last picture.');
+  const { rgb, w, h } = req || {};
+  if (!(rgb instanceof Uint8Array) || !Number.isInteger(w) || !Number.isInteger(h) || rgb.length !== w * h * 3) {
+    throw new Error('There’s no picture to find the sky in.');
+  }
+  const send = p => { if (!event.sender.isDestroyed()) event.sender.send('photo:sky-progress', p); };
+  cutoutBusy = true;
+  try {
+    return await cutout.skyMaskFor(rgb, w, h, send);
+  } finally {
+    cutoutBusy = false;
+  }
+});
+
+function skyPicture(w, h) {
+  const rgb = new Uint8Array(w * h * 3);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const t = y / h, i = (y * w + x) * 3;
+    if (t < 0.6) rgb.set([70 + 90 * t, 130 + 90 * t, 220 + 30 * t], i);
+    else rgb.set([60 + 20 * Math.sin(x * 0.3), 120 + 15 * Math.sin(x * 0.17 + y), 50], i);
+  }
+  return rgb;
+}
+function avgRows(m, w, y0, y1) { let s = 0, n = 0; for (let y = Math.floor(y0); y < Math.floor(y1); y++) for (let x = 0; x < w; x++) { s += m[y * w + x]; n++; } return s / n; }
+
 // Build check: the packaged app runs the background remover once on a made-up picture,
 // writes the result to TINTO_SELFTEST_OUT and quits. Only runs when that variable is set.
 async function runCutoutSelfTest() {
@@ -365,7 +391,10 @@ async function runCutoutSelfTest() {
     const mask = await cutout.maskFor(rgb, w, h);
     let min = 255, max = 0;
     for (const v of mask) { if (v < min) min = v; if (v > max) max = v; }
-    await report({ ok: mask.length === w * h && max > min, length: mask.length, min, max });
+    // the sky finder too: blue sky over green grass
+    const sky = await cutout.skyMaskFor(skyPicture(w, h), w, h);
+    const top = avgRows(sky, w, 0, h / 3), bottom = avgRows(sky, w, h * 2 / 3, h);
+    await report({ ok: mask.length === w * h && max > min && sky.length === w * h && top > bottom, length: mask.length, min, max, skyTop: top, skyBottom: bottom });
     app.exit(0);
   } catch (err) {
     await report({ ok: false, error: String(err && err.stack || err) });

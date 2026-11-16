@@ -79,7 +79,7 @@
 
         <div class="pane" id="pane-background" hidden>
           <h2 class="pane-title">Background</h2>
-          <p class="hint" id="bgIntro">Tinto finds the person in your photo and changes everything behind them. Works best on people.</p>
+          <p class="hint" id="bgIntro">Change everything behind the person in your photo, or give it a new sky.</p>
           <div class="chips" id="bgModes" role="radiogroup" aria-label="Background"></div>
           <div class="sub" id="bgBlurRow" hidden>
             <div class="row"><label for="bgBlur">Blur</label><output id="bgBlurOut"></output><input type="range" id="bgBlur" min="5" max="100" value="45"></div>
@@ -93,6 +93,15 @@
           <div class="sub" id="bgEdgeRow" hidden>
             <div class="row"><label for="bgEdge">Edge softness</label><output id="bgEdgeOut"></output><input type="range" id="bgEdge" min="0" max="100" value="30"></div>
           </div>
+          <div class="group-h">Sky</div>
+          <p class="hint">Swap a dull sky for a new one. Tinto finds the sky for you.</p>
+          <div class="frames sky-grid" id="skyGrid"></div>
+          <div class="sub" id="skyOpts" hidden>
+            <div class="row"><label for="skyAmt">Strength</label><output id="skyAmtOut"></output><input type="range" id="skyAmt" min="0" max="100" value="100"></div>
+            <div class="row"><label for="skyShift">Sky position</label><output id="skyShiftOut"></output><input type="range" id="skyShift" min="-100" max="100" value="0"></div>
+            <label class="check"><input type="checkbox" id="skyMatch" checked> Match the photo’s light to the new sky</label>
+          </div>
+          <input type="file" id="skyFile" accept="image/*" hidden>
           <div class="bg-status" id="bgStatus" hidden>
             <span id="bgStatusMsg"></span>
             <div class="bar" id="bgBar" hidden><i id="bgBarFill"></i></div>

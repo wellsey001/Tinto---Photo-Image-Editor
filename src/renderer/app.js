@@ -135,7 +135,7 @@ const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30}
 const FRAME_DEFAULT = {style:'none', colour:'', size:40};
 let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:null, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
-const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx) + JSON.stringify(S.tpl || null), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null, tpl:S.tpl ? {...S.tpl} : null});
+const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame) + JSON.stringify(S.fx) + JSON.stringify(S.tpl || null) + JSON.stringify(S.sky || null), frame:{...S.frame}, fx:S.fx ? clone(S.fx) : null, sky:S.sky ? {...S.sky} : null, tpl:S.tpl ? {...S.tpl} : null});
 function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && a.bj===b.bj && KEYS.every(k => a.params[k]===b.params[k]); }
 function commit(){
   const s = snap();
@@ -148,8 +148,8 @@ function commit(){
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
-  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)}; S.fx = st.fx ? clone(st.fx) : {...FX_DEFAULT}; S.tpl = st.tpl ? {...st.tpl} : null;
-  if (!getSel()) selId = null; syncBg(); syncFrame(); syncFx(); syncTpl();
+  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)}; S.fx = st.fx ? clone(st.fx) : {...FX_DEFAULT}; S.tpl = st.tpl ? {...st.tpl} : null; S.sky = st.sky ? {...st.sky} : {...SKY_DEFAULT};
+  if (!getSel()) selId = null; syncBg(); syncFrame(); syncFx(); syncTpl(); syncSky();
   syncUI();
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
@@ -780,7 +780,7 @@ function rtMove(p){
 function rtEnd(){
   const st = RT.stroke; RT.stroke = null;
   if (!st || !st.dirty) return;
-  const m = bgMasks.get(st.src); if (m) bgMasks.set(st.work, m);    // same person, same outline
+  const m = bgMasks.get(st.src); if (m) bgMasks.set(st.work, m); const sm = skyMasks.get(st.src); if (sm) skyMasks.set(st.work, sm);    // same person, same outline
   S.base = st.work; commit(); rebuildPreview();
 }
 function rtGrow(st, x0, y0, x1, y1){
@@ -1058,6 +1058,7 @@ function setTab(name){
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
   ['adjust','filters','background','retouch','effects','crop','resize','text','stickers','draw','frames','templates','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
   if (name === 'effects') drawFxThumbs();
+  if (name === 'background') drawSkyThumbs();
   if (name === 'templates') syncTpl();
   syncFx();
   stage.classList.toggle('retouching', name==='retouch'); if (name!=='retouch') rtCursor.hidden = true;
@@ -1735,18 +1736,23 @@ function fxApply(src, fx, base, tag){
   return out;
 }
 let fxCache = {key:'', src:null, out:null};
+const skyOn = () => { const i = S.sky && S.sky.id !== 'none' && S.base && skyMasks.get(S.base); return !!(i && !i.none); };
 function fxPreviewData(){
-  if (!S.fx || S.fx.id === 'none' || !prevData) return prevData;
-  const key = JSON.stringify(S.fx) + (bgMaskFor(S.base) ? 'm' : '');
+  if (!prevData) return prevData;
+  const fxOn = S.fx && S.fx.id !== 'none', sk = skyOn();
+  if (!fxOn && !sk) return prevData;
+  const key = JSON.stringify(S.fx) + (bgMaskFor(S.base) ? 'm' : '') + (sk ? JSON.stringify(S.sky) : '');
   if (fxCache.src === prevData && fxCache.key === key) return fxCache.out;
-  const c = mk(prevData.width, prevData.height); c.getContext('2d').putImageData(prevData, 0, 0);
-  const r = fxApply(c, S.fx, S.base, prevData);
+  let c = mk(prevData.width, prevData.height); c.getContext('2d').putImageData(prevData, 0, 0);
+  if (sk) c = skyApply(c, S.sky, S.base);
+  const r = fxOn ? fxApply(c, S.fx, S.base, sk ? null : prevData) : c;
   fxCache = {key, src:prevData, out:r.getContext('2d').getImageData(0, 0, c.width, c.height)};
   return fxCache.out;
 }
 function fxFull(b){
-  if (!S.fx || S.fx.id === 'none') return b.getContext('2d').getImageData(0, 0, b.width, b.height);
-  const r = fxApply(b, S.fx, b); return r.getContext('2d').getImageData(0, 0, b.width, b.height);
+  const c = skyOn() ? skyApply(b, S.sky, b) : b;
+  if (!S.fx || S.fx.id === 'none') return c.getContext('2d').getImageData(0, 0, b.width, b.height);
+  const r = fxApply(c, S.fx, b); return r.getContext('2d').getImageData(0, 0, b.width, b.height);
 }
 
 /* panel */
@@ -1801,6 +1807,7 @@ $('#fxApply').onclick = () => {
   if (!S.base || S.fx.id === 'none') return;
   const b = S.base, out = fxApply(b, S.fx, b), m = bgMaskFor(b);
   if (m) bgMasks.set(out, m);
+  const sm = skyMasks.get(b); if (sm) skyMasks.set(out, sm);
   S.base = out; S.fx = {...FX_DEFAULT, seed: S.fx.seed}; commit(); rebuildPreview(); syncFx();
   toast('Effect applied. Pick another to add on top.');
 };
@@ -1964,9 +1971,9 @@ async function applyDesign(id, img){
   for (const l of layers){ l.id = nextId++; if (l.type === 'text') document.fonts.load(`${l.bold ? 700 : 400} 40px "${l.font}"`).then(composite).catch(() => {}); }
   S.base = base; S.layers = layers; S.tpl = {id, ref, ...pos};
   if (fresh){ S.params = defaults(); S.filter = 'none'; S.strength = 100; }
-  S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT};
+  S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; S.sky = {...SKY_DEFAULT};
   selId = null; drawSession = null;
-  syncUI(); syncBg(); syncFrame(); syncFx(); commit(); rebuildPreview(); syncResize(); setSocial(null); refreshLayerUI(); syncTpl();
+  syncUI(); syncBg(); syncFrame(); syncFx(); syncSky(); commit(); rebuildPreview(); syncResize(); setSocial(null); refreshLayerUI(); syncTpl();
   toast('Tap any words to change them. Undo goes back to your photo.');
 }
 /* moving and zooming the photo inside the design */
@@ -2023,6 +2030,198 @@ function syncTpl(){
   paintTplZoom(); paintTplX(); paintTplY();
   if (tab === 'templates') drawTplThumbs();
 }
+
+
+/* ================= Sky replacement ================= */
+// An AI model finds the sky (desktop: in Tinto's background process); the new sky is painted in behind
+// everything else, the edges are tidied up using the photo's own colours, and the rest of the photo
+// can take on a little of the new sky's light so it all looks like one picture.
+const SKY_DEFAULT = {id:'none', amt:100, match:true, shift:0};
+const SKIES = [
+  {id:'none', name:'Original'},
+  {id:'blue', name:'Blue sky'}, {id:'sunset', name:'Sunset'}, {id:'golden', name:'Golden hour'}, {id:'pink', name:'Cotton candy'},
+  {id:'storm', name:'Storm'}, {id:'night', name:'Starry night'}, {id:'aurora', name:'Aurora'}, {id:'own', name:'Your photo…'},
+];
+const skyMasks = new WeakMap();   // photo canvas -> {c: mask canvas, bottom: where the sky ends (0-1)} or {none:true}
+const SKY_IMG = new Map();
+let skyJob = null;
+S.sky = {...SKY_DEFAULT};
+
+function skyTexture(id, W, H){
+  const key = id + W + 'x' + H; if (texCache.has(key)) return texCache.get(key);
+  if (!['blue','sunset','golden','pink','storm','night','aurora'].includes(id)){ const img = SKY_IMG.get(id); return img ? fxCover(img, W, H) : skyTexture('blue', W, H); }
+  const c = mk(W, H), x = c.getContext('2d'), K = Math.max(W, H), R = fxRng(id.length*131 + id.charCodeAt(0));
+  const grad = stops => { const g = x.createLinearGradient(0, 0, 0, H); stops.forEach(([o, col]) => g.addColorStop(o, col)); x.fillStyle = g; x.fillRect(0, 0, W, H); };
+  const glow = (gx, gy, r, col, a) => { const g = x.createRadialGradient(gx, gy, 0, gx, gy, r); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},0)`); x.fillStyle = g; x.fillRect(0, 0, W, H); };
+  // puffy clouds: overlapping circles with flat-ish bottoms, lit from above and shaded underneath
+  const clouds = (n, y0, y1, col, a, sz = 1, flat = 0.45, shade = '0,0,0') => {
+    const L = mk(W, H), lx = L.getContext('2d');
+    for (let i=0; i<n; i++){
+      const cx = R()*W, base = (y0 + R()*(y1 - y0))*H, cw = K*(0.06 + R()*0.13)*sz, ch = cw*(0.35 + R()*0.25)*(flat/0.45);
+      const g = lx.createLinearGradient(0, base - ch*2, 0, base);
+      g.addColorStop(0, `rgb(${col})`); g.addColorStop(0.55, `rgb(${col})`); g.addColorStop(1, `rgb(${shade})`);
+      lx.save(); lx.beginPath(); lx.rect(0, 0, W, base); lx.clip(); lx.fillStyle = g;
+      for (let j=0; j<9; j++){ const px = cx + (R()-0.5)*cw*1.6, r = ch*(0.4 + R()*0.6), py = base - r*0.5 - R()*ch*0.6; lx.beginPath(); lx.arc(px, py, r, 0, Math.PI*2); lx.fill(); }
+      lx.restore();
+    }
+    x.globalAlpha = a; x.filter = `blur(${(K*0.005).toFixed(1)}px)`; x.drawImage(L, 0, 0); x.filter = 'none'; x.globalAlpha = 1;
+  };
+  if (id === 'blue'){ grad([[0,'#1f5fb8'],[0.55,'#4a90dc'],[1,'#b9dcf6']]); clouds(9, 0.2, 0.85, '255,255,255', 0.95, 1, 0.45, '150,170,200'); }
+  else if (id === 'sunset'){
+    grad([[0,'#241a4a'],[0.35,'#7a3a7a'],[0.62,'#e0566a'],[0.85,'#ff9a4d'],[1,'#ffd27a']]);
+    glow(W*0.62, H*0.98, K*0.45, '255,214,140', 0.85); clouds(7, 0.3, 0.75, '255,150,130', 0.7, 1.3, 0.25, '90,40,90');
+  } else if (id === 'golden'){
+    grad([[0,'#6f8fb8'],[0.45,'#d9b38a'],[0.8,'#f7c77a'],[1,'#fff0c2']]);
+    glow(W*0.3, H*0.9, K*0.5, '255,236,170', 0.9); clouds(8, 0.25, 0.8, '255,236,205', 0.8, 1.1, 0.35, '200,140,110');
+  } else if (id === 'pink'){
+    grad([[0,'#8fa8e8'],[0.45,'#d7b4e8'],[0.8,'#ffc2d6'],[1,'#ffe1d6']]); clouds(9, 0.2, 0.85, '255,228,238', 0.9, 1.1, 0.45, '220,150,200');
+  } else if (id === 'storm'){
+    grad([[0,'#2c3138'],[0.5,'#5a626c'],[1,'#a7adb3']]);
+    glow(W*0.75, H*0.35, K*0.25, '220,226,235', 0.35); clouds(22, 0.02, 0.6, '128,134,144', 0.9, 1.2, 0.55, '52,56,64'); clouds(18, 0.25, 0.95, '96,102,112', 0.9, 1, 0.5, '34,37,44');
+  } else if (id === 'night'){
+    grad([[0,'#05081a'],[0.6,'#0f1c3d'],[1,'#2b3a6b']]);
+    for (let i=0; i<Math.round(W*H/2500); i++){ const sx = R()*W, sy = R()*H*0.95, r = Math.max(0.5, K*0.0009*Math.pow(R(), 3)*3), a = 0.4 + R()*0.6; x.fillStyle = `rgba(255,255,${200 + Math.round(R()*55)},${a})`; x.beginPath(); x.arc(sx, sy, r, 0, Math.PI*2); x.fill(); }
+    const mx = W*0.78, my = H*0.22, mr = K*0.035; glow(mx, my, mr*5, '220,230,255', 0.3);
+    x.fillStyle = '#f4f1e4'; x.beginPath(); x.arc(mx, my, mr, 0, Math.PI*2); x.fill();
+  } else if (id === 'aurora'){
+    grad([[0,'#030a14'],[0.6,'#0a2233'],[1,'#123b4a']]);
+    for (let i=0; i<Math.round(W*H/4000); i++){ x.fillStyle = `rgba(255,255,255,${0.3 + R()*0.6})`; x.fillRect(R()*W, R()*H, Math.max(1, K*0.0012), Math.max(1, K*0.0012)); }
+    const band = mk(W, H), bx = band.getContext('2d');
+    const curtain = (col, y0, amp) => {
+      bx.beginPath(); bx.moveTo(0, H*y0);
+      for (let px=0; px<=W; px+=W/40) bx.lineTo(px, H*y0 + Math.sin(px/W*6 + y0*9)*H*amp + Math.sin(px/W*13)*H*amp*0.4);
+      bx.lineWidth = K*0.06; bx.strokeStyle = col; bx.stroke();
+    };
+    curtain('rgba(80,255,170,.75)', 0.35, 0.08); curtain('rgba(120,90,255,.55)', 0.22, 0.06); curtain('rgba(60,230,200,.5)', 0.5, 0.05);
+    x.filter = `blur(${(K*0.035).toFixed(0)}px)`; x.globalCompositeOperation = 'screen'; x.drawImage(band, 0, 0); x.drawImage(band, 0, 0); x.filter = 'none'; x.globalCompositeOperation = 'source-over';
+  }
+  if (texCache.size > 12) texCache.clear();
+  texCache.set(key, c); return c;
+}
+/* colour near the horizon of a sky picture, for matching the rest of the photo to it */
+function skyTone(tex){ const s = scaleCanvas(tex, 8, 8).getContext('2d').getImageData(0, 4, 8, 4).data; let r = 0, g = 0, b = 0; for (let i=0; i<s.length; i+=4){ r += s[i]; g += s[i+1]; b += s[i+2]; } const n = s.length/4; return [r/n, g/n, b/n].map(Math.round); }
+
+function skyApply(src, sky, base){
+  const info = base && skyMasks.get(base);
+  if (!sky || sky.id === 'none' || !info || info.none) return src;
+  const W = src.width, H = src.height, K = Math.max(W, H), t = sky.amt / 100;
+  const skyH = Math.max(1, Math.round(H * clamp(info.bottom + 0.06, 0.25, 1)));
+  const tex = skyTexture(sky.id, W, skyH), off = Math.round((sky.shift / 100) * skyH * 0.5);
+  const L = mk(W, H), lx = L.getContext('2d');
+  lx.drawImage(tex, 0, off, W, skyH);
+  if (off > 0) lx.drawImage(tex, 0, 0, W, 1, 0, 0, W, off + 1);
+  lx.drawImage(tex, 0, tex.height - 1, W, 1, 0, off + skyH - 1, W, Math.max(1, H - off - skyH + 1));    // below the sky, carry on the horizon colour
+  lx.globalCompositeOperation = 'destination-in'; lx.imageSmoothingQuality = 'high';
+  lx.filter = `blur(${Math.max(0.4, K*0.0012).toFixed(1)}px)`; lx.drawImage(info.c, 0, 0, W, H); lx.filter = 'none';
+  const out = mk(W, H), o = out.getContext('2d'); o.drawImage(src, 0, 0);
+  if (sky.match){
+    // the land picks up some of the new light
+    const [r, g, b] = skyTone(tex);
+    o.globalCompositeOperation = 'soft-light'; o.globalAlpha = 0.45*t; o.fillStyle = `rgb(${r},${g},${b})`; o.fillRect(0, 0, W, H);
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1;
+  }
+  o.globalAlpha = t; o.drawImage(L, 0, 0); o.globalAlpha = 1;
+  return out;
+}
+/* tidy the model's soft, low-detail answer using the photo's colours: leaves, wires and rooflines
+   against the sky get crisp edges where the model could only guess */
+function refineSky(prob, d, w, h){
+  const n = w*h; let sr = 0, sg = 0, sb = 0, sn = 0, gr = 0, gg = 0, gb = 0, gn = 0;
+  for (let i=0, j=0; i<n; i++, j+=4){
+    if (prob[i] > 230){ sr += d[j]; sg += d[j+1]; sb += d[j+2]; sn++; }
+    else if (prob[i] < 25){ gr += d[j]; gg += d[j+1]; gb += d[j+2]; gn++; }
+  }
+  if (sn < n*0.01) return null;
+  const S0 = [sr/sn, sg/sn, sb/sn], G0 = gn ? [gr/gn, gg/gn, gb/gn] : [0, 0, 0];
+  const out = new Uint8ClampedArray(n), rows = new Float32Array(h);
+  for (let i=0, j=0; i<n; i++, j+=4){
+    let p = prob[i] / 255;
+    if (p > 0.08 && p < 0.92){
+      const ds = Math.hypot(d[j]-S0[0], d[j+1]-S0[1], d[j+2]-S0[2]), dg = Math.hypot(d[j]-G0[0], d[j+1]-G0[1], d[j+2]-G0[2]);
+      const c = dg / (ds + dg + 1e-3);
+      p = smooth01(0.35, 0.65, c*0.65 + p*0.35);
+    }
+    out[i] = p*255; rows[Math.floor(i / w)] += p;
+  }
+  let bottom = 0; for (let y=0; y<h; y++) if (rows[y] / w > 0.04) bottom = (y + 1) / h;
+  const c = mk(w, h), x = c.getContext('2d'), id = x.createImageData(w, h);
+  for (let i=0; i<n; i++){ id.data[i*4] = id.data[i*4+1] = id.data[i*4+2] = 255; id.data[i*4+3] = out[i]; }
+  x.putImageData(id, 0, 0);
+  return {c, bottom};
+}
+async function ensureSkyMask(){
+  const base = S.base;
+  if (!base || skyMasks.has(base) || skyJob === base) return;
+  const ai = window.tinto && window.tinto.skyMask ? window.tinto : (typeof WEB_AI !== 'undefined' ? WEB_AI : null);
+  if (!ai){ $('#bgWebHint').hidden = false; return; }
+  skyJob = base;
+  const k = Math.min(1, 1024 / Math.max(base.width, base.height));
+  const w = Math.max(1, Math.round(base.width*k)), h = Math.max(1, Math.round(base.height*k));
+  const d = scaleCanvas(base, w, h).getContext('2d').getImageData(0, 0, w, h).data, rgb = new Uint8Array(w*h*3);
+  for (let i=0, j=0, q=0; i<w*h; i++, j+=4, q+=3){ rgb[q]=d[j]; rgb[q+1]=d[j+1]; rgb[q+2]=d[j+2]; }
+  const stop = ai.onSkyProgress(pr => {
+    if (skyJob !== base) return;
+    if (pr.phase === 'loading') bgStatus('Getting the sky finder ready…');
+    else if (pr.phase === 'download') bgStatus('Downloading the sky model (first time only)…', pr.progress || 0);
+    else if (pr.phase === 'working') bgStatus('Finding the sky…');
+  });
+  bgStatus('Finding the sky…');
+  try {
+    let prob = null;
+    for (let attempt = 0; attempt < 20 && !prob; attempt++){
+      try { prob = await ai.skyMask(rgb, w, h); }
+      catch (e){ if (/busy|already/i.test(String(e && e.message))) await new Promise(r => setTimeout(r, 700)); else throw e; }
+    }
+    const info = prob && refineSky(prob, d, w, h);
+    skyMasks.set(base, info || {none:true});
+    if (!info && S.base === base && S.sky.id !== 'none') toast('Tinto couldn’t find any sky in this photo.');
+  } catch (e){
+    toast('The sky couldn’t be found. Check your internet connection the first time, so the model can download.');
+  } finally {
+    stop(); if (skyJob === base) skyJob = null; bgStatus('');
+    if (S.base === base) render();
+  }
+}
+/* panel */
+const skyThumbs = [];
+(function buildSkies(){
+  const grid = $('#skyGrid');
+  for (const s of SKIES){
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = s.id; b.setAttribute('aria-pressed', 'false');
+    const c = mk(120, 72), lab = document.createElement('span'); lab.textContent = s.name;
+    b.append(c, lab); grid.appendChild(b); skyThumbs.push({c, s});
+    b.onclick = () => { if (s.id === 'own'){ $('#skyFile').click(); return; } setSky(s.id); };
+  }
+})();
+function drawSkyThumbs(){
+  for (const {c, s} of skyThumbs){
+    const x = c.getContext('2d');
+    if (s.id === 'none'){ if (S.base) x.drawImage(fxCover(rawC.width > 10 ? rawC : S.base, 120, 72), 0, 0); }
+    else if (s.id === 'own'){ const img = S.sky.id.startsWith('img-') && SKY_IMG.get(S.sky.id); x.fillStyle = '#2a2c33'; x.fillRect(0, 0, 120, 72); if (img) x.drawImage(fxCover(img, 120, 72), 0, 0); else { x.fillStyle = '#9aa0ab'; x.font = '600 28px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('+', 60, 36); } }
+    else x.drawImage(skyTexture(s.id, 240, 144), 0, 0, 120, 72);
+  }
+}
+function setSky(id){
+  if (!S.base) return;
+  S.sky = {...S.sky, id}; commit(); syncSky();
+  if (id !== 'none') ensureSkyMask();
+  render();
+}
+$('#skyFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const img = await loadImageFile(f); const ref = 'img-' + Date.now().toString(36); SKY_IMG.set(ref, img); setSky(ref); drawSkyThumbs(); }
+  catch { toast('That picture couldn’t be read. Try a JPG or PNG.'); }
+});
+const paintSkyAmt = bindRange('skyAmt', () => S.sky.amt, v => { S.sky.amt = v; render(); }, v => v + '%');
+const paintSkyShift = bindRange('skyShift', () => S.sky.shift, v => { S.sky.shift = v; render(); });
+$('#skyMatch').onchange = e => { S.sky.match = e.target.checked; commit(); render(); };
+function syncSky(){
+  const own = S.sky.id.startsWith('img-');
+  document.querySelectorAll('#skyGrid button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === S.sky.id || (own && b.dataset.id === 'own'))));
+  $('#skyOpts').hidden = S.sky.id === 'none';
+  $('#skyMatch').checked = !!S.sky.match; paintSkyAmt(); paintSkyShift();
+}
+syncSky();
 
 /* ================= stage pointer: select, move, scale, rotate, draw ================= */
 let ldrag = null;
@@ -2195,7 +2394,7 @@ function openFile(file, path){
   img.onload = () => {
     const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:{...FX_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
+    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, fx:{...FX_DEFAULT}, sky:{...SKY_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
     projectPath = null;
     selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
   };
@@ -2231,6 +2430,8 @@ async function buildProject(){
     name: S.name, label: S.label, width: S.base.width, height: S.base.height,
     photo: await canvasToDataURL(S.base),
     params: S.params, filter: S.filter, strength: S.strength, bg: S.bg, frame: S.frame, fx: S.fx,
+    sky: S.sky, skyImages: S.sky && SKY_IMG.has(S.sky.id) ? {[S.sky.id]: await canvasToDataURL(SKY_IMG.get(S.sky.id))} : {},
+    skyMask: skyOn() ? {bottom: skyMasks.get(S.base).bottom, c: await canvasToDataURL(skyMasks.get(S.base).c)} : null,
     fxImages: S.fx && FX_IMG.has(S.fx.tex) ? {[S.fx.tex]: await canvasToDataURL(FX_IMG.get(S.fx.tex))} : {},
     layers: S.layers, images,
     mask: mask ? await canvasToDataURL(mask) : null,
@@ -2282,15 +2483,17 @@ async function openProject(file, path){
     }
     if (doc.mask) bgMasks.set(base, await dataURLToCanvas(doc.mask));
     for (const [ref, url] of Object.entries(doc.fxImages || {})) FX_IMG.set(ref, await dataURLToCanvas(url));
+    for (const [ref, url] of Object.entries(doc.skyImages || {})) SKY_IMG.set(ref, await dataURLToCanvas(url));
+    if (doc.skyMask && doc.skyMask.c) skyMasks.set(base, {c: await dataURLToCanvas(doc.skyMask.c), bottom: +doc.skyMask.bottom || 0.5});
     const layers = Array.isArray(doc.layers) ? doc.layers.filter(l => l && typeof l === 'object' && typeof l.type === 'string') : [];
     S = {base, params:{...defaults(), ...(doc.params || {})}, filter: FILTERS.some(f => f.id === doc.filter) ? doc.filter : 'none',
-         strength: Number.isFinite(doc.strength) ? doc.strength : 100, layers, bg:{...BG_DEFAULT, ...(doc.bg || {})}, frame:{...FRAME_DEFAULT, ...(doc.frame || {})}, fx:{...FX_DEFAULT, ...(doc.fx || {})},
+         strength: Number.isFinite(doc.strength) ? doc.strength : 100, layers, bg:{...BG_DEFAULT, ...(doc.bg || {})}, frame:{...FRAME_DEFAULT, ...(doc.frame || {})}, fx:{...FX_DEFAULT, ...(doc.fx || {})}, sky:{...SKY_DEFAULT, ...(doc.sky || {})},
          name: String(doc.name || file.name.replace(/\.tinto$/i, '') || 'project'), label: file.name};
     nextId = Math.max(nextId, ...layers.map(l => +l.id || 0)) + 1;
     projectPath = path || null;
     if (tab === 'collage') setTab('adjust');
     selId = null; drawSession = null; hist = []; hi = -1; commit(); savedAt = hist[hi];
-    syncUI(); syncBg(); syncFrame(); syncFx(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    syncUI(); syncBg(); syncFrame(); syncFx(); syncSky(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
     const missing = layers.filter(l => l.type === 'image' && !STICKER_IMG.has(l.ref)).length;
     toast(missing ? `Project opened. ${missing} sticker${missing>1?'s':''} couldn’t be found.` : 'Project opened. Everything is still editable.');
   } catch (e) { toast('That project couldn’t be opened. It may be damaged.'); }
@@ -2905,7 +3108,7 @@ $('#cAddCurrent').onclick = async () => {
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
   const [W, H] = collageSize(), tpl = C.tpl;
-  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; S.tpl = null; syncBg(); syncFrame(); syncFx();
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; S.fx = {...FX_DEFAULT}; S.tpl = null; S.sky = {...SKY_DEFAULT}; syncBg(); syncFrame(); syncFx(); syncSky();
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
   // Template titles arrive as text layers, so they stay editable in the editor.
   const fitSize = d => {   // the same shrink-to-fit the collage uses

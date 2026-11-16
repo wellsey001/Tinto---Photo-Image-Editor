@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('tinto', {
 
   /** AI background removal: RGB bytes in, a 0-255 subject mask out. */
   removeBackground: (rgb, w, h) => ipcRenderer.invoke('sticker:remove-bg', { rgb, w, h }),
+  skyMask: (rgb, w, h) => ipcRenderer.invoke('photo:sky-mask', { rgb, w, h }),
+  onSkyProgress: cb => {
+    const h = (_e, p) => cb(p);
+    ipcRenderer.on('photo:sky-progress', h);
+    return () => ipcRenderer.removeListener('photo:sky-progress', h);
+  },
   onRemoveBgProgress: cb => {
     const handler = (_e, p) => cb(p);
     ipcRenderer.on('sticker:remove-bg-progress', handler);
