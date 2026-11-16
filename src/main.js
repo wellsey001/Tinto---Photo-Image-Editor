@@ -15,6 +15,10 @@ const SAVE_FILTERS = {
   webp: { name: 'WebP image', extensions: ['webp'] },
 };
 const MAX_OPEN_BYTES = 200 * 1024 * 1024; // refuse anything over 200 MB
+const PROJECT_EXT = 'tinto';
+const OPEN_EXTS = [...IMAGE_EXTS, PROJECT_EXT];
+// Project files the person chose in a dialog or opened with Tinto: Ctrl+S may write back to these without asking.
+const knownProjects = new Set();
 
 let win = null;
 let startupFile = findImageArg(process.argv);
@@ -83,13 +87,14 @@ function findImageArg(argv) {
     if (a.startsWith('file://')) { try { return fileURLToPath(a); } catch { return a; } }
     return a;
   });
-  return args.find(a => !a.startsWith('-') && IMAGE_EXTS.includes(path.extname(a).slice(1).toLowerCase())) || null;
+  return args.find(a => !a.startsWith('-') && OPEN_EXTS.includes(path.extname(a).slice(1).toLowerCase())) || null;
 }
 
 async function readImage(filePath) {
   const stat = await fs.stat(filePath);
   if (stat.size > MAX_OPEN_BYTES) throw new Error('File is larger than 200 MB.');
   const data = await fs.readFile(filePath);
+  if (path.extname(filePath).slice(1).toLowerCase() === PROJECT_EXT) knownProjects.add(path.resolve(filePath));
   return { name: path.basename(filePath), path: filePath, data };
 }
 
@@ -156,7 +161,11 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'Open Photo…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+        { label: 'Open Photo or Project…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+        { type: 'separator' },
+        { label: 'Save Project', accelerator: 'CmdOrCtrl+S', click: send('save') },
+        { label: 'Save Project As…', accelerator: 'CmdOrCtrl+Shift+S', click: send('save-as') },
+        { type: 'separator' },
         { label: 'Export…', accelerator: 'CmdOrCtrl+E', click: send('export') },
         { type: 'separator' },
         { role: 'quit', label: 'Exit' },
@@ -207,9 +216,13 @@ ipcMain.handle('startup-file', async () => {
 ipcMain.handle('open-images', async (_e, opts) => {
   const multi = !!(opts && opts.multi);
   const res = await dialog.showOpenDialog(win, {
-    title: multi ? 'Add photos' : 'Open photo',
+    title: multi ? 'Add photos' : 'Open photo or project',
     properties: multi ? ['openFile', 'multiSelections'] : ['openFile'],
-    filters: [{ name: 'Images', extensions: IMAGE_EXTS }],
+    filters: multi ? [{ name: 'Images', extensions: IMAGE_EXTS }] : [
+      { name: 'Photos and Tinto projects', extensions: OPEN_EXTS },
+      { name: 'Images', extensions: IMAGE_EXTS },
+      { name: 'Tinto projects', extensions: [PROJECT_EXT] },
+    ],
   });
   if (res.canceled) return [];
   const files = [];
@@ -233,6 +246,34 @@ ipcMain.handle('save-image', async (_e, req) => {
   try {
     await fs.writeFile(res.filePath, req.data);
     return { saved: true, path: res.filePath };
+  } catch (err) {
+    return { saved: false, error: err.message };
+  }
+});
+
+/* ---------- Tinto projects (.tinto): the photo plus every editable layer, as one file ---------- */
+
+ipcMain.handle('project:save', async (_e, req) => {
+  if (!req || typeof req.name !== 'string' || !(req.data instanceof Uint8Array)) {
+    return { saved: false, error: 'Nothing to save.' };
+  }
+  let target = typeof req.path === 'string' ? path.resolve(req.path) : null;
+  if (!target || !knownProjects.has(target)) {
+    const base = path.basename(req.name).replace(/\.tinto$/i, '') || 'project';
+    const res = await dialog.showSaveDialog(win, {
+      title: 'Save project',
+      defaultPath: path.join(app.getPath('documents'), base + '.' + PROJECT_EXT),
+      filters: [{ name: 'Tinto project', extensions: [PROJECT_EXT] }],
+    });
+    if (res.canceled || !res.filePath) return { saved: false, canceled: true };
+    target = path.resolve(res.filePath);
+    if (path.extname(target).toLowerCase() !== '.' + PROJECT_EXT) target += '.' + PROJECT_EXT;
+  }
+  try {
+    await fs.writeFile(target, req.data);
+    knownProjects.add(target);
+    app.addRecentDocument(target);
+    return { saved: true, path: target };
   } catch (err) {
     return { saved: false, error: err.message };
   }

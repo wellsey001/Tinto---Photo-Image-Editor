@@ -1,7 +1,7 @@
 {
   "name": "tinto",
   "productName": "Tinto",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Tinto - Photo & Image Editor. A desktop photo editor for Windows and Linux with adjustments, filters, crop, text, stickers, drawing, layers and collages.",
   "homepage": "https://github.com/wellsey001/Tinto---Photo-Image-Editor",
   "main": "src/main.js",
@@ -82,6 +82,16 @@
         "description": "Image file",
         "role": "Editor",
         "icon": "build/icon.ico"
+      },
+      {
+        "ext": [
+          "tinto"
+        ],
+        "name": "TintoProject",
+        "description": "Tinto project",
+        "role": "Editor",
+        "icon": "build/icon.ico",
+        "mimeType": "application/x-tinto-project"
       }
     ],
     "publish": [
@@ -110,7 +120,8 @@
         "image/png",
         "image/webp",
         "image/gif",
-        "image/bmp"
+        "image/bmp",
+        "application/x-tinto-project"
       ],
       "artifactName": "Tinto-${version}.${ext}",
       "desktop": {

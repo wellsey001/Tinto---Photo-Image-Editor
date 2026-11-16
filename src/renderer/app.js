@@ -116,6 +116,13 @@ const TEXT_PRESETS = [
   {label:'Marker', text:'Best day!', font:'Permanent Marker', color:'#ff5a5f', outline:30, ocolor:'#ffffff', shadow:0},
   {label:'Retro', text:'Summer', font:'Pacifico', color:'#ff7ac6', outline:28, ocolor:'#111111', shadow:20},
   {label:'Neon', text:'Good vibes', font:'Righteous', color:'#ffffff', glow:'#ff4fd8', outline:0, shadow:0},
+  {label:'Sunset', text:'SUNSET', font:'Anton', color:'#ffffff', grad:0, outline:0, shadow:40},
+  {label:'Rainbow', text:'Rainbow', font:'Bungee', color:'#ffffff', grad:7, outline:22, ocolor:'#ffffff', shadow:25},
+  {label:'3D Pop', text:'WOW!', font:'Bungee', color:'#ffd200', depth:60, dcolor:'#d6233f', outline:14, ocolor:'#111111', shadow:30},
+  {label:'Arch', text:'ADVENTURE AWAITS', font:'Bebas Neue', color:'#ffffff', curve:35, outline:0, shadow:45, spacing:12},
+  {label:'Smile', text:'have a nice day', font:'Pacifico', color:'#ff7ac6', curve:-40, outline:24, ocolor:'#ffffff', shadow:15},
+  {label:'Ocean', text:'Beach day', font:'Lobster', color:'#ffffff', grad:5, outline:20, ocolor:'#ffffff', shadow:30},
+  {label:'Ice neon', text:'chill', font:'Righteous', color:'#e8fbff', glow:'#4de1ff', curve:30, outline:0, shadow:0},
   {label:'STICKER', text:'WOW!', font:'Bungee', color:'#ff5a5f', outline:45, ocolor:'#ffffff', shadow:35},
   {label:'Typewriter', text:'Dear diary…', font:'Space Mono', bold:true, color:'#111111', bg:'#f3ece0', outline:0, shadow:0, sizeK:0.045},
   {label:'Script', text:'Forever', font:'Dancing Script', bold:true, color:'#ffffff', shadow:40, outline:0},
@@ -125,21 +132,24 @@ const TEXT_PRESETS = [
 
 /* ================= state + history ================= */
 const BG_DEFAULT = {mode:'original', blur:45, colour:'#ffffff', grad:0, edge:30};
-let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, name:'photo', label:''};
+const FRAME_DEFAULT = {style:'none', colour:'', size:40};
+let S = {base:null, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, name:'photo', label:''};
 let hist = [], hi = -1, selId = null, nextId = 1;
-const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg)});
+const snap = () => ({base:S.base, params:{...S.params}, filter:S.filter, strength:S.strength, layers:clone(S.layers), lj:JSON.stringify(S.layers), bg:{...S.bg}, bj:JSON.stringify(S.bg) + JSON.stringify(S.frame), frame:{...S.frame}});
 function same(a,b){ return a && b && a.base===b.base && a.filter===b.filter && a.strength===b.strength && a.lj===b.lj && a.bj===b.bj && KEYS.every(k => a.params[k]===b.params[k]); }
 function commit(){
   const s = snap();
   if (same(s, hist[hi])) return;
   hist = hist.slice(0, hi+1); hist.push(s);
   if (hist.length > 50) hist.shift();
+  // every crop or retouch stroke keeps a full copy of the photo; keep at most 12 of them
+  while (new Set(hist.map(h => h.base)).size > 12 && hist.length > 1) hist.shift();
   hi = hist.length - 1; updateUndo();
 }
 function restore(st){
   const baseChanged = st.base !== S.base;
-  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)};
-  if (!getSel()) selId = null; syncBg();
+  S.base = st.base; S.params = {...st.params}; S.filter = st.filter; S.strength = st.strength; S.layers = clone(st.layers); S.bg = {...(st.bg || BG_DEFAULT)}; S.frame = {...(st.frame || FRAME_DEFAULT)};
+  if (!getSel()) selId = null; syncBg(); syncFrame();
   syncUI();
   if (baseChanged) { rebuildPreview(); if (tab==='crop') resetCrop(); syncResize(); } else render();
   refreshLayerUI(); updateUndo();
@@ -225,6 +235,12 @@ const minSide = () => Math.min(S.base.width, S.base.height);
 const getSel = () => S.layers.find(l => l.id===selId) || null;
 function fontStr(l){ return `${l.bold ? 700 : 400} ${l.size}px "${l.font}", system-ui, sans-serif`; }
 const spacingPx = l => (l.spacing || 0)/100 * l.size * 0.5;
+const TEXT_GRADS = [
+  ['#ff5f6d','#ffc371'], ['#f857a6','#ff5858'], ['#7f7fd5','#86a8e7','#91eae4'], ['#ff9a9e','#fecfef'],
+  ['#f7971e','#ffd200'], ['#00c6ff','#0072ff'], ['#43e97b','#38f9d7'],
+  ['#ff0000','#ff9900','#ffee00','#33dd33','#3399ff','#9933ff'],
+  ['#e0c3fc','#8ec5fc'], ['#fceabb','#f8b500'],
+];
 function textMetrics(l){
   mctx.font = fontStr(l); mctx.letterSpacing = spacingPx(l) + 'px';
   const lines = (l.text || ' ').split('\n'), lh = l.size*1.2;
@@ -233,8 +249,48 @@ function textMetrics(l){
   const pad = l.bg ? l.size*0.38 : (l.glow ? l.size*0.2 : 0), ow = l.outline/100*l.size*0.22;
   return {lines, widths, w, h, lh, pad, ow};
 }
+/* Where each piece of text goes. Straight text: one run per line. Curved text: one run per letter,
+   laid around a circle (curve > 0 arches up like a rainbow, < 0 dips like a smile). */
+function textLayout(l){
+  const m = textMetrics(l), c = (l.curve || 0) / 100;
+  const runs = [];
+  let x0 = -m.w/2, y0 = -m.h/2, x1 = m.w/2, y1 = m.h/2;
+  if (!c){
+    const ax = l.align==='left' ? -m.w/2 : l.align==='right' ? m.w/2 : 0;
+    m.lines.forEach((t, i) => runs.push({t, x:ax, y:-m.h/2 + m.lh*(i+0.5) + l.size*0.04, rot:0, align:l.align}));
+  } else {
+    mctx.font = fontStr(l); mctx.letterSpacing = spacingPx(l) + 'px';
+    const span = Math.abs(c) * Math.PI * 1.1, R0 = Math.max(m.w, l.size) / span, dir = Math.sign(c);
+    x0 = y0 = Infinity; x1 = y1 = -Infinity;
+    m.lines.forEach((line, i) => {
+      const chars = [...line], cw = chars.map(ch => mctx.measureText(ch).width), total = cw.reduce((s, v) => s + v, 0);
+      const R = R0 + (dir > 0 ? -1 : 1) * (i - (m.lines.length-1)/2) * m.lh;
+      if (R <= l.size*0.3) return;
+      const cy = dir > 0 ? R : -R, a = total / R;
+      let th = dir > 0 ? -Math.PI/2 - a/2 : Math.PI/2 + a/2;
+      chars.forEach((ch, k) => {
+        const half = cw[k] / R / 2;
+        th += dir > 0 ? half : -half;
+        const x = R*Math.cos(th), y = cy + R*Math.sin(th), rot = dir > 0 ? th + Math.PI/2 : th - Math.PI/2;
+        runs.push({t:ch, x, y, rot, align:'center'});
+        th += dir > 0 ? half : -half;
+        const e = l.size*0.6;
+        if (x-e < x0) x0 = x-e; if (x+e > x1) x1 = x+e; if (y-e < y0) y0 = y-e; if (y+e > y1) y1 = y+e;
+      });
+    });
+    if (!runs.length){ x0 = -m.w/2; y0 = -m.h/2; x1 = m.w/2; y1 = m.h/2; }
+    // keep the curved text centred on the layer
+    const ox = (x0 + x1)/2, oy = (y0 + y1)/2;
+    for (const r of runs){ r.x -= ox; r.y -= oy; }
+    x0 -= ox; x1 -= ox; y0 -= oy; y1 -= oy;
+  }
+  return {m, runs, box:[x0, y0, x1, y1]};
+}
 function bbox(l){
-  if (l.type==='text'){ const m = textMetrics(l), e = m.pad + m.ow/2 + 2; return [-m.w/2-e, -m.h/2-e, m.w/2+e, m.h/2+e]; }
+  if (l.type==='text'){
+    const {m, box} = textLayout(l), e = m.pad + m.ow/2 + 2 + (l.depth ? l.size*0.12*l.depth/100 : 0);
+    return [box[0]-e, box[1]-e, box[2]+e, box[3]+e];
+  }
   if (l.type==='shape'){ const e = l.outline ? 8 : 0; return [-50-e, -50-e, 50+e, 50+e]; }
   if (l.type==='emoji') return [-52, -52, 52, 52];
   if (l.type==='image') return [-l.w/2, -l.h/2, l.w/2, l.h/2];
@@ -268,27 +324,44 @@ function drawLayer(ctx, l){
   ctx.restore();
 }
 function drawText(ctx, l){
-  const m = textMetrics(l);
-  ctx.font = fontStr(l); ctx.letterSpacing = spacingPx(l) + 'px'; ctx.textBaseline = 'middle'; ctx.textAlign = l.align; ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+  const {m, runs, box} = textLayout(l);
+  ctx.font = fontStr(l); ctx.letterSpacing = spacingPx(l) + 'px'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+  const each = fn => { for (const r of runs){ ctx.save(); ctx.translate(r.x, r.y); if (r.rot) ctx.rotate(r.rot); ctx.textAlign = r.align; fn(r.t); ctx.restore(); } };
   if (l.bg){
     ctx.save(); ctx.fillStyle = l.bg; ctx.beginPath();
-    const r = l.size*0.25; ctx.roundRect(-m.w/2-m.pad, -m.h/2-m.pad*0.7, m.w+m.pad*2, m.h+m.pad*1.4, r); ctx.fill(); ctx.restore();
+    const r = l.size*0.25; ctx.roundRect(box[0]-m.pad, box[1]-m.pad*0.7, box[2]-box[0]+m.pad*2, box[3]-box[1]+m.pad*1.4, r); ctx.fill(); ctx.restore();
   }
-  const ax = l.align==='left' ? -m.w/2 : l.align==='right' ? m.w/2 : 0;
-  if (l.shadow){ ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = l.size*0.25*l.shadow/100; ctx.shadowOffsetY = l.size*0.06*l.shadow/100; }
-  m.lines.forEach((t, i) => {
-    const y = -m.h/2 + m.lh*(i+0.5) + l.size*0.04;
-    if (m.ow > 0){ ctx.strokeStyle = l.ocolor; ctx.lineWidth = m.ow; ctx.strokeText(t, ax, y); if (i===m.lines.length-1) ctx.shadowColor = 'transparent'; }
-  });
-  if (m.ow > 0) ctx.shadowColor = 'transparent';
-  ctx.fillStyle = l.color;
-  const fillAll = () => m.lines.forEach((t, i) => ctx.fillText(t, ax, -m.h/2 + m.lh*(i+0.5) + l.size*0.04));
+  // 3D: the text stacked a few times down and to the right in a darker colour
+  if (l.depth){
+    const n = Math.max(2, Math.round(l.size*0.12*l.depth/100)), step = 1;
+    ctx.save(); ctx.fillStyle = ctx.strokeStyle = l.dcolor || '#111111'; ctx.lineWidth = m.ow;
+    if (l.shadow){ ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = l.size*0.2*l.shadow/100; ctx.shadowOffsetY = l.size*0.05*l.shadow/100; }
+    for (let i=n; i>=1; i--){
+      ctx.save(); ctx.translate(i*step*0.7, i*step);
+      each(t => { if (m.ow > 0) ctx.strokeText(t, 0, 0); ctx.fillText(t, 0, 0); });
+      ctx.restore();
+      if (i === n) ctx.shadowColor = 'transparent';
+    }
+    ctx.restore();
+  }
+  ctx.save();
+  if (l.shadow && !l.depth){ ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = l.size*0.25*l.shadow/100; ctx.shadowOffsetY = l.size*0.06*l.shadow/100; }
+  if (m.ow > 0){ ctx.strokeStyle = l.ocolor; ctx.lineWidth = m.ow; each(t => ctx.strokeText(t, 0, 0)); ctx.shadowColor = 'transparent'; }
+  let fillStyle = l.color;
+  const stops = l.grad !== undefined && l.grad !== '' && l.grad !== null ? TEXT_GRADS[+l.grad] : null;
+  if (stops){
+    const g = ctx.createLinearGradient(0, box[1], 0, box[3]);
+    stops.forEach((c, i) => g.addColorStop(i/(stops.length-1), c));
+    fillStyle = g;
+  }
   if (l.glow){
     // Neon glow: the text drawn twice with a coloured blur, then once crisp on top.
-    ctx.save(); ctx.shadowColor = l.glow; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
-    ctx.shadowBlur = l.size*0.5; fillAll(); ctx.shadowBlur = l.size*0.18; fillAll(); ctx.restore();
+    ctx.save(); ctx.fillStyle = fillStyle; ctx.shadowColor = l.glow; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+    ctx.shadowBlur = l.size*0.5; each(t => ctx.fillText(t, 0, 0)); ctx.shadowBlur = l.size*0.18; each(t => ctx.fillText(t, 0, 0)); ctx.restore();
   }
-  fillAll();
+  ctx.fillStyle = fillStyle;
+  each(t => ctx.fillText(t, 0, 0));
+  ctx.restore();
 }
 function drawShape(ctx, l){
   ctx.translate(-50, -50);
@@ -371,6 +444,7 @@ function composite(){
   vctx.clearRect(0,0,view.width,view.height);
   if (comparing){ vctx.drawImage(rawC,0,0); placeSel(); return; }
   vctx.drawImage(photoC,0,0);
+  if (S.frame.style !== 'none') drawFrame(vctx, view.width, view.height, S.frame);
   drawLayers(vctx, view.width / S.base.width);
   if (WM.on) drawWatermark(vctx, view.width, view.height);
   placeSel();
@@ -654,6 +728,305 @@ function syncBg(){
 }
 syncBg();
 
+
+/* ================= retouch: blemish remover, skin smoothing, teeth whitening ================= */
+// Each stroke works on a copy of the full-size photo. The preview is patched as you paint;
+// when the stroke ends the copy becomes the photo (one undo step).
+const RT = {tool:'heal', size:25, strength:60, stroke:null};
+const RT_HINTS = {
+  heal: 'Tap or brush over a spot, blemish or small mark. Tinto covers it with nearby skin.',
+  smooth: 'Brush over skin to soften it. Edges like eyes, lips and hair stay sharp.',
+  whiten: 'Brush over teeth (or eyes) to lift yellow tones and brighten them.',
+};
+const rtCursor = document.createElement('div'); rtCursor.className = 'rt-cursor'; rtCursor.hidden = true; stage.appendChild(rtCursor);
+const rtRadius = () => Math.max(2, minSide() * 0.07 * RT.size / 100);
+function rtMoveCursor(e){
+  if (!S.base) return;
+  const sr = stage.getBoundingClientRect(), vr = view.getBoundingClientRect();
+  const inside = e.clientX >= vr.left && e.clientX <= vr.right && e.clientY >= vr.top && e.clientY <= vr.bottom;
+  rtCursor.hidden = !inside;
+  const d = rtRadius() * 2 * vr.width / S.base.width;
+  Object.assign(rtCursor.style, {left:(e.clientX - sr.left)+'px', top:(e.clientY - sr.top)+'px', width:d+'px', height:d+'px'});
+}
+function rtStart(p){
+  if (!S.base) return;
+  const src = S.base, W = src.width, H = src.height, work = mk(W, H), wx = work.getContext('2d', {willReadFrequently:true});
+  wx.drawImage(src, 0, 0);
+  const st = RT.stroke = {src, work, wx, W, H, r:rtRadius(), last:null, dirty:null, mask:null, blur:null};
+  if (RT.tool !== 'heal') st.mask = new Uint8Array(W*H);
+  if (RT.tool === 'smooth'){
+    const rad = Math.max(1.5, Math.min(W, H) * 0.006);
+    st.blur = mk(W, H); const bx = st.blur.getContext('2d', {willReadFrequently:true});
+    bx.filter = `blur(${rad.toFixed(1)}px)`; bx.drawImage(src, 0, 0); bx.filter = 'none';
+  }
+  rtDab(p); rtPreview(); st.last = p;
+}
+function rtMove(p){
+  const st = RT.stroke, step = Math.max(1, st.r * (RT.tool === 'heal' ? 0.6 : 0.3));
+  const dx = p.x - st.last.x, dy = p.y - st.last.y, dist = Math.hypot(dx, dy);
+  if (dist < step) return;
+  const n = Math.floor(dist / step);
+  for (let i=1; i<=n; i++) rtDab({x: st.last.x + dx*i/n, y: st.last.y + dy*i/n});
+  st.last = p; rtPreview();
+}
+function rtEnd(){
+  const st = RT.stroke; RT.stroke = null;
+  if (!st || !st.dirty) return;
+  const m = bgMasks.get(st.src); if (m) bgMasks.set(st.work, m);    // same person, same outline
+  S.base = st.work; commit(); rebuildPreview();
+}
+function rtGrow(st, x0, y0, x1, y1){
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(st.W, Math.ceil(x1)); y1 = Math.min(st.H, Math.ceil(y1));
+  if (x1 <= x0 || y1 <= y0) return null;
+  const d = st.dirty;
+  st.dirty = d ? [Math.min(d[0], x0), Math.min(d[1], y0), Math.max(d[2], x1), Math.max(d[3], y1)] : [x0, y0, x1, y1];
+  st.pending = st.pending ? [Math.min(st.pending[0], x0), Math.min(st.pending[1], y0), Math.max(st.pending[2], x1), Math.max(st.pending[3], y1)] : [x0, y0, x1, y1];
+  return [x0, y0, x1, y1];
+}
+const smooth01 = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t*t*(3 - 2*t); };
+function rtDab(p){
+  const st = RT.stroke, r = st.r;
+  if (RT.tool === 'heal'){ rtHeal(st, p, r); return; }
+  // paint the soft brush into the stroke mask (strongest value wins), then redo those pixels
+  const rect = rtGrow(st, p.x - r, p.y - r, p.x + r + 1, p.y + r + 1); if (!rect) return;
+  const [x0, y0, x1, y1] = rect, w = x1 - x0, h = y1 - y0;
+  for (let y=y0; y<y1; y++) for (let x=x0; x<x1; x++){
+    const d = Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) / r; if (d >= 1) continue;
+    const v = Math.round(255 * (1 - smooth01(0.45, 1, d))), i = y*st.W + x;
+    if (v > st.mask[i]) st.mask[i] = v;
+  }
+  const o = st.src.getContext('2d').getImageData(x0, y0, w, h), od = o.data;
+  const out = new ImageData(w, h), d = out.data, k = RT.strength / 100;
+  const b = RT.tool === 'smooth' ? st.blur.getContext('2d').getImageData(x0, y0, w, h).data : null;
+  for (let y=0; y<h; y++) for (let x=0; x<w; x++){
+    const i = (y*w + x)*4, a = st.mask[(y0+y)*st.W + x0 + x] / 255 * k;
+    let R = od[i], G = od[i+1], B = od[i+2];
+    if (a > 0){
+      if (b){
+        // edge-aware: only blend where the blurred colour is close to the original
+        const diff = Math.abs((b[i]+b[i+1]+b[i+2]) - (R+G+B)) / 3, e = Math.exp(-(diff/16)*(diff/16)), t = Math.min(0.9, a) * e;
+        R += (b[i]-R)*t; G += (b[i+1]-G)*t; B += (b[i+2]-B)*t;
+      } else {
+        const L = (R+G+B)/3, t = a * smooth01(60, 150, L);
+        const nR = Math.min(255, (R + (L-R)*0.75) * 1.1 + 6), nG = Math.min(255, (G + (L-G)*0.75) * 1.1 + 6), nB = Math.min(255, (B + (L-B)*0.55) * 1.1 + 12);
+        R += (nR-R)*t; G += (nG-G)*t; B += (nB-B)*t;
+      }
+    }
+    d[i] = R; d[i+1] = G; d[i+2] = B; d[i+3] = od[i+3];
+  }
+  st.wx.putImageData(out, x0, y0);
+}
+/* Spot healing: find nearby skin whose surroundings match the spot's surroundings, copy it over
+   the spot with its colour shifted to fit, and feather the edge. */
+function rtHeal(st, p, r){
+  const R1 = r, R2 = r * 1.5, far = r * 3.2 + R2;
+  const gx0 = Math.max(0, Math.floor(p.x - far)), gy0 = Math.max(0, Math.floor(p.y - far));
+  const gx1 = Math.min(st.W, Math.ceil(p.x + far)), gy1 = Math.min(st.H, Math.ceil(p.y + far));
+  const gw = gx1 - gx0, gh = gy1 - gy0; if (gw < 4 || gh < 4) return;
+  const img = st.wx.getImageData(gx0, gy0, gw, gh), d = img.data;
+  const px = (x, y) => { x = Math.round(x) - gx0; y = Math.round(y) - gy0; if (x < 0 || y < 0 || x >= gw || y >= gh) return -1; return (y*gw + x)*4; };
+  // sample the ring around a centre
+  const N = 40, ring = (cx, cy) => {
+    const s = []; let mr = 0, mg = 0, mb = 0;
+    for (let k=0; k<N; k++){
+      const a = k / N * Math.PI * 2, rr = k % 2 ? R2 : (R1 + R2) / 2, i = px(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr);
+      if (i < 0) return null;
+      s.push(d[i], d[i+1], d[i+2]); mr += d[i]; mg += d[i+1]; mb += d[i+2];
+    }
+    return {s, m:[mr/N, mg/N, mb/N]};
+  };
+  const tgt = ring(p.x, p.y); if (!tgt) return;
+  let best = null;
+  for (const dist of [2.4, 3.2]) for (let k=0; k<12; k++){
+    const a = k / 12 * Math.PI * 2, cx = p.x + Math.cos(a)*r*dist, cy = p.y + Math.sin(a)*r*dist;
+    const c = ring(cx, cy); if (!c) continue;
+    // also make sure the source itself is plain skin, not another spot: compare its middle with its ring
+    const ci = px(cx, cy); if (ci < 0) continue;
+    let e = 0;
+    for (let q=0; q<c.s.length; q+=3) for (let ch=0; ch<3; ch++){ const v = (c.s[q+ch] - c.m[ch]) - (tgt.s[q+ch] - tgt.m[ch]); e += v*v; }
+    for (let ch=0; ch<3; ch++){ const v = c.m[ch] - tgt.m[ch]; e += v*v*N*0.4; const u = d[ci+ch] - c.m[ch]; e += u*u*N*0.3; }
+    if (!best || e < best.e) best = {e, cx, cy, m:c.m};
+  }
+  if (!best) return;
+  const ox = best.cx - p.x, oy = best.cy - p.y, sh = [tgt.m[0]-best.m[0], tgt.m[1]-best.m[1], tgt.m[2]-best.m[2]];
+  const copy = new Uint8ClampedArray(d);
+  for (let y = Math.floor(p.y - R1); y <= Math.ceil(p.y + R1); y++) for (let x = Math.floor(p.x - R1); x <= Math.ceil(p.x + R1); x++){
+    const dd = Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y) / R1; if (dd >= 1) continue;
+    const ti = px(x, y), si = px(x + ox, y + oy); if (ti < 0 || si < 0) continue;
+    const w = 1 - smooth01(0.55, 1, dd);
+    for (let ch=0; ch<3; ch++) d[ti+ch] = copy[ti+ch] + ((copy[si+ch] + sh[ch]) - copy[ti+ch]) * w;
+  }
+  st.wx.putImageData(img, gx0, gy0);
+  rtGrow(st, p.x - R1, p.y - R1, p.x + R1 + 1, p.y + R1 + 1);
+}
+/* Copy the painted area into the preview (scaled down), so it shows while painting. */
+function rtPreview(){
+  const st = RT.stroke; if (!st || !st.pending || !prevData) return;
+  const [x0, y0, x1, y1] = st.pending; st.pending = null;
+  const k = prevData.width / st.W;
+  const px0 = Math.max(0, Math.floor(x0*k) - 1), py0 = Math.max(0, Math.floor(y0*k) - 1);
+  const px1 = Math.min(prevData.width, Math.ceil(x1*k) + 1), py1 = Math.min(prevData.height, Math.ceil(y1*k) + 1);
+  const pw = px1 - px0, ph = py1 - py0; if (pw <= 0 || ph <= 0) return;
+  const t = mk(pw, ph), tx = t.getContext('2d'); tx.imageSmoothingQuality = 'high';
+  tx.drawImage(st.work, px0/k, py0/k, pw/k, ph/k, 0, 0, pw, ph);
+  const s = tx.getImageData(0, 0, pw, ph).data, D = prevData.data;
+  for (let y=0; y<ph; y++) D.set(s.subarray(y*pw*4, (y+1)*pw*4), ((py0 + y)*prevData.width + px0)*4);
+  render();
+}
+document.querySelectorAll('#rtTools button').forEach(b => b.onclick = () => { RT.tool = b.dataset.t; syncRetouch(); });
+const paintRtSize = bindRange('rtSize', () => RT.size, v => { RT.size = v; }, v => String(v));
+const paintRtStrength = bindRange('rtStrength', () => RT.strength, v => { RT.strength = v; }, v => v + '%');
+// these sliders change the brush, not the photo, so they shouldn't add undo steps
+$('#rtSize').removeEventListener('change', commit); $('#rtStrength').removeEventListener('change', commit);
+function syncRetouch(){
+  document.querySelectorAll('#rtTools button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === RT.tool)));
+  $('#rtHint').textContent = RT_HINTS[RT.tool];
+  $('#rtStrengthRow').hidden = RT.tool === 'heal';
+  paintRtSize(); paintRtStrength();
+}
+syncRetouch();
+
+
+/* ================= frames: drawn over the edges of the photo, under text and stickers ================= */
+const FRAMES = [
+  {id:'none', name:'None'},
+  {id:'border', name:'Border', colour:'#ffffff'},
+  {id:'rounded', name:'Rounded', colour:'#ffffff'},
+  {id:'polaroid', name:'Polaroid', colour:'#fbfaf6'},
+  {id:'gallery', name:'Gallery', colour:'#fbfaf6'},
+  {id:'film', name:'Film', colour:'#111111'},
+  {id:'stamp', name:'Stamp', colour:'#ffffff'},
+  {id:'scallop', name:'Scallop', colour:'#ffd1dc'},
+  {id:'stitch', name:'Stitched', colour:'#9b6bff'},
+  {id:'soft', name:'Soft edge', colour:'#ffffff'},
+  {id:'neon', name:'Neon', colour:'#ff4fd8'},
+  {id:'gold', name:'Gold', colour:''},
+];
+const FRAME_COLOURS = ['#ffffff','#111111','#fbfaf6','#ffd1dc','#cfe8ff','#d9f5e3','#efb34a','#ff5a5f','#9b6bff','#ff4fd8','#4de1ff'];
+function frameColour(f){ return f.colour || (FRAMES.find(x => x.id === f.style) || {}).colour || '#ffffff'; }
+function drawFrame(ctx, W, H, f){
+  const m = Math.min(W, H), t = m * (0.012 + (f.size/100) * 0.085), col = frameColour(f);
+  ctx.save();
+  const band = (l, tp, r, b, radius = 0) => {
+    ctx.beginPath(); ctx.rect(0, 0, W, H);
+    if (radius) ctx.roundRect(l, tp, W-l-r, H-tp-b, radius); else ctx.rect(l, tp, W-l-r, H-tp-b);
+    ctx.fill('evenodd');
+  };
+  ctx.fillStyle = col;
+  switch (f.style){
+    case 'border': band(t, t, t, t); break;
+    case 'rounded': band(t, t, t, t, t*1.8); break;
+    case 'polaroid': {
+      const s = Math.max(t, m*0.035), bot = s*3.4;
+      ctx.shadowColor = 'rgba(0,0,0,.18)'; ctx.shadowBlur = s*0.35;
+      band(s, s, s, bot);
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = Math.max(1, m*0.0015); ctx.strokeRect(s, s, W-2*s, H-s-bot);
+      break;
+    }
+    case 'gallery': {
+      const mat = t*1.4;
+      band(mat, mat, mat, mat);
+      ctx.strokeStyle = 'rgba(30,24,20,.55)'; ctx.lineWidth = Math.max(1, m*0.0025);
+      ctx.strokeRect(mat - ctx.lineWidth*2, mat - ctx.lineWidth*2, W-2*mat + ctx.lineWidth*4, H-2*mat + ctx.lineWidth*4);
+      ctx.lineWidth = Math.max(2, m*0.006); ctx.strokeStyle = '#2b2420'; ctx.strokeRect(ctx.lineWidth/2, ctx.lineWidth/2, W-ctx.lineWidth, H-ctx.lineWidth);
+      break;
+    }
+    case 'film': {
+      const tb = Math.max(t*1.6, m*0.06), sd = t*0.5;
+      band(sd, tb, sd, tb);
+      const hw = tb*0.32, hh = tb*0.42, gap = hw*1.05, n = Math.floor((W - gap) / (hw + gap)), x0 = (W - (n*hw + (n-1)*gap)) / 2;
+      ctx.fillStyle = '#efe8d8';
+      for (let i=0; i<n; i++){
+        const x = x0 + i*(hw + gap);
+        for (const y of [(tb - hh)/2, H - tb + (tb - hh)/2]){ ctx.beginPath(); ctx.roundRect(x, y, hw, hh, hw*0.22); ctx.fill(); }
+      }
+      break;
+    }
+    case 'stamp': {
+      band(t*1.2, t*1.2, t*1.2, t*1.2);
+      const r = Math.max(2, t*0.42), step = r*2.6;
+      ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath();
+      for (let x = step/2; x < W; x += step){ ctx.moveTo(x + r, 0); ctx.arc(x, 0, r, 0, Math.PI*2); ctx.moveTo(x + r, H); ctx.arc(x, H, r, 0, Math.PI*2); }
+      for (let y = step/2; y < H; y += step){ ctx.moveTo(r, y); ctx.arc(0, y, r, 0, Math.PI*2); ctx.moveTo(W + r, y); ctx.arc(W, y, r, 0, Math.PI*2); }
+      ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+      break;
+    }
+    case 'scallop': {
+      const in_ = t*1.3, r = Math.max(2, t*0.55), step = r*2;
+      band(in_, in_, in_, in_);
+      ctx.beginPath();
+      const bump = (x, y) => { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, Math.PI*2); };
+      for (let x = in_; x <= W - in_ + 0.1; x += (W - 2*in_) / Math.max(1, Math.round((W - 2*in_)/step))){ bump(x, in_); bump(x, H - in_); }
+      for (let y = in_; y <= H - in_ + 0.1; y += (H - 2*in_) / Math.max(1, Math.round((H - 2*in_)/step))){ bump(in_, y); bump(W - in_, y); }
+      ctx.fill();
+      break;
+    }
+    case 'stitch': {
+      band(t, t, t, t);
+      const L = (col.toLowerCase() === '#ffffff' || col.toLowerCase() === '#fbfaf6') ? 'rgba(40,30,50,.55)' : 'rgba(255,255,255,.85)';
+      ctx.strokeStyle = L; ctx.lineWidth = Math.max(1.2, t*0.09); ctx.setLineDash([t*0.32, t*0.22]); ctx.lineCap = 'round';
+      ctx.strokeRect(t/2, t/2, W - t, H - t);
+      ctx.setLineDash([]);
+      break;
+    }
+    case 'soft': {
+      const fade = mk(W, H), fx = fade.getContext('2d');
+      fx.fillStyle = col; fx.fillRect(0, 0, W, H);
+      fx.globalCompositeOperation = 'destination-out'; fx.filter = `blur(${(t*1.2).toFixed(1)}px)`;
+      fx.fillStyle = '#000'; fx.beginPath(); fx.roundRect(t*1.6, t*1.6, W - t*3.2, H - t*3.2, t*2); fx.fill();
+      ctx.drawImage(fade, 0, 0);
+      break;
+    }
+    case 'neon': {
+      const inset = t*0.9, lw = Math.max(2, t*0.18);
+      ctx.fillStyle = 'rgba(10,6,20,.55)'; band(inset*0.6, inset*0.6, inset*0.6, inset*0.6);
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.shadowColor = col;
+      for (const b of [t*1.2, t*0.5]){ ctx.shadowBlur = b; ctx.beginPath(); ctx.roundRect(inset, inset, W - 2*inset, H - 2*inset, t*0.8); ctx.stroke(); }
+      ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = lw*0.4; ctx.beginPath(); ctx.roundRect(inset, inset, W - 2*inset, H - 2*inset, t*0.8); ctx.stroke();
+      break;
+    }
+    case 'gold': {
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      [['#9c6b1e',0],['#f6e27a',.18],['#c8932e',.36],['#fff3b0',.52],['#b07a22',.7],['#f1d77a',.86],['#8f601a',1]].forEach(([c, o]) => g.addColorStop(o, c));
+      ctx.fillStyle = g; band(t, t, t, t);
+      ctx.strokeStyle = 'rgba(80,50,10,.6)'; ctx.lineWidth = Math.max(1, t*0.06);
+      ctx.strokeRect(t, t, W - 2*t, H - 2*t); ctx.strokeRect(t*0.35, t*0.35, W - t*0.7, H - t*0.7);
+      ctx.strokeStyle = 'rgba(255,250,220,.7)'; ctx.strokeRect(t*0.42, t*0.42, W - t*0.84, H - t*0.84);
+      break;
+    }
+  }
+  ctx.restore();
+}
+function setFrame(patch, live){ Object.assign(S.frame, patch); syncFrame(); composite(); if (!live) commit(); }
+const frameThumbs = [];
+(function buildFrames(){
+  const grid = $('#frameGrid');
+  for (const fr of FRAMES){
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = fr.id; b.setAttribute('aria-pressed', 'false');
+    const c = mk(150, 112); const lab = document.createElement('span'); lab.textContent = fr.name;
+    b.append(c, lab); grid.appendChild(b); frameThumbs.push({c, fr});
+    b.onclick = () => setFrame({style: fr.id, colour: ''});
+  }
+})();
+function drawFrameThumbs(){
+  for (const {c, fr} of frameThumbs){
+    const x = c.getContext('2d');
+    if (S.base){ const k = Math.max(c.width / S.base.width, c.height / S.base.height); x.drawImage(photoC.width > 10 ? photoC : S.base, (c.width - S.base.width*k)/2, (c.height - S.base.height*k)/2, S.base.width*k, S.base.height*k); }
+    if (fr.id !== 'none') drawFrame(x, c.width, c.height, {style: fr.id, colour: '', size: 40});
+  }
+}
+const frameColourSw = makeSwatches($('#frameColour'), FRAME_COLOURS, (c, live, done) => setFrame({colour: c}, live && !done));
+const paintFrameSize = bindRange('frameSize', () => S.frame.size, v => { S.frame.size = v; composite(); }, v => String(v));
+function syncFrame(){
+  document.querySelectorAll('#frameGrid button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === S.frame.style)));
+  $('#frameOpts').hidden = S.frame.style === 'none';
+  $('#frameColourF').hidden = S.frame.style === 'gold';
+  frameColourSw.set(frameColour(S.frame));
+  paintFrameSize();
+}
+syncFrame();
+
 /* ================= tools / tabs ================= */
 let tab = 'adjust';
 document.querySelectorAll('.tool').forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
@@ -661,7 +1034,8 @@ function setTab(name){
   if (tab==='draw' && name!=='draw') drawSession = null;
   tab = name;
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
-  ['adjust','filters','background','crop','resize','text','stickers','draw','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  ['adjust','filters','background','retouch','crop','resize','text','stickers','draw','frames','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
+  stage.classList.toggle('retouching', name==='retouch'); if (name!=='retouch') rtCursor.hidden = true;
   $('#cropLayer').hidden = name!=='crop';
   stage.classList.toggle('drawing', name==='draw');
   const col = name==='collage';
@@ -672,6 +1046,7 @@ function setTab(name){
   if (col) { drawCollage(); collageInfo(); } else if (S.base) updateInfo();
   if (name==='crop'){ resetCrop(); requestAnimationFrame(placeOverlay); }
   if (name==='resize') syncResize();
+  if (name==='frames') drawFrameThumbs();
   refreshLayerUI();
 }
 
@@ -683,7 +1058,7 @@ const layer = $('#cropLayer'), box = $('#cropBox');
   const wrap = $('#aspectChips');
   ASPECTS.forEach(([label, val]) => {
     const c = document.createElement('button'); c.type='button'; c.className='chip'; c.textContent = label; c.setAttribute('aria-pressed', String(val===null));
-    c.onclick = () => { aspect = val; wrap.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x===c))); crop = {x:0,y:0,w:1,h:1}; fitAspect(); drawCrop(); };
+    c.onclick = () => { aspect = val; setSocial(null); wrap.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x===c))); crop = {x:0,y:0,w:1,h:1}; fitAspect(); drawCrop(); };
     wrap.appendChild(c);
   });
 })();
@@ -703,7 +1078,7 @@ function drawCrop(){
   Object.assign(box.style, {left:crop.x*100+'%', top:crop.y*100+'%', width:crop.w*100+'%', height:crop.h*100+'%'});
   box.classList.toggle('locked', aspect!==null);
   const r = cropPx();
-  $('#cropReadout').innerHTML = `Crop to <b>${r.w} × ${r.h}</b> px`;
+  $('#cropReadout').innerHTML = social ? `${social.name}: crop, then resize to <b>${social.w} × ${social.h}</b> px` : `Crop to <b>${r.w} × ${r.h}</b> px`;
 }
 function cropPx(){
   const b = S.base, x = Math.round(crop.x*b.width), y = Math.round(crop.y*b.height);
@@ -746,10 +1121,73 @@ layer.addEventListener('pointerup', endCDrag); layer.addEventListener('pointerca
 $('#cropReset').onclick = resetCrop;
 $('#cropApply').onclick = () => {
   const b = S.base, r = cropPx();
-  if (r.x===0 && r.y===0 && r.w===b.width && r.h===b.height){ toast('Drag the corners to choose an area first.'); return; }
-  const c = mk(r.w, r.h); c.getContext('2d').drawImage(b, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  if (!social && r.x===0 && r.y===0 && r.w===b.width && r.h===b.height){ toast('Drag the corners to choose an area first.'); return; }
+  let c = mk(r.w, r.h); c.getContext('2d').drawImage(b, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   for (const l of S.layers){ l.x -= r.x; l.y -= r.y; }
-  S.base = c; commit(); rebuildPreview(); resetCrop(); toast(`Cropped to ${r.w} × ${r.h} px`);
+  if (social){
+    // then to the exact size the site wants
+    const fx = social.w/r.w, fy = social.h/r.h, fs = Math.sqrt(fx*fy);
+    for (const l of S.layers){ l.x *= fx; l.y *= fy; if (l.type==='text') l.size *= fs; else l.scale *= fs; }
+    c = scaleCanvas(c, social.w, social.h);
+  }
+  const done = social ? `${social.name}: ${social.w} × ${social.h} px` : `Cropped to ${r.w} × ${r.h} px`;
+  const wasSocial = !!social;
+  S.base = c; commit(); rebuildPreview(); syncResize(); setSocial(null);
+  if (wasSocial) freeAspect();
+  resetCrop(); toast(done);
+};
+
+/* Social sizes: pick one, drag the box to choose what's kept, apply. Or fit the whole photo with blurred edges. */
+const SOCIAL = [
+  {id:'ig-square', name:'Insta post', w:1080, h:1080},
+  {id:'ig-portrait', name:'Insta portrait', w:1080, h:1350},
+  {id:'story', name:'Story / TikTok', w:1080, h:1920},
+  {id:'yt', name:'YouTube thumb', w:1280, h:720},
+  {id:'fb', name:'Facebook', w:1200, h:630},
+  {id:'x', name:'X post', w:1600, h:900},
+  {id:'pin', name:'Pinterest', w:1000, h:1500},
+  {id:'wall', name:'Wallpaper', w:1170, h:2532},
+];
+let social = null;
+function freeAspect(){ aspect = null; $('#aspectChips').querySelectorAll('.chip').forEach((x, i) => x.setAttribute('aria-pressed', String(i === 0))); }
+function setSocial(s){
+  social = s;
+  document.querySelectorAll('#socialSizes button').forEach(b => b.setAttribute('aria-pressed', String(!!s && b.dataset.id === s.id)));
+  $('#socialFit').hidden = !s;
+  if (s){
+    $('#socialHint').textContent = `Drag the box to choose what's kept, then Apply. Or keep the whole photo and fill the edges with a blurred copy.`;
+    $('#aspectChips').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    $('#cropApply').textContent = 'Apply size';
+  } else $('#cropApply').textContent = 'Apply crop';
+}
+(function buildSocial(){
+  const wrap = $('#socialSizes');
+  for (const s of SOCIAL){
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = s.id; b.setAttribute('aria-pressed', 'false');
+    const k = 18 / Math.max(s.w, s.h);
+    b.innerHTML = `<span class="shape"><i style="width:${Math.round(s.w*k)}px;height:${Math.round(s.h*k)}px"></i></span><span class="txt"><b></b><small>${s.w} × ${s.h}</small></span>`;
+    b.querySelector('b').textContent = s.name; b.title = `${s.full || s.name}, ${s.w} × ${s.h} px`;
+    b.onclick = () => {
+      if (social && social.id === s.id){ setSocial(null); freeAspect(); resetCrop(); return; }
+      setSocial(s); aspect = s.w / s.h; crop = {x:0,y:0,w:1,h:1}; fitAspect(); drawCrop();
+    };
+    wrap.appendChild(b);
+  }
+})();
+$('#socialFitBtn').onclick = () => {
+  if (!social) return;
+  const b = S.base, W = social.w, H = social.h, c = mk(W, H), x = c.getContext('2d');
+  // behind: the photo filling the frame, blurred and a little darker
+  const cover = Math.max(W/b.width, H/b.height), cw = b.width*cover, ch = b.height*cover;
+  x.filter = `blur(${Math.round(Math.max(W, H)*0.03)}px) brightness(.85)`;
+  x.drawImage(b, (W-cw)/2 - W*0.05, (H-ch)/2 - H*0.05, cw*1.1, ch*1.1); x.filter = 'none';
+  // in front: the whole photo
+  const fit = Math.min(W/b.width, H/b.height), fw = b.width*fit, fh = b.height*fit, ox = (W-fw)/2, oy = (H-fh)/2;
+  x.imageSmoothingQuality = 'high'; x.drawImage(scaleCanvas(b, Math.round(fw), Math.round(fh)), ox, oy);
+  for (const l of S.layers){ l.x = ox + l.x*fit; l.y = oy + l.y*fit; if (l.type==='text') l.size *= fit; else l.scale *= fit; }
+  const name = social.name;
+  S.base = c; commit(); rebuildPreview(); syncResize(); setSocial(null); freeAspect(); resetCrop();
+  toast(`${name}: ${W} × ${H} px, whole photo kept`);
 };
 document.querySelectorAll('[data-tf]').forEach(btn => btn.onclick = () => transformBase(btn.dataset.tf));
 function transformBase(kind){
@@ -814,7 +1252,7 @@ function addLayer(props){
 function addText(preset = TEXT_PRESETS[0]){
   const l = addLayer({type:'text', text:preset.text, font:preset.font, size:Math.round(minSide()*(preset.sizeK || 0.09)), color:preset.color,
     bold:!!preset.bold, align:'center', outline:preset.outline||0, ocolor:preset.ocolor||'#111111', shadow:preset.shadow||0, bg:preset.bg||'',
-    glow:preset.glow||'', spacing:preset.spacing||0});
+    glow:preset.glow||'', spacing:preset.spacing||0, curve:preset.curve||0, grad:preset.grad ?? '', depth:preset.depth||0, dcolor:preset.dcolor||'#111111'});
   document.fonts.load(`${l.bold?700:400} 40px "${l.font}"`).then(composite).catch(()=>{});
   setTimeout(() => { const t = $('#txt'); if (!t.closest('[hidden]')) { t.focus(); t.select(); } }, 30);
 }
@@ -845,6 +1283,9 @@ function select(id, {switchTab=false} = {}){
     const b = document.createElement('button'); b.type='button'; b.className='preset'; b.textContent = p.label;
     b.style.fontFamily = `"${p.font}", system-ui, sans-serif`; b.style.fontWeight = p.bold ? 700 : 400; b.style.color = p.color==='#111111' ? 'var(--fg)' : p.color;
     if (p.bg){ b.style.background = p.bg; b.style.color = p.color; }
+    if (p.grad !== undefined){ const g = TEXT_GRADS[p.grad]; b.style.backgroundImage = `linear-gradient(180deg, ${g.join(',')})`; b.style.webkitBackgroundClip = 'text'; b.style.backgroundClip = 'text'; b.style.color = 'transparent'; }
+    if (p.glow) b.style.textShadow = `0 0 8px ${p.glow}`;
+    if (p.depth) b.style.textShadow = `1px 1px 0 ${p.dcolor}, 2px 2px 0 ${p.dcolor}, 3px 3px 0 ${p.dcolor}`;
     b.onclick = () => addText(p); wrap.appendChild(b);
   });
   const fs = $('#font');
@@ -860,11 +1301,27 @@ const paintTSize = bindRange('tsize', () => { const l = selText(); if (!l) retur
 const paintTOutline = bindRange('toutline', () => selText()?.outline ?? null, v => { const l = selText(); if (l){ l.outline = v; composite(); $('#toutlineColorF').hidden = v===0; } });
 const paintTSpacing = bindRange('tspacing', () => { const l = selText(); return l ? (l.spacing || 0) : null; }, v => { const l = selText(); if (l){ l.spacing = v; composite(); } });
 const paintTShadow = bindRange('tshadow', () => selText()?.shadow ?? null, v => { const l = selText(); if (l){ l.shadow = v; composite(); } });
+const paintTCurve = bindRange('tcurve', () => { const l = selText(); return l ? (l.curve || 0) : null; }, v => { const l = selText(); if (l){ l.curve = Math.abs(v) < 3 ? 0 : v; composite(); } }, v => v===0 ? 'Straight' : (v > 0 ? 'Arch ' : 'Dip ') + Math.abs(v));
+const paintTDepth = bindRange('tdepth', () => { const l = selText(); return l ? (l.depth || 0) : null; }, v => { const l = selText(); if (l){ l.depth = v; composite(); $('#tdcolorF').hidden = !v; } }, v => v ? String(v) : 'Off');
 const colourPick = (prop, getL) => (c, live, done) => { const l = getL(); if (!l) return; l[prop] = c; composite(); syncPanels(); if (!live || done) commit(); };
 const tColor = makeSwatches($('#tcolor'), COLOURS, colourPick('color', selText));
 const toColor = makeSwatches($('#tocolor'), ['#111111','#ffffff','#efb34a','#ff5a5f','#4da3ff'], colourPick('ocolor', selText));
 const tGlow = makeSwatches($('#tglow'), ['#ff4fd8','#4de1ff','#7dff6a','#efb34a','#ffffff'], colourPick('glow', selText), {none:true});
 const tBg = makeSwatches($('#tbg'), ['#ffffff','#111111','#efb34a','#ff5a5f','#4da3ff'], colourPick('bg', selText), {none:true});
+const tdColor = makeSwatches($('#tdcolor'), ['#111111','#d6233f','#7b55f0','#0072ff','#e9973f','#ffffff'], colourPick('dcolor', selText));
+(function buildTextGrads(){
+  const el = $('#tgrad');
+  const none = document.createElement('button'); none.type = 'button'; none.className = 'swc'; none.title = 'None (plain colour)'; none.dataset.i = '';
+  none.style.background = 'linear-gradient(135deg,transparent 45%,var(--warn) 45%,var(--warn) 55%,transparent 55%),var(--raise)';
+  none.onclick = () => { const l = selText(); if (!l) return; l.grad = ''; composite(); syncPanels(); commit(); };
+  el.appendChild(none);
+  TEXT_GRADS.forEach((g, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'swc grad'; b.title = `Gradient ${i+1}`; b.dataset.i = i;
+    b.style.background = `linear-gradient(180deg, ${g.join(',')})`;
+    b.onclick = () => { const l = selText(); if (!l) return; l.grad = i; composite(); syncPanels(); commit(); };
+    el.appendChild(b);
+  });
+})();
 document.querySelectorAll('#talign button').forEach(b => b.onclick = () => { const l = selText(); if (!l) return; l.align = b.dataset.v; composite(); syncPanels(); commit(); });
 $('#tbold').onclick = () => { const l = selText(); if (!l) return; l.bold = !l.bold; document.fonts.load(`700 40px "${l.font}"`).then(composite).catch(()=>{}); composite(); syncPanels(); commit(); };
 $('#tdup').onclick = duplicateSel;
@@ -940,7 +1397,10 @@ function syncPanels(){
   $('#textEdit').hidden = !t; $('#textAdd').hidden = !!t;
   if (t){
     if (document.activeElement !== txt) txt.value = t.text;
-    $('#font').value = t.font; paintTSize(); paintTOutline(); paintTShadow(); paintTSpacing();
+    $('#font').value = t.font; paintTSize(); paintTOutline(); paintTShadow(); paintTSpacing(); paintTCurve(); paintTDepth();
+    $('#tdcolorF').hidden = !t.depth; tdColor.set(t.dcolor || '#111111');
+    const gi = t.grad === undefined || t.grad === null ? '' : String(t.grad);
+    document.querySelectorAll('#tgrad .swc').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.i === gi)));
     $('#toutlineColorF').hidden = t.outline===0;
     tColor.set(t.color); toColor.set(t.ocolor); tBg.set(t.bg); tGlow.set(t.glow || '');
     document.querySelectorAll('#talign button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v===t.align)));
@@ -962,7 +1422,7 @@ function imgToStage(p){
 }
 function placeSel(){
   const l = getSel();
-  if (!l || l.hidden || comparing || tab==='crop' || tab==='draw'){ selEl.hidden = true; return; }
+  if (!l || l.hidden || comparing || tab==='crop' || tab==='draw' || tab==='retouch'){ selEl.hidden = true; return; }
   const b = bbox(l), c = fromLocal(l, (b[0]+b[2])/2, (b[1]+b[3])/2), s = imgToStage(c);
   selEl.hidden = false;
   Object.assign(selEl.style, {left:s.x+'px', top:s.y+'px', width:((b[2]-b[0])*l.scale*s.k + 10)+'px', height:((b[3]-b[1])*l.scale*s.k + 10)+'px', transform:`translate(-50%,-50%) rotate(${l.rot}deg)`});
@@ -984,6 +1444,7 @@ stage.addEventListener('pointerdown', e => {
   if (sh==='del'){ if (selId) deleteLayer(selId); return; }
   const p = clientToImg(e);
   e.preventDefault();
+  if (tab==='retouch'){ rtStart(p); stage.setPointerCapture(e.pointerId); return; }
   if (sh==='rot' || sh==='scale'){
     const l = getSel(); if (!l) return;
     const c = layerCentreClient(l);
@@ -1005,6 +1466,7 @@ stage.addEventListener('pointerdown', e => {
   stage.setPointerCapture(e.pointerId);
 });
 stage.addEventListener('pointermove', e => {
+  if (tab==='retouch'){ rtMoveCursor(e); if (RT.stroke) rtMove(clientToImg(e)); return; }
   if (!ldrag) return;
   const l = ldrag.l;
   if (ldrag.type==='move'){ const p = clientToImg(e); l.x = ldrag.x0 + p.x - ldrag.p0.x; l.y = ldrag.y0 + p.y - ldrag.p0.y; ldrag.moved = true; }
@@ -1025,14 +1487,16 @@ stage.addEventListener('pointermove', e => {
   composite();
 });
 function endLDrag(){
+  if (RT.stroke){ rtEnd(); return; }
   if (!ldrag) return;
   const t = ldrag.type, moved = ldrag.moved; ldrag = null;
   if (t!=='move' || moved){ commit(); syncPanels(); }
   if (t==='stroke') refreshLayerList();
 }
 stage.addEventListener('pointerup', endLDrag); stage.addEventListener('pointercancel', endLDrag);
+stage.addEventListener('pointerleave', () => { rtCursor.hidden = true; });
 stage.addEventListener('dblclick', e => {
-  if (tab==='crop' || tab==='draw' || tab==='collage') return;
+  if (tab==='crop' || tab==='draw' || tab==='collage' || tab==='retouch') return;
   const hit = hitTest(clientToImg(e));
   if (hit && hit.type==='text'){ select(hit.id, {switchTab:true}); setTimeout(() => { txt.focus(); txt.select(); }, 20); }
 });
@@ -1054,30 +1518,124 @@ function nativeToFile(f){
 async function openPhoto(){
   if (!desktop) { $('#fileInput').click(); return; }
   const files = await window.tinto.openImages(false);
-  if (files.length) { if (tab==='collage') setTab('adjust'); openFile(nativeToFile(files[0])); }
+  if (files.length) { if (tab==='collage') setTab('adjust'); openFile(nativeToFile(files[0]), files[0].path); }
 }
 $('#openBtn').onclick = openPhoto;
 if (desktop){
-  window.tinto.onOpenFile(f => { if (tab==='collage') setTab('adjust'); openFile(nativeToFile(f)); });
+  window.tinto.onOpenFile(f => { if (tab==='collage') setTab('adjust'); openFile(nativeToFile(f), f.path); });
   window.tinto.onMenu(action => {
     if (action==='open') openPhoto();
+    else if (action==='save') saveProject(false);
+    else if (action==='save-as') saveProject(true);
     else if (action==='export' && $('#exportModal').hidden) $('#exportBtn').click();
   });
 }
 $('#fileInput').onchange = e => { openFile(e.target.files[0]); e.target.value = ''; };
-function openFile(file){
+function openFile(file, path){
   if (!file) return;
+  if (/\.tinto$/i.test(file.name)) { openProject(file, path); return; }
   if (!file.type.startsWith('image/')) { toast('That file isn’t an image. Open a JPG, PNG, WebP or GIF.'); return; }
   const url = URL.createObjectURL(file), img = new Image();
   img.onload = () => {
     const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
-    selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    S = {base:c, params:defaults(), filter:'none', strength:100, layers:[], bg:{...BG_DEFAULT}, frame:{...FRAME_DEFAULT}, name:(file.name.replace(/\.[^.]+$/,'') || 'photo'), label:file.name};
+    projectPath = null;
+    selId = null; drawSession = null; hist = []; hi = -1; commit(); syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('This browser can’t read that image. HEIC photos need converting to JPG first.'); };
   img.src = url;
 }
+
+/* ================= projects: the photo and every editable layer in one .tinto file ================= */
+// A .tinto file is JSON: the photo (PNG), the edit settings, the layers, and copies of any
+// picture stickers they use, so a project opens the same on any computer.
+let projectPath = null;
+const PROJECT_FORMAT = 'tinto-project';
+const canvasToDataURL = c => new Promise((res, rej) => c.toBlob(b => {
+  if (!b) { rej(new Error('encode')); return; }
+  const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b);
+}, 'image/png'));
+function dataURLToCanvas(url){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => { const c = mk(img.naturalWidth, img.naturalHeight); c.getContext('2d').drawImage(img, 0, 0); res(c); };
+    img.onerror = () => rej(new Error('image'));
+    img.src = url;
+  });
+}
+async function buildProject(){
+  const images = {};
+  for (const l of S.layers){
+    if (l.type === 'image' && !images[l.ref]){ const c = STICKER_IMG.get(l.ref); if (c) images[l.ref] = await canvasToDataURL(c); }
+  }
+  const mask = bgMaskFor(S.base);
+  const doc = {
+    format: PROJECT_FORMAT, version: 1, app: 'Tinto', appVersion: (typeof appVer === 'string' ? appVer : ''), saved: new Date().toISOString(),
+    name: S.name, label: S.label, width: S.base.width, height: S.base.height,
+    photo: await canvasToDataURL(S.base),
+    params: S.params, filter: S.filter, strength: S.strength, bg: S.bg, frame: S.frame,
+    layers: S.layers, images,
+    mask: mask ? await canvasToDataURL(mask) : null,
+  };
+  return new TextEncoder().encode(JSON.stringify(doc));
+}
+let saving = false;
+async function saveProject(saveAs){
+  if (saving || !S.base) return;
+  if (tab === 'collage'){ toast('Projects save the editor. Choose Edit in editor on your collage first, then save.'); return; }
+  saving = true; $('#saveBtn').disabled = true;
+  try {
+    const data = await buildProject();
+    const fname = (S.name || 'project') + '.tinto';
+    if (desktop){
+      const res = await window.tinto.saveProject(fname, data, saveAs ? null : projectPath);
+      if (res.saved){ projectPath = res.path; savedAt = hist[hi]; S.label = res.path.split(/[\\/]/).pop(); updateInfo(); toast('Project saved. Open it any time to keep editing.'); }
+      else if (res.error) toast(`Couldn’t save the project: ${res.error}`);
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type:'application/json'})); a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      savedAt = hist[hi];
+    }
+  } catch (e) { toast('The project couldn’t be saved.'); }
+  saving = false; $('#saveBtn').disabled = false;
+}
+let savedAt = null;
+async function openProject(file, path){
+  let doc;
+  try { doc = JSON.parse(await file.text()); }
+  catch { toast('That project file couldn’t be read. It may be damaged.'); return; }
+  if (!doc || doc.format !== PROJECT_FORMAT || typeof doc.photo !== 'string'){ toast('That isn’t a Tinto project.'); return; }
+  if (doc.version > 1) toast('This project was saved by a newer Tinto. Some things may look different.');
+  try {
+    const base = await dataURLToCanvas(doc.photo);
+    for (const [ref, url] of Object.entries(doc.images || {})){
+      if (!STICKER_IMG.has(ref)) STICKER_IMG.set(ref, await dataURLToCanvas(url));
+    }
+    // stickers from Tinto's packs can always be redrawn, even if the project didn't carry a copy
+    for (const l of doc.layers || []) if (l.type === 'image' && !STICKER_IMG.has(l.ref) && /^pk-/.test(l.ref)){
+      const s = STK_BY_ID.get(l.ref.slice(3)); if (s) await packCanvas(s);
+    }
+    if (doc.mask) bgMasks.set(base, await dataURLToCanvas(doc.mask));
+    const layers = Array.isArray(doc.layers) ? doc.layers.filter(l => l && typeof l === 'object' && typeof l.type === 'string') : [];
+    S = {base, params:{...defaults(), ...(doc.params || {})}, filter: FILTERS.some(f => f.id === doc.filter) ? doc.filter : 'none',
+         strength: Number.isFinite(doc.strength) ? doc.strength : 100, layers, bg:{...BG_DEFAULT, ...(doc.bg || {})}, frame:{...FRAME_DEFAULT, ...(doc.frame || {})},
+         name: String(doc.name || file.name.replace(/\.tinto$/i, '') || 'project'), label: file.name};
+    nextId = Math.max(nextId, ...layers.map(l => +l.id || 0)) + 1;
+    projectPath = path || null;
+    if (tab === 'collage') setTab('adjust');
+    selId = null; drawSession = null; hist = []; hi = -1; commit(); savedAt = hist[hi];
+    syncUI(); syncBg(); syncFrame(); rebuildPreview(); syncResize(); refreshLayerUI(); if (tab==='crop') resetCrop();
+    const missing = layers.filter(l => l.type === 'image' && !STICKER_IMG.has(l.ref)).length;
+    toast(missing ? `Project opened. ${missing} sticker${missing>1?'s':''} couldn’t be found.` : 'Project opened. Everything is still editable.');
+  } catch (e) { toast('That project couldn’t be opened. It may be damaged.'); }
+}
+$('#saveBtn').onclick = () => saveProject(false);
+window.addEventListener('keydown', e => {
+  if (desktop) return;     // the desktop app's menu handles Ctrl+S
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); saveProject(e.shiftKey); }
+});
+
 let dragDepth = 0;
 window.addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { dragDepth++; $('#dropHint').hidden = false; } });
 window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth-1); if (!dragDepth) $('#dropHint').hidden = true; });
@@ -1167,6 +1725,7 @@ async function renderEditorFull(){
   const out = processImage(b.getContext('2d').getImageData(0,0,b.width,b.height), effective());
   const c = mk(b.width, b.height), cx = c.getContext('2d'); cx.putImageData(out, 0, 0);
   if (S.bg.mode !== 'original'){ const m = bgMaskFor(b); if (m) applyBackground(c, m, S.bg); }
+  if (S.frame.style !== 'none') drawFrame(cx, c.width, c.height, S.frame);
   drawLayers(cx, 1);
   return c;
 }
@@ -1672,7 +2231,7 @@ $('#cAddCurrent').onclick = async () => {
 $('#cToEditor').onclick = () => {
   if (!usedCells()) { toast('Add at least one photo to the collage first.'); return; }
   const [W, H] = collageSize(), tpl = C.tpl;
-  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; syncBg();
+  S.base = renderCollageFull({withText: false}); S.params = defaults(); S.filter = 'none'; S.strength = 100; S.bg = {...BG_DEFAULT}; S.frame = {...FRAME_DEFAULT}; syncBg(); syncFrame();
   S.name = 'collage'; S.label = 'Collage'; selId = null; drawSession = null;
   // Template titles arrive as text layers, so they stay editable in the editor.
   const fitSize = d => {   // the same shrink-to-fit the collage uses
@@ -2039,7 +2598,7 @@ S.layers.push({id:nextId++, type:'text', text:'Golden hour', font:'Caveat', size
 S.layers.push({id:nextId++, type:'shape', shape:'sparkle', color:'#fff3d6', outline:'', shadow:false, x:1260, y:190, rot:0, scale:0.7, opacity:0.9, flip:false, hidden:false});
 commit(); syncUI(); rebuildPreview(); syncResize(); refreshLayerUI();
 seedCollage(); syncCollage();
-if (desktop) window.tinto.startupFile().then(f => { if (f) openFile(nativeToFile(f)); }).catch(() => {});
+if (desktop) window.tinto.startupFile().then(f => { if (f) openFile(nativeToFile(f), f.path); }).catch(() => {});
 document.fonts.load('700 40px "Caveat"').then(composite).catch(()=>{});
 FONTS.forEach(f => document.fonts.load(`400 40px "${f}"`).catch(()=>{}));
 
@@ -2096,7 +2655,7 @@ if (desktop){
   });
   window.tinto.onMenu(action => { if (action==='check-updates') checkUpdatesNow(); });
   $('#updateGo').onclick = async () => {
-    const res = await window.tinto.installUpdate(hi > 0);
+    const res = await window.tinto.installUpdate(hi > 0 && hist[hi] !== savedAt);
     if (res && res.ok) $('#updateGo').disabled = true;
   };
   $('#updateHide').onclick = () => { updateHidden = true; renderUpdate(); };

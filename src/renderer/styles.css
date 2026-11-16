@@ -351,3 +351,33 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 .bg-status .bar i{display:block;height:100%;width:0;background:var(--accent-grad, var(--accent));transition:width .2s}
 .swc.grad{border-radius:8px}
 #stage.checker #view{background:repeating-conic-gradient(#d9d9de 0 25%,#ffffff 0 50%) 0 0/20px 20px}
+
+/* Social sizes */
+.social{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.social button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;background:var(--raise);cursor:pointer;min-width:0}
+.social button:hover{background:var(--hover)}
+.social button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.social button[aria-pressed="true"]{background:var(--chip-on-bg);color:var(--chip-on-fg)}
+.social .shape{flex:none;width:22px;height:22px;display:grid;place-items:center}
+.social .shape i{display:block;border:1.6px solid currentColor;border-radius:3px}
+.social .txt{min-width:0;display:grid;line-height:1.2}
+.social b{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.social small{font-size:11px;opacity:.65;font-family:var(--f-mono, ui-monospace, monospace)}
+
+/* Retouch */
+.rt-tools{display:flex;margin-bottom:6px}
+.rt-tools button{flex:1}
+.rt-cursor{position:absolute;pointer-events:none;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.35);transform:translate(-50%,-50%);z-index:6}
+#stage.retouching{cursor:none}
+@media (max-height: 960px){
+  .tool{padding:7px 2px 6px;gap:3px;font-size:10.5px}
+  .tool svg{width:20px;height:20px}
+}
+
+/* Frames */
+.frames{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.frames button{all:unset;box-sizing:border-box;display:grid;gap:5px;justify-items:center;padding:6px;border-radius:12px;background:var(--raise);cursor:pointer;font-size:11.5px;min-width:0}
+.frames button:hover{background:var(--hover)}
+.frames button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.frames button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
+.frames canvas{width:100%;height:auto;border-radius:6px;display:block}
