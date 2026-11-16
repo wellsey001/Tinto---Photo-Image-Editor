@@ -4752,12 +4752,22 @@ function skCutCanvas(){
 const skBorderPx = () => SK.border ? Math.max(1, Math.round(+$('#skBorderW').value / 400 * Math.max(SK.w, SK.h))) : 0;
 
 /* Draws a cut-out with a solid border around its outline: the silhouette stamped in a ring, then the picture on top. */
-function withBorder(cut, colour, bw, pad){
+function withBorder(cut, colour, bw, pad, fine){
   const out = mk(cut.width + pad*2, cut.height + pad*2), x = out.getContext('2d');
   if (colour && bw > 0){
     const sil = mk(cut.width, cut.height), sx = sil.getContext('2d');
     sx.drawImage(cut, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = colour; sx.fillRect(0, 0, cut.width, cut.height);
-    for (const r of [bw, bw*0.66, bw*0.33]) for (let k=0; k<24; k++){ const a = k/24*Math.PI*2; x.drawImage(sil, pad + Math.cos(a)*r, pad + Math.sin(a)*r); }
+    if (fine){
+      // finished stickers: grow the outline at a third of the size (quick), with stamps close enough that small shapes
+      // get a smooth round border rather than a scalloped one, then scale it up and make its edge crisp
+      const s = 1/3, sw = Math.ceil(out.width*s), sh2 = Math.ceil(out.height*s), g = mk(sw, sh2), gx = g.getContext('2d'), br = bw*s, pp = pad*s;
+      for (let r = br; r > 0; r -= Math.max(1, br/5)){ const n = Math.ceil(Math.PI*2*r/1.2); for (let k=0; k<n; k++){ const a = k/n*Math.PI*2; gx.drawImage(sil, pp + Math.cos(a)*r, pp + Math.sin(a)*r, cut.width*s, cut.height*s); } }
+      gx.drawImage(sil, pp, pp, cut.width*s, cut.height*s);
+      x.imageSmoothingQuality = 'high'; x.drawImage(g, 0, 0, sw/s, sh2/s);
+      const id = x.getImageData(0, 0, out.width, out.height), d = id.data;
+      for (let i = 3; i < d.length; i += 4){ const v = d[i]; d[i] = v < 70 ? 0 : v > 150 ? 255 : Math.round((v - 70)/80*255); }
+      x.putImageData(id, 0, 0);
+    } else for (const r of [bw, bw*0.66, bw*0.33]) for (let k=0; k<24; k++){ const a = k/24*Math.PI*2; x.drawImage(sil, pad + Math.cos(a)*r, pad + Math.sin(a)*r); }
   }
   x.drawImage(cut, pad, pad);
   return out;
@@ -4903,7 +4913,7 @@ async function packCanvas(s){
     // vector art: rasterise big, then add a white die-cut border
     const N = 900, iw = img.naturalWidth || 1, ih = img.naturalHeight || 1, k = N / Math.max(iw, ih);
     const art = mk(Math.round(iw*k), Math.round(ih*k)); art.getContext('2d').drawImage(img, 0, 0, art.width, art.height);
-    bw = Math.round(N*0.04); framed = withBorder(art, '#ffffff', bw, Math.round(bw*2.2));
+    bw = Math.round(N*0.04); framed = withBorder(art, '#ffffff', bw, Math.round(bw*2.2), true);
   } else {
     // cut-out art already has its border: enlarge it smoothly so it holds up on big photos
     const k = Math.max(1, 450 / Math.max(img.naturalWidth, img.naturalHeight)), art = mk(Math.round(img.naturalWidth*k), Math.round(img.naturalHeight*k)), ax = art.getContext('2d');
