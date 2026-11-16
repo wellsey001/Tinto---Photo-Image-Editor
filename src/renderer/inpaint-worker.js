@@ -25,27 +25,91 @@ function complete(rgba, W, H, hole0) {
   const levels = [{ w: W, h: H, img: toFloat(rgba, W * H), hole: hole0 }];
   while (true) {
     const L = levels[levels.length - 1];
-    if (Math.min(L.w, L.h) < 48 || holeExtent(L) < 10) break;
+    // stop once the hole is only a few pixels thick: below that, the picture around it is too blurry to choose from
+    if (Math.min(L.w, L.h) < 48 || holeThickness(L) <= 8 || levels.length > 3) break;
     levels.push(down(L));
   }
   let nnf = null;
   for (let li = levels.length - 1; li >= 0; li--) {
-    const L = levels[li], coarse = li === levels.length - 1;
-    const P = L.w * L.h > 120000 ? 2 : 3;               // patch radius: 5x5 at the finest sizes, 7x7 below
+    const L = levels[li], first = !nnf;
+    L.level = li;
+    const P = 3;                                         // 7x7 patches
     prepare(L, P);
-    if (!L.sources.length) { diffuse(L); continue; }    // nothing left to copy from
-    if (coarse) { diffuse(L); nnf = randomNNF(L); }
+    if (!L.sources.length) { diffuse(L); nnf = null; continue; }    // nothing left to copy from
+    if (first) { nnf = randomNNF(L); peelInit(L, nnf, P); }
     else { nnf = upsampleNNF(nnf, levels[li + 1], L); vote(L, nnf, P); }
-    const em = coarse ? 6 : li === 0 ? 2 : 4;
+    const em = first ? 6 : li === 0 ? 3 : 4;
     for (let it = 0; it < em; it++) {
       for (let pass = 0; pass < 3; pass++) patchMatch(L, nnf, P, (it * 3 + pass) % 2 === 1);
-      vote(L, nnf, P);
+      // averaging the votes is smooth and stable while the matches settle; the very last pass
+      // copies each pixel from its single best match instead, so grain, lines and texture stay crisp
+      if (li === 0 && it === em - 1) voteBest(L, nnf, P); else vote(L, nnf, P);
     }
     L.nnf = nnf;
   }
-  const top = levels[0], out = new Uint8ClampedArray(rgba);
+  const top = levels[0];
+  if (top.targets && top.sources.length) matchSeam(top);
+  const out = new Uint8ClampedArray(rgba);
   for (let i = 0, n = W * H; i < n; i++) if (hole0[i]) { out[i * 4] = top.img[i * 3]; out[i * 4 + 1] = top.img[i * 3 + 1]; out[i * 4 + 2] = top.img[i * 3 + 2]; out[i * 4 + 3] = 255; }
   return out;
+}
+
+/* each hole pixel takes its colour from the overlapping patch that matched best */
+function voteBest(L, nnf, P) {
+  const { w, h, img, hole, targets, cost } = L, best = new Float32Array(w * h).fill(Infinity), src = new Int32Array(w * h).fill(-1);
+  for (const t of targets) {
+    const s = nnf[t]; if (s < 0) continue;
+    const c = cost[t], tx = t % w, ty = (t / w) | 0, sx = s % w, sy = (s / w) | 0;
+    for (let dy = -P; dy <= P; dy++) {
+      const y1 = ty + dy; if (y1 < 0 || y1 >= h) continue;
+      for (let dx = -P; dx <= P; dx++) {
+        const x1 = tx + dx; if (x1 < 0 || x1 >= w) continue;
+        const q = y1 * w + x1; if (!hole[q]) continue;
+        // prefer patches centred near this pixel: the middle of a patch is matched most reliably
+        const d = c * (1 + 0.15 * (Math.abs(dx) + Math.abs(dy)));
+        if (d < best[q]) { best[q] = d; src[q] = (sy + dy) * w + sx + dx; }
+      }
+    }
+  }
+  const prev = img.slice();
+  for (let q = 0; q < w * h; q++) if (hole[q] && src[q] >= 0) { const b = src[q] * 3; img[q * 3] = prev[b]; img[q * 3 + 1] = prev[b + 1]; img[q * 3 + 2] = prev[b + 2]; }
+}
+
+/* any remaining step in brightness or colour where the fill meets the photo is spread smoothly
+   across the fill (a membrane), so no outline of the old object shows */
+function matchSeam(L) {
+  const { w, h, img, hole } = L, bx = [], by = [], bd = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!hole[i]) continue;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+      const j = yy * w + xx; if (hole[j]) continue;
+      r += img[j * 3]; g += img[j * 3 + 1]; b += img[j * 3 + 2]; n++;
+    }
+    // a bright line or sharp edge crossing the border isn't a colour mismatch: cap each difference
+    const c = v => Math.max(-18, Math.min(18, v));
+    if (n) { bx.push(x); by.push(y); bd.push(c(r / n - img[i * 3]), c(g / n - img[i * 3 + 1]), c(b / n - img[i * 3 + 2])); }
+  }
+  if (!bx.length) return;
+  // smooth the differences along the edge a little (single noisy pixels shouldn't count), and use at most ~500 of them
+  const m = bx.length, step = Math.max(1, Math.floor(m / 500)), sx = [], sy = [], sd = [];
+  for (let k = 0; k < m; k += step) {
+    // the median of the nearby differences, so a few pixels of a bright line don't tint the fill
+    const R = [], G = [], B = [];
+    for (let j = 0; j < m; j++) if (Math.abs(bx[j] - bx[k]) <= 6 && Math.abs(by[j] - by[k]) <= 6) { R.push(bd[j * 3]); G.push(bd[j * 3 + 1]); B.push(bd[j * 3 + 2]); }
+    const med = a => { a.sort((x, y) => x - y); return a[a.length >> 1]; };
+    sx.push(bx[k]); sy.push(by[k]); sd.push(med(R), med(G), med(B));
+  }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!hole[i]) continue;
+    let r = 0, g = 0, b = 0, ws = 0;
+    for (let k = 0; k < sx.length; k++) {
+      const dx = x - sx[k], dy = y - sy[k], d2 = dx * dx + dy * dy + 0.5, wt = 1 / (d2 * Math.sqrt(d2));
+      r += sd[k * 3] * wt; g += sd[k * 3 + 1] * wt; b += sd[k * 3 + 2] * wt; ws += wt;
+    }
+    img[i * 3] += r / ws; img[i * 3 + 1] += g / ws; img[i * 3 + 2] += b / ws;
+  }
 }
 
 function toFloat(rgba, n) { const f = new Float32Array(n * 3); for (let i = 0; i < n; i++) { f[i * 3] = rgba[i * 4]; f[i * 3 + 1] = rgba[i * 4 + 1]; f[i * 3 + 2] = rgba[i * 4 + 2]; } return f; }
@@ -53,6 +117,19 @@ function holeExtent(L) {
   let x0 = L.w, y0 = L.h, x1 = -1, y1 = -1;
   for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (L.hole[y * L.w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   return x1 < 0 ? 0 : Math.max(x1 - x0, y1 - y0) + 1;
+}
+/* how many pixels you can go inwards from the hole's edge before it runs out (half its thickness) */
+function holeThickness(L) {
+  const { w, h } = L; let cur = L.hole.slice(), n = 0;
+  while (n < 64) {
+    let any = 0; const nx = new Uint8Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      if (cur[i] && cur[i - 1] && cur[i + 1] && cur[i - w] && cur[i + w]) { nx[i] = 1; any = 1; }
+    }
+    n++; if (!any) break; cur = nx;
+  }
+  return n;
 }
 function down(L) {
   const w = Math.max(1, L.w >> 1), h = Math.max(1, L.h >> 1), img = new Float32Array(w * h * 3), hole = new Uint8Array(w * h);
@@ -90,6 +167,63 @@ function prepare(L, P) {
   L.targets = Int32Array.from(targets); L.sources = Int32Array.from(sources);
   L.isSource = new Uint8Array(w * h); for (const s of sources) L.isSource[s] = 1;
 }
+/* first guess at the smallest size: fill from the edge inwards, one ring at a time, each pixel copied
+   from the patch that best matches what's already known around it (so a saucer's rim carries on as
+   saucer, rather than everything becoming the commonest texture in the photo) */
+function peelInit(L, nnf, P) {
+  const { w, h, img, hole, sources, isSource } = L, known = new Uint8Array(w * h), depth = new Int32Array(w * h).fill(-1);
+  let ring = [];
+  for (let i = 0; i < w * h; i++) if (!hole[i]) known[i] = 1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!hole[i]) continue;
+    if ((x > 0 && !hole[i - 1]) || (x < w - 1 && !hole[i + 1]) || (y > 0 && !hole[i - w]) || (y < h - 1 && !hole[i + w])) { depth[i] = 0; ring.push(i); }
+  }
+  const order = [];
+  while (ring.length) {
+    order.push(...ring); const next = [];
+    for (const i of ring) {
+      const x = i % w, y = (i / w) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && hole[j] && depth[j] < 0) { depth[j] = depth[i] + 1; next.push(j); }
+    }
+    ring = next;
+  }
+  const partial = (t, s, best) => {
+    const tx = t % w, ty = (t / w) | 0, sx = s % w, sy = (s / w) | 0, k = 1 << (L.level || 0);
+    let d = ((sx - tx) * (sx - tx) * NEAR_X + (sy - ty) * (sy - ty) * NEAR_Y) * k * k, n = 0;
+    for (let dy = -P; dy <= P; dy++) {
+      const y1 = ty + dy; if (y1 < 0 || y1 >= h) continue;
+      for (let dx = -P; dx <= P; dx++) {
+        const x1 = tx + dx; if (x1 < 0 || x1 >= w) continue;
+        const a = y1 * w + x1; if (!known[a]) continue;
+        const b = ((sy + dy) * w + sx + dx) * 3, a3 = a * 3;
+        const r = img[a3] - img[b], g = img[a3 + 1] - img[b + 1], bl = img[a3 + 2] - img[b + 2];
+        d += r * r + g * g + bl * bl; n++;
+      }
+    }
+    return n ? d / n : Infinity;
+  };
+  const tries = Math.min(sources.length, 400);
+  for (const q of order) {
+    const qx = q % w, qy = (q / w) | 0;
+    let best = -1, bc = Infinity;
+    const consider = c => { if (c < 0 || !isSource[c]) return; const d = partial(q, c, bc); if (d < bc) { bc = d; best = c; } };
+    // what the neighbours already copied, shifted along
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = qx + dx, ny = qy + dy; if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const j = ny * w + nx; if (!hole[j] || !known[j] || nnf[j] < 0) continue;
+      const s = nnf[j], cx = s % w - dx, cy = ((s / w) | 0) - dy; if (cx >= 0 && cy >= 0 && cx < w && cy < h) consider(cy * w + cx);
+    }
+    // the photo just around it, and a spread of places further away
+    for (let k = 0; k < tries; k++) {
+      const r = k < tries / 2 ? 6 + k : Math.max(w, h);
+      const cx = Math.round(qx + (rnd() * 2 - 1) * r), cy = Math.round(qy + (rnd() * 2 - 1) * r);
+      if (cx >= 0 && cy >= 0 && cx < w && cy < h) consider(cy * w + cx);
+    }
+    if (best < 0) best = sources[(rnd() * sources.length) | 0];
+    nnf[q] = best; img[q * 3] = img[best * 3]; img[q * 3 + 1] = img[best * 3 + 1]; img[q * 3 + 2] = img[best * 3 + 2]; known[q] = 1;
+  }
+}
+
 /* rough first guess for the smallest level: grow the edges inwards */
 function diffuse(L) {
   const { w, h, img } = L, known = new Uint8Array(w * h);
@@ -131,9 +265,14 @@ function upsampleNNF(cn, C, L) {
   return nnf;
 }
 /* how different two patches are (sum of squared colour differences), giving up once past `best` */
+// copying from nearby (and above all, from the same height in the photo) keeps skies, water and walls
+// the right shade: a patch from far up or down a smooth gradient looks alike but is lighter or darker
+const NEAR_X = 0.2, NEAR_Y = 3;
 function dist(L, t, s, P, best) {
   const { w, h, img } = L, tx = t % w, ty = (t / w) | 0, sx = s % w, sy = (s / w) | 0;
-  let d = 0;
+  const k = 1 << (L.level || 0);       // the penalty is in full-size pixels, at every level
+  let d = ((sx - tx) * (sx - tx) * NEAR_X + (sy - ty) * (sy - ty) * NEAR_Y) * k * k;
+  if (d >= best) return d;
   for (let dy = -P; dy <= P; dy++) {
     const y1 = ty + dy; if (y1 < 0 || y1 >= h) continue;
     const y2 = sy + dy;

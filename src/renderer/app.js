@@ -924,10 +924,10 @@ function inpaint(rgba, w, h, hole){
 }
 async function eraseObject(st){
   const src = st.src, W = st.W, H = st.H, [bx0, by0, bx1, by1] = st.dirty;
-  // work on the painted area and plenty of photo around it, at up to 720 px
-  const bw = bx1 - bx0, bh = by1 - by0, m = Math.max(48, Math.max(bw, bh) * 1.25);
+  // work on the painted area and plenty of photo around it, at up to 960 px
+  const bw = bx1 - bx0, bh = by1 - by0, m = Math.max(48, Math.max(bw, bh) * 0.8);
   const rx0 = Math.max(0, Math.floor(bx0 - m)), ry0 = Math.max(0, Math.floor(by0 - m)), rx1 = Math.min(W, Math.ceil(bx1 + m)), ry1 = Math.min(H, Math.ceil(by1 + m));
-  const rw = rx1 - rx0, rh = ry1 - ry0, k = Math.min(1, 720 / Math.max(rw, rh));
+  const rw = rx1 - rx0, rh = ry1 - ry0, k = Math.min(1, 960 / Math.max(rw, rh));
   const ww = Math.max(8, Math.round(rw*k)), wh = Math.max(8, Math.round(rh*k));
   const maskC = mk(W, H), mx = maskC.getContext('2d'), mi = mx.createImageData(W, H);
   for (let i=0; i<W*H; i++) if (st.mask[i]){ mi.data[i*4] = mi.data[i*4+1] = mi.data[i*4+2] = mi.data[i*4+3] = 255; }
@@ -935,21 +935,26 @@ async function eraseObject(st){
   const crop = mk(ww, wh), cx = crop.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(src, rx0, ry0, rw, rh, 0, 0, ww, wh);
   const cm = mk(ww, wh), cmx = cm.getContext('2d'); cmx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, ww, wh);
   const md = cmx.getImageData(0, 0, ww, wh).data, hole = new Uint8Array(ww*wh);
-  // a pixel more all round, so no edge of the old object is left behind
+  // a few pixels more all round, so no soft edge, outline or shadow of the old object is left behind
+  const g = 3;
   for (let y=0; y<wh; y++) for (let x=0; x<ww; x++){
     let on = 0;
-    for (let dy=-1; dy<=1 && !on; dy++) for (let dx=-1; dx<=1; dx++){ const xx = x+dx, yy = y+dy; if (xx >= 0 && yy >= 0 && xx < ww && yy < wh && md[(yy*ww + xx)*4 + 3] > 8){ on = 1; break; } }
+    for (let dy=-g; dy<=g && !on; dy++) for (let dx=-g; dx<=g; dx++){ if (dx*dx + dy*dy > g*g) continue; const xx = x+dx, yy = y+dy; if (xx >= 0 && yy >= 0 && xx < ww && yy < wh && md[(yy*ww + xx)*4 + 3] > 8){ on = 1; break; } }
     hole[y*ww + x] = on;
   }
   ER.busy = true; stage.classList.add('erasing'); bgStatusMini('Erasing…');
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   try {
-    const filled = await inpaint(cx.getImageData(0, 0, ww, wh).data, ww, wh, hole);
+    const filled = await inpaint(cx.getImageData(0, 0, ww, wh).data, ww, wh, hole.slice());
     const fc = mk(ww, wh); fc.getContext('2d').putImageData(new ImageData(filled, ww, wh), 0, 0);
     // back to full size, blended in along a soft edge
     const patch = mk(rw, rh), px = patch.getContext('2d'); px.imageSmoothingQuality = 'high'; px.drawImage(fc, 0, 0, rw, rh);
-    const soft = mk(rw, rh), sx = soft.getContext('2d'), feather = Math.max(1.2, 1.5 / k);
-    sx.filter = `blur(${feather.toFixed(1)}px)`; sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh); sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh); sx.filter = 'none';
+    // blend over the grown area: fully replaced where it was painted, fading out just beyond
+    const hc = mk(ww, wh), hx = hc.getContext('2d'), hd = hx.createImageData(ww, wh);
+    for (let i=0; i<ww*wh; i++) if (hole[i]) hd.data[i*4+3] = 255;
+    hx.putImageData(hd, 0, 0);
+    const soft = mk(rw, rh), sx = soft.getContext('2d'), feather = Math.max(1, 1 / k);
+    sx.imageSmoothingQuality = 'high'; sx.filter = `blur(${feather.toFixed(1)}px)`; sx.drawImage(hc, 0, 0, rw, rh); sx.filter = 'none';
     sx.drawImage(maskC, rx0, ry0, rw, rh, 0, 0, rw, rh);
     px.globalCompositeOperation = 'destination-in'; px.drawImage(soft, 0, 0);
     if (k < 1) addGrain(patch, src, rx0, ry0);
