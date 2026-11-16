@@ -67,6 +67,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
 - **Projects:** File → Save Project (Ctrl+S) saves a `.tinto` file with the photo and every layer still editable. Open it again (double-click it, or Open photo) to carry on later.
 - **Retouch:** brush away blemishes, smooth skin (edges like eyes and hair stay sharp) and whiten teeth.
+- **AI upscale:** in Resize, make a small or soft photo 2× or 4× bigger with real added detail (Swin2SR, running on your device; the models are 8 MB and 21 MB, downloaded the first time). Shows progress and time left, and can be cancelled. Works on photos up to 1600 px (2×) or 800 px (4×) across on a computer, smaller on a phone.
 - **Object eraser:** in Retouch, choose Erase object and paint over something you don't want (a stranger in the background, a bin, a wire). Let go and it's filled in from the rest of the photo. Works on your computer or phone, no internet needed.
 - **Frames:** 11 frames (Border, Rounded, Polaroid, Gallery, Film, Stamp, Scallop, Stitched, Soft edge, Neon, Gold) with colour and thickness. They sit over the photo's edges, under text and stickers, and filters don't tint them.
 - **Social sizes:** one click for Instagram post or portrait, Story/TikTok, YouTube thumbnail, Facebook, X, Pinterest or a phone wallpaper. Drag to choose what's kept, or keep the whole photo with blurred edges.
@@ -196,6 +197,7 @@ The editor page runs with context isolation, the sandbox on and Node integration
 ## Roadmap
 
 - Batch edit a folder of photos
+- Your own presets
 - Selective adjustments (brighten or recolour just the sky, or just the person)
 
 ## Licence

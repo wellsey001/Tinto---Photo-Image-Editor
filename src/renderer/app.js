@@ -1371,7 +1371,7 @@ $('#resizeApply').onclick = () => {
 /* ---------- AI upscale (Swin2SR; desktop: the background process, Android: the page, see ai-web.js) ---------- */
 // The largest photo each size can start from, so the result stays manageable (and the phone isn't busy for ages)
 // (worked out when used: the Android check further down hasn't run yet when this part loads)
-const upMax = () => NATIVE ? {2: 1024, 4: 512} : {2: 2048, 4: 1024};
+const upMax = () => NATIVE ? {2: 768, 4: 384} : {2: 1600, 4: 800};
 let upF = 2, upBusy = false;
 const upEngine = () => { const a = AI(); return a && a.upscale ? a : null; };
 function syncUpscale(){
@@ -1380,8 +1380,9 @@ function syncUpscale(){
   if (box.hidden) return;
   document.querySelectorAll('#upFactor button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.f === upF)));
   const b = S.base, long = Math.max(b.width, b.height), max = upMax()[upF], fits = long <= max;
-  // a rough guide, from the build checks: about 30 tiles a minute at 2x on a typical computer, fewer at 4x
-  const tiles = Math.ceil(b.width / 104) * Math.ceil(b.height / 104), perMin = (upF === 2 ? 30 : 8) / (NATIVE ? 4 : 1);
+  // a rough guide, from timings in the build checks (a modest 2-core machine): about 3 s a tile at 2x
+  // and 8 s at 4x on a computer, two to three times that on a phone
+  const tiles = Math.ceil(b.width / 104) * Math.ceil(b.height / 104), perMin = NATIVE ? (upF === 2 ? 10 : 3) : (upF === 2 ? 20 : 7.5);
   const mins = tiles / perMin, eta = mins < 1 ? 'under a minute' : mins < 1.5 ? 'about a minute' : `about ${Math.round(mins)} minutes`;
   $('#upReadout').innerHTML = fits
     ? `${b.width} × ${b.height} → <b>${b.width*upF} × ${b.height*upF}</b> px · ${eta}`
