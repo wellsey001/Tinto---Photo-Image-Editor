@@ -319,6 +319,7 @@
               <option value="lighten">Lighten</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option>
               <option value="hue">Hue</option><option value="saturation">Saturation</option><option value="color">Colour</option><option value="luminosity">Luminosity</option>
             </select></label>
+            <div class="anim-row"><label class="field"><span>Animation</span><select class="input" id="lanim"></select></label><button class="btn" id="lplay" type="button" title="Play the animation">Play</button></div>
             <div class="split">
               <button class="btn" id="ldup" type="button">Duplicate</button>
               <button class="btn" id="ldel" type="button">Delete</button>
@@ -375,6 +376,13 @@
       <button type="button" data-f="jpeg" aria-pressed="true">JPG</button>
       <button type="button" data-f="png" aria-pressed="false">PNG</button>
       <button type="button" data-f="webp" aria-pressed="false">WebP</button>
+      <button type="button" data-f="gif" aria-pressed="false">GIF</button>
+      <button type="button" data-f="video" aria-pressed="false">Video</button>
+    </div>
+    <div class="sub" id="animOpts" hidden>
+      <div class="seg" id="animLen"><button type="button" data-s="2">2 s</button><button type="button" data-s="3" aria-pressed="true">3 s</button><button type="button" data-s="5">5 s</button></div>
+      <p class="hint" id="animInfo"></p>
+      <button class="btn" id="animAll" type="button" hidden>Animate everything</button>
     </div>
     <div class="row" id="qualityRow">
       <label for="quality">Quality</label><output id="qualityOut">90</output>
@@ -464,6 +472,7 @@
 <script src="stickerpack.js"></script>
 <script src="emoji/emojipack.js"></script>
 <script src="inpaint-worker.js"></script>
+  <script src="gif.js"></script>
   <script src="ai-web.js"></script>
   <script src="app.js"></script>
 </body>

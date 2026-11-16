@@ -393,9 +393,9 @@ function drawStrokes(ctx, l){
     ctx.restore();
   }
 }
-function drawLayers(ctx, k){
+function drawLayers(ctx, k, t = animT){
   ctx.save(); ctx.scale(k, k);
-  for (const l of S.layers) if (!l.hidden) drawLayer(ctx, l);
+  S.layers.forEach((l, i) => { if (!l.hidden) drawLayer(ctx, t === null || !l.anim ? l : animLayer(l, t, i)); });
   ctx.restore();
 }
 function hitTest(p){
@@ -1530,7 +1530,7 @@ function syncPanels(){
   $('#stickerEdit').hidden = !s;
   if (s){ sColor.set(s.color); document.querySelectorAll('#soutline .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v===s.outline))); $('#sshadow').setAttribute('aria-pressed', String(!!s.shadow)); }
   else sColor.set(stickerColour);
-  $('#layerEdit').hidden = !getSel(); paintOpacity(); $('#lblend').value = (getSel() || {}).blend || 'source-over';
+  $('#layerEdit').hidden = !getSel(); paintOpacity(); $('#lblend').value = (getSel() || {}).blend || 'source-over'; syncLayerAnim();
 }
 function refreshLayerUI(){ refreshLayerList(); syncPanels(); placeSel(); }
 
@@ -2645,6 +2645,8 @@ let fmt = 'jpeg';
 $('#exportBtn').onclick = () => {
   $('#fallback').hidden = true; $('#exSave').hidden = false;
   const n = S.layers.filter(l => !l.hidden).length;
+  document.querySelectorAll('#fmtSeg [data-f="gif"], #fmtSeg [data-f="video"]').forEach(b => b.hidden = tab === 'collage');
+  if (tab === 'collage' && (fmt === 'gif' || fmt === 'video')) document.querySelector('#fmtSeg button[data-f="jpeg"]').click();
   if (tab==='collage'){ const [w,h] = collageSize(); $('#exTitle').textContent = 'Export collage'; $('#exportInfo').innerHTML = `Collage: <b>${w} × ${h}</b> px, empty cells left as background`; }
   else { $('#exTitle').textContent = 'Export photo'; $('#exportInfo').innerHTML = `Full size: <b>${S.base.width} × ${S.base.height}</b> px, with every edit applied${n ? ` and ${n} layer${n>1?'s':''} merged` : ''}`; }
   if (tab!=='collage' && S.bg.mode==='remove' && bgMaskFor(S.base)){
@@ -2658,7 +2660,10 @@ $('#exCancel').onclick = closeModal;
 $('#exportModal').addEventListener('click', e => { if (e.target.id==='exportModal') closeModal(); });
 document.querySelectorAll('#fmtSeg button').forEach(b => b.onclick = () => {
   fmt = b.dataset.f; document.querySelectorAll('#fmtSeg button').forEach(x => x.setAttribute('aria-pressed', String(x===b)));
-  $('#qualityRow').hidden = fmt==='png';
+  const moving = fmt === 'gif' || fmt === 'video';
+  $('#qualityRow').hidden = fmt==='png' || moving;
+  $('#animOpts').hidden = !moving;
+  if (moving) syncAnimExport();
 });
 const q = $('#quality');
 const paintQ = () => { fill(q, +q.value, 40); $('#qualityOut').textContent = q.value; };
@@ -2666,6 +2671,7 @@ q.addEventListener('input', paintQ); paintQ();
 let exportShare = false;
 $('#exShare').onclick = () => { exportShare = true; $('#exSave').click(); };
 $('#exSave').onclick = async () => {
+  if ((fmt === 'gif' || fmt === 'video') && tab !== 'collage'){ exportAnimated(); return; }
   const btn = $('#exSave'); btn.disabled = true; btn.textContent = 'Preparing…';
   await new Promise(r => setTimeout(r, 30));
   try {
@@ -2692,14 +2698,145 @@ $('#exSave').onclick = async () => {
   } catch (e) { toast('The photo couldn’t be encoded. Try PNG, or a smaller size.'); }
   btn.disabled = false; btn.textContent = NATIVE ? 'Save to gallery' : 'Save file'; exportShare = false;
 };
-async function renderEditorFull(){
+/* ---------- animation: stickers and text that move, exported as a GIF or a video ---------- */
+// Each layer can have one animation. Entrances (pop, slide, fade, type) play once at the start, one
+// layer after another; loops (bounce, float, spin, pulse, wiggle, swing) repeat a whole number of times
+// in the clip, so the GIF or video loops without a jump.
+const ANIMS = [
+  {id:'', name:'None'}, {id:'pop', name:'Pop in'}, {id:'slide', name:'Slide in'}, {id:'fade', name:'Fade in'}, {id:'type', name:'Type on (text)'},
+  {id:'bounce', name:'Bounce'}, {id:'float', name:'Float'}, {id:'pulse', name:'Pulse'}, {id:'wiggle', name:'Wiggle'}, {id:'swing', name:'Swing'}, {id:'spin', name:'Spin'},
+];
+let animT = null, animLen = 3;
+const easeOutBack = p => { const c = 1.70158, q = p - 1; return 1 + (c + 1)*q*q*q + c*q*q; };
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+function animLayer(l, t, i){
+  const T = animLen, u = (t % T) / T, b = bbox(l), size = Math.max(b[2] - b[0], b[3] - b[1]) * l.scale, a = {...l};
+  const order = S.layers.filter(x => x.anim && ['pop','slide','fade','type'].includes(x.anim)).indexOf(l);
+  const start = 0.15 + Math.max(0, order) * 0.18, p = Math.max(0, Math.min(1, (t - start) / 0.55));
+  const TAU = Math.PI*2;
+  switch (l.anim){
+    case 'pop': a.scale = l.scale * Math.max(0.001, easeOutBack(p)); a.opacity = l.opacity * Math.min(1, p*3); break;
+    case 'slide': a.x = l.x - (1 - easeOut(p)) * Math.max(S.base.width*0.5, size); a.opacity = l.opacity * Math.min(1, p*2); break;
+    case 'fade': a.opacity = l.opacity * easeOut(p); break;
+    case 'type': if (l.type === 'text'){ const n = [...l.text].length, q = Math.max(0, Math.min(1, (t - start) / Math.max(0.6, n*0.06))); a.text = [...l.text].slice(0, Math.round(n*q)).join(''); if (!a.text) a.opacity = 0; } else a.opacity = l.opacity * easeOut(p); break;
+    case 'bounce': { const s = Math.abs(Math.sin(TAU*u*2)); a.y = l.y - s * size * 0.22; a.scale = l.scale * (1 + (1 - s) * 0.04); break; }
+    case 'float': a.y = l.y + Math.sin(TAU*u) * size * 0.07; a.rot = l.rot + Math.sin(TAU*u + 1) * 3; break;
+    case 'pulse': a.scale = l.scale * (1 + 0.1 * Math.pow(Math.sin(TAU*u*2), 2)); break;
+    case 'wiggle': a.rot = l.rot + Math.sin(TAU*u*6) * 7 * Math.max(0, Math.sin(TAU*u*2)); break;
+    case 'swing': a.rot = l.rot + Math.sin(TAU*u*2) * 14; break;
+    case 'spin': a.rot = l.rot + 360*u; break;
+  }
+  return a;
+}
+/* play it on the photo */
+let animPlaying = 0;
+function playAnimation(){
+  if (!S.layers.some(l => l.anim)){ toast('Choose an Animation for a sticker or some text first.'); return; }
+  cancelAnimationFrame(animPlaying);
+  const t0 = performance.now(), frame = now => {
+    const t = (now - t0) / 1000;
+    if (t >= animLen){ animT = null; animPlaying = 0; composite(); placeSel(); return; }
+    animT = t; composite(); animPlaying = requestAnimationFrame(frame);
+  };
+  animPlaying = requestAnimationFrame(frame);
+}
+function animateAll(){
+  const loops = ['bounce', 'float', 'wiggle', 'pulse'];
+  let k = 0;
+  for (const l of S.layers) if (!l.hidden && !l.anim) l.anim = l.type === 'text' ? 'pop' : loops[k++ % loops.length];
+  commit(); syncLayerAnim(); syncAnimExport(); playAnimation();
+}
+function syncLayerAnim(){ const l = getSel(); $('#lanim').value = (l && l.anim) || ''; }
+$('#lanim').innerHTML = ANIMS.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+$('#lanim').addEventListener('change', e => { const l = getSel(); if (!l) return; l.anim = e.target.value; commit(); if (l.anim) playAnimation(); });
+$('#lplay').onclick = playAnimation;
+$('#animAll').onclick = animateAll;
+document.querySelectorAll('#animLen button').forEach(b => b.onclick = () => { animLen = +b.dataset.s; syncAnimExport(); });
+function syncAnimExport(){
+  document.querySelectorAll('#animLen button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.s === animLen)));
+  const n = S.layers.filter(l => l.anim && !l.hidden).length, [w, h] = animSize();
+  $('#animInfo').innerHTML = n ? `${n} moving layer${n > 1 ? 's' : ''} · <b>${w} × ${h}</b> px · ${animLen} seconds, looping` : 'Nothing moves yet. Give a sticker or some text an Animation in Layers, or:';
+  $('#animAll').hidden = !!n;
+  $('#exportInfo').hidden = fmt === 'gif' || fmt === 'video';
+}
+function animSize(){
+  const long = fmt === 'gif' ? 600 : 1080, k = Math.min(1, long / Math.max(S.base.width, S.base.height));
+  const even = v => Math.max(2, Math.round(v / 2) * 2);
+  return [even(S.base.width*k), even(S.base.height*k)];
+}
+async function exportAnimated(){
+  const btn = $('#exSave'), label = btn.textContent;
+  if (!S.layers.some(l => l.anim && !l.hidden)){ toast('Nothing moves yet. Choose an Animation in Layers, or tap Animate everything.'); return; }
+  btn.disabled = true;
+  try {
+    const [w, h] = animSize(), k = w / S.base.width;
+    const still = await renderEditorFull(false);
+    const bg = mk(w, h), bx = bg.getContext('2d'); bx.imageSmoothingQuality = 'high'; bx.drawImage(still, 0, 0, w, h);
+    const frame = mk(w, h), fx = frame.getContext('2d', {willReadFrequently: fmt === 'gif'});
+    const drawAt = t => { fx.clearRect(0, 0, w, h); fx.drawImage(bg, 0, 0); drawLayers(fx, k, t); if (WM.on) drawWatermark(fx, w, h); };
+    let blob, ext;
+    if (fmt === 'gif'){
+      const delay = 7, n = Math.round(animLen*100 / delay), samples = [];
+      for (const t of [0.2, animLen*0.5, animLen*0.8]){ drawAt(t); samples.push(fx.getImageData(0, 0, w, h).data); }
+      const g = new GifWriter(w, h, samples);
+      for (let i=0; i<n; i++){
+        drawAt(i*delay/100); g.addFrame(fx.getImageData(0, 0, w, h).data, delay);
+        if (i % 4 === 0){ btn.textContent = `Making GIF… ${Math.round(i/n*100)}%`; await new Promise(r => setTimeout(r, 0)); }
+      }
+      blob = new Blob([g.finish()], {type:'image/gif'}); ext = 'gif';
+    } else {
+      if (typeof MediaRecorder === 'undefined') throw new Error('video');
+      const type = ['video/mp4;codecs=avc1.42E028', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t));
+      if (!type) throw new Error('video');
+      ext = type.startsWith('video/mp4') ? 'mp4' : 'webm';
+      drawAt(0);
+      const stream = frame.captureStream(30), rec = new MediaRecorder(stream, {mimeType:type, videoBitsPerSecond: 8e6}), parts = [];
+      rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+      const stopped = new Promise(r => rec.onstop = r);
+      // the clip records in real time
+      rec.start(250);
+      const t0 = performance.now();
+      await new Promise(res => {
+        const tick = () => {
+          const t = (performance.now() - t0) / 1000;
+          if (t >= animLen){ drawAt(animLen); res(); return; }
+          drawAt(t); btn.textContent = `Recording… ${Math.round(t/animLen*100)}%`;
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await new Promise(r => setTimeout(r, 120));
+      rec.stop(); await stopped; stream.getTracks().forEach(t => t.stop());
+      blob = new Blob(parts, {type: type.split(';')[0]});
+    }
+    const filename = `${S.name}-animated.${ext}`;
+    if (desktop){
+      const res = await window.tinto.saveImage(filename, new Uint8Array(await blob.arrayBuffer()), ext);
+      if (res.saved){ closeModal(); toast(`Saved ${res.path.split(/[\\/]/).pop()}`, 'Show in folder', () => window.tinto.showInFolder(res.path)); }
+      else if (res.error) toast(`Couldn’t save: ${res.error}`);
+    } else if (NATIVE){
+      const stamped = filename.replace(/(\.\w+)$/, `-${Date.now().toString(36)}$1`);
+      if (exportShare){ await nativeShare(blob, stamped, 'Share your animation'); closeModal(); }
+      else {
+        try { const r = await nativeSave(blob, stamped, 'image'); closeModal(); toast(`Saved to ${r.where}`, 'Share', () => nativeShare(blob, stamped, 'Share your animation').catch(() => {})); }
+        catch { await nativeShare(blob, stamped, 'Save or share your animation'); closeModal(); }
+      }
+    } else showFallback(blob);
+    lastAnimBlob = blob;
+  } catch (e){
+    toast(fmt === 'video' ? 'This device can’t record video here. Try GIF instead.' : 'The animation couldn’t be made. Try a shorter one.');
+  }
+  btn.disabled = false; btn.textContent = label; exportShare = false;
+}
+let lastAnimBlob = null;
+async function renderEditorFull(withLayers = true){
   await document.fonts.ready;
   const b = S.base;
   const out = processImage(fxFull(b), effective());
   const c = mk(b.width, b.height), cx = c.getContext('2d'); cx.putImageData(out, 0, 0);
   if (S.bg.mode !== 'original'){ const m = bgMaskFor(b); if (m) applyBackground(c, m, S.bg); }
   if (S.frame.style !== 'none') drawFrame(cx, c.width, c.height, S.frame);
-  drawLayers(cx, 1);
+  if (withLayers) drawLayers(cx, 1);
   return c;
 }
 function showFallback(blob){

@@ -466,3 +466,9 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 
 #stage.erasing{cursor:progress}
 .rt-tools{display:grid;grid-template-columns:1fr 1fr;grid-auto-flow:row}
+
+/* Animation */
+.anim-row{display:flex;align-items:flex-end;gap:8px}
+.anim-row .field{flex:1;min-width:0}
+#fmtSeg{grid-auto-columns:minmax(0,1fr)}
+#animOpts .seg{margin-bottom:8px}

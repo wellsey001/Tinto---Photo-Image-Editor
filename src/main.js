@@ -13,6 +13,9 @@ const SAVE_FILTERS = {
   jpg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
   png: { name: 'PNG image', extensions: ['png'] },
   webp: { name: 'WebP image', extensions: ['webp'] },
+  gif: { name: 'Animated GIF', extensions: ['gif'] },
+  mp4: { name: 'MP4 video', extensions: ['mp4'] },
+  webm: { name: 'WebM video', extensions: ['webm'] },
 };
 const MAX_OPEN_BYTES = 200 * 1024 * 1024; // refuse anything over 200 MB
 const PROJECT_EXT = 'tinto';
