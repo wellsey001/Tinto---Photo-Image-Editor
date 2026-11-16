@@ -204,6 +204,9 @@
         <div class="pane" id="pane-text" hidden>
           <h2 class="pane-title">Text</h2>
           <div class="sub" id="textAdd">
+            <div class="group-h pt-head">Made for this photo <button class="ib" id="ptRefresh" type="button" title="Look at the photo again" aria-label="Look at the photo again"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button></div>
+            <p class="hint">Fonts that suit the mood, colours from your photo, placed where they read well.</p>
+            <div class="pt-grid" id="photoText"></div>
             <div class="group-h">Add a style</div>
             <div class="presets" id="textPresets"></div>
           </div>
@@ -231,6 +234,7 @@
             <div class="field"><span>Neon glow</span><div class="swatches" id="tglow"></div></div>
             <div class="field"><span>Background</span><div class="swatches" id="tbg"></div></div>
             <div class="split">
+              <button class="btn" id="tmatch" type="button" title="Colours from the photo that stand out where the text is">Match photo</button>
               <button class="btn" id="tdup" type="button">Duplicate</button>
               <button class="btn" id="tnew" type="button">Add new text</button>
             </div>

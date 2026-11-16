@@ -352,7 +352,7 @@ function drawText(ctx, l){
   if (l.shadow && !l.depth){ ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = l.size*0.25*l.shadow/100; ctx.shadowOffsetY = l.size*0.06*l.shadow/100; }
   if (m.ow > 0){ ctx.strokeStyle = l.ocolor; ctx.lineWidth = m.ow; each(t => ctx.strokeText(t, 0, 0)); ctx.shadowColor = 'transparent'; }
   let fillStyle = l.color;
-  const stops = l.grad !== undefined && l.grad !== '' && l.grad !== null ? TEXT_GRADS[+l.grad] : null;
+  const stops = Array.isArray(l.grad) ? l.grad : l.grad !== undefined && l.grad !== '' && l.grad !== null ? TEXT_GRADS[+l.grad] : null;
   if (stops){
     const g = ctx.createLinearGradient(0, box[1], 0, box[3]);
     stops.forEach((c, i) => g.addColorStop(i/(stops.length-1), c));
@@ -435,7 +435,7 @@ function rebuildPreview(zoomOnly){
   prevData = scaleCanvas(b, w, h).getContext('2d').getImageData(0,0,w,h);
   for (const c of [view, photoC, rawC]){ c.width = w; c.height = h; }
   rawX.putImageData(prevData, 0, 0);
-  if (!zoomOnly){ buildThumbs(); if (typeof tab !== 'undefined' && tab === 'effects') drawFxThumbs(); }
+  if (!zoomOnly){ buildThumbs(); if (typeof tab !== 'undefined' && tab === 'effects') drawFxThumbs(); if (typeof tab !== 'undefined' && tab === 'text') setTimeout(buildPhotoText, 0); }
   draw(); updateInfo();
   if (tab==='crop') requestAnimationFrame(placeOverlay);
 }
@@ -1159,6 +1159,7 @@ function setTab(name){
   document.querySelectorAll('.tool').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab===name)));
   ['adjust','filters','background','retouch','effects','crop','resize','text','stickers','draw','frames','templates','layers','collage'].forEach(n => $('#pane-'+n).hidden = n!==name);
   if (name === 'effects') drawFxThumbs();
+  if (name === 'text') buildPhotoText();
   if (name === 'background') drawSkyThumbs();
   if (name === 'templates') syncTpl();
   syncFx();
@@ -1516,6 +1517,198 @@ document.querySelectorAll('#talign button').forEach(b => b.onclick = () => { con
 $('#tbold').onclick = () => { const l = selText(); if (!l) return; l.bold = !l.bold; document.fonts.load(`700 40px "${l.font}"`).then(composite).catch(()=>{}); composite(); syncPanels(); commit(); };
 $('#tdup').onclick = duplicateSel;
 $('#tnew').onclick = () => addText(TEXT_PRESETS[0]);
+
+/* ---------- text made for this photo ---------- */
+// Tinto looks at the photo (its main colours, how warm or cool, light or dark and bright it is, and where
+// the quiet, plain areas are) and suggests text styles to match: fonts that suit the mood, colours taken
+// from the photo itself that stand out against what's behind the words, and a spot where they'll read well.
+const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v/12.92 : Math.pow((v + 0.055)/1.055, 2.4); }; return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const hexOf = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mixC = (a, b, t) => a.map((v, i) => v + (b[i] - v)*t);
+function rgbToHsl([r, g, b]){
+  r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn)/2, d = mx - mn;
+  if (!d) return [0, 0, l];
+  const s = d / (1 - Math.abs(2*l - 1)); let h;
+  if (mx === r) h = ((g - b)/d) % 6; else if (mx === g) h = (b - r)/d + 2; else h = (r - g)/d + 4;
+  return [(h*60 + 360) % 360, s, l];
+}
+function hslToRgb(h, s, l){
+  const c = (1 - Math.abs(2*l - 1))*s, x = c*(1 - Math.abs((h/60) % 2 - 1)), m = l - c/2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [(r + m)*255, (g + m)*255, (b + m)*255];
+}
+let photoReadCache = {src:null, data:null};
+function readPhoto(){
+  const src = rawC.width > 10 ? rawC : S.base;
+  if (photoReadCache.src === src && photoReadCache.ver === prevData) return photoReadCache.data;
+  const k = 120 / Math.max(src.width, src.height), w = Math.max(8, Math.round(src.width*k)), h = Math.max(8, Math.round(src.height*k));
+  // what the photo looks like after Adjust and Filters, since that's what the text sits on
+  const c = mk(w, h); c.getContext('2d').drawImage(view.width > 10 ? photoC : src, 0, 0, w, h);
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data, n = w*h;
+  // the main colours: a few rounds of k-means
+  let cent = [[30,30,30], [220,220,220], [200,120,60], [60,120,200], [120,170,90], [190,90,140]];
+  const asg = new Uint8Array(n);
+  for (let it = 0; it < 8; it++){
+    const sum = cent.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < n; i++){
+      const p = i*4; let best = 0, bd = Infinity;
+      for (let k2 = 0; k2 < cent.length; k2++){ const q = cent[k2], dd = (d[p]-q[0])**2 + (d[p+1]-q[1])**2 + (d[p+2]-q[2])**2; if (dd < bd){ bd = dd; best = k2; } }
+      asg[i] = best; const s = sum[best]; s[0] += d[p]; s[1] += d[p+1]; s[2] += d[p+2]; s[3]++;
+    }
+    cent = sum.map((s, i) => s[3] ? [s[0]/s[3], s[1]/s[3], s[2]/s[3]] : cent[i]);
+  }
+  const counts = cent.map((_, i) => 0); for (let i = 0; i < n; i++) counts[asg[i]]++;
+  const palette = cent.map((c2, i) => ({c: c2, share: counts[i]/n, hsl: rgbToHsl(c2)})).filter(p => p.share > 0.02).sort((a, b) => b.share - a.share);
+  // overall mood
+  let L = 0, sat = 0, warm = 0;
+  for (let i = 0; i < n; i++){ const p = i*4, hs = rgbToHsl([d[p], d[p+1], d[p+2]]); L += hs[2]; sat += hs[1]*(1 - Math.abs(2*hs[2] - 1)); warm += (d[p] - d[p+2]) / 255; }
+  L /= n; sat /= n; warm /= n;
+  // detail (edges) on a 12 x 12 grid, and the average colour of each cell
+  const G = 12, det = new Float32Array(G*G), col = Array.from({length: G*G}, () => [0, 0, 0, 0]);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++){
+    const p = (y*w + x)*4, gx = Math.abs(d[p+4] - d[p-4]) + Math.abs(d[p+5] - d[p-3]), gy = Math.abs(d[p + w*4] - d[p - w*4]) + Math.abs(d[p + w*4 + 1] - d[p - w*4 + 1]);
+    const cell = Math.min(G-1, (y*G/h)|0)*G + Math.min(G-1, (x*G/w)|0); det[cell] += gx + gy;
+    const cc = col[cell]; cc[0] += d[p]; cc[1] += d[p+1]; cc[2] += d[p+2]; cc[3]++;
+  }
+  const cells = col.map((cc, i) => ({rgb: cc[3] ? [cc[0]/cc[3], cc[1]/cc[3], cc[2]/cc[3]] : [128,128,128], detail: cc[3] ? det[i]/cc[3] : 999}));
+  const data = {palette, L, sat, warm, cells, G};
+  photoReadCache = {src, ver: prevData, data};
+  return data;
+}
+/* the calmest place for a line of text: candidate bands and blocks, scored by how plain they are,
+   with a small preference for the usual places (top and bottom thirds) over the middle of the subject */
+function quietSpots(P){
+  const {cells, G} = P, spots = [];
+  // things that stand out from the photo's overall colour are usually the subject (a white cup on a
+  // wooden table, a face), so covering them costs extra too
+  const avg = cells.reduce((s, q) => s.map((v, i) => v + q.rgb[i]/cells.length), [0, 0, 0]);
+  const stand = q => Math.hypot(q.rgb[0] - avg[0], q.rgb[1] - avg[1], q.rgb[2] - avg[2]);
+  const region = (x0, y0, x1, y1, bias, name) => {
+    let dsum = 0, n = 0, c = [0, 0, 0], worst = 0, sal = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++){ const q = cells[y*G + x]; dsum += q.detail; n++; worst = Math.max(worst, q.detail); sal = Math.max(sal, stand(q)); c = c.map((v, i) => v + q.rgb[i]); }
+    spots.push({x: (x0 + x1)/2/G, y: (y0 + y1)/2/G, w: (x1 - x0)/G, h: (y1 - y0)/G, detail: dsum/n*0.7 + worst*0.3, score: dsum/n*0.7 + worst*0.3 + sal*0.12 + bias, bg: c.map(v => v/n), name});
+  };
+  // the subject is usually in the middle, so the middle costs extra: a little for full-width bands near
+  // the centre line, and for blocks, more the closer they sit to the centre both ways
+  for (let y = 0; y <= G - 3; y++){ const mid = Math.abs((y + 1.5)/G - 0.5); region(1, y, G - 1, y + 3, (0.25 - mid)*24, 'band'); }
+  for (let y = 0; y <= G - 3; y++) for (const [x0, x1] of [[0, 6], [6, 12], [1, 7], [5, 11]]){
+    const my = Math.abs((y + 1.5)/G - 0.5), mx = Math.abs((x0 + x1)/2/G - 0.5);
+    region(x0, y, x1, y + 3, (0.25 - my)*24 + (0.3 - mx)*20 + 3, 'block');
+  }
+  return spots.sort((a, b) => a.score - b.score);
+}
+const MOOD_WORDS = {
+  warm: ['Golden hour', 'Summer days', 'Sun-kissed'], cool: ['Blue mood', 'Stay cool', 'Ocean air'], green: ['Into the wild', 'Fresh air', 'Wander more'],
+  dark: ['After dark', 'Night out', 'Midnight'], pastel: ['Sweet moments', 'Soft days', 'Little joys'], pink: ['Love this', 'Pretty in pink', 'Daydream'], plain: ['Good vibes', 'Make it count', 'Today']
+};
+/* six styles for this photo, each a ready-to-add text layer (positions in image pixels) */
+function photoTextStyles(text){
+  const P = readPhoto(), B = S.base, spots = quietSpots(P);
+  const main = P.palette.find(p => p.hsl[1] > 0.25 && p.hsl[2] > 0.2 && p.hsl[2] < 0.85) || P.palette[0];
+  const hue = main.hsl[0];
+  const mood = P.L < 0.32 ? 'dark' : P.L > 0.62 && P.sat < 0.28 ? 'pastel' : hue >= 300 || hue < 15 ? (P.L > 0.5 ? 'pink' : 'warm') : hue < 70 ? 'warm' : hue < 170 ? 'green' : P.sat < 0.12 ? 'plain' : 'cool';
+  const words = MOOD_WORDS[mood];
+  // colours from the photo, made bolder: the accent at full strength, a light and a dark of the same hue
+  const vivid = P.palette.map(p => hslToRgb(p.hsl[0], Math.min(1, Math.max(0.55, p.hsl[1]*1.4)), Math.min(0.62, Math.max(0.45, p.hsl[2])))).slice(0, 4);
+  const light = hslToRgb(hue, Math.min(0.5, main.hsl[1]), 0.94), dark = hslToRgb(hue, Math.min(0.5, main.hsl[1]), 0.12);
+  // pale and deep versions of the photo's own colours, for text that's coloured but still easy to read
+  const tints = P.palette.slice(0, 4).map(p => hslToRgb(p.hsl[0], Math.min(0.8, Math.max(0.45, p.hsl[1])), 0.86));
+  const shades = P.palette.slice(0, 4).map(p => hslToRgb(p.hsl[0], Math.min(0.8, Math.max(0.45, p.hsl[1])), 0.2));
+  // pick the first colour that reads on what's behind. A bold colour that nearly does keeps its colour
+  // and gets an outline; if nothing does, the text gets an outline or a shadow
+  const pickOn = (bg, prefer) => {
+    for (const c of prefer) if (contrast(c, bg) >= 3) return {c, ok:true};
+    if (prefer[0] && contrast(prefer[0], bg) >= 1.5) return {c: prefer[0], ok:false};
+    for (const c of [...(lum(bg) > 0.4 ? shades : tints), light, dark]) if (contrast(c, bg) >= 3) return {c, ok:true};
+    return {c: lum(bg) > 0.4 ? dark : light, ok:false};
+  };
+  const fontsFor = {
+    dark: [['Bebas Neue', false], ['Playfair Display', true], ['Righteous', false], ['Caveat', true], ['Anton', false], ['Sora', true]],
+    pastel: [['Dancing Script', true], ['Playfair Display', true], ['Lora', true], ['Caveat', true], ['Sora', true], ['Pacifico', false]],
+    pink: [['Pacifico', false], ['Dancing Script', true], ['Playfair Display', true], ['Lobster', false], ['Sora', true], ['Caveat', true]],
+    warm: [['Pacifico', false], ['Anton', false], ['Playfair Display', true], ['Caveat', true], ['Righteous', false], ['Lobster', false]],
+    green: [['Permanent Marker', false], ['Bebas Neue', false], ['Lora', true], ['Caveat', true], ['Sora', true], ['Dancing Script', true]],
+    cool: [['Bebas Neue', false], ['Sora', true], ['Playfair Display', true], ['Caveat', true], ['Space Mono', true], ['Righteous', false]],
+    plain: [['Anton', false], ['Playfair Display', true], ['Caveat', true], ['Sora', true], ['Bebas Neue', false], ['Pacifico', false]],
+  }[mood];
+  const caps = f => ['Bebas Neue', 'Anton', 'Bungee', 'Righteous'].includes(f);
+  const out = [], used = [];
+  fontsFor.forEach(([font, bold], i) => {
+    // spread the suggestions over the two or three calmest spots
+    const spot = spots.filter(s => !used.some(u => Math.abs(u.x - s.x) < 0.2 && Math.abs(u.y - s.y) < 0.2) || used.length >= 3)[0] || spots[0];
+    if (!used.includes(spot)) used.push(spot);
+    const busy = spot.detail > 34, t = text || words[i % words.length];
+    const prefer = [
+      [vivid[0], tints[0]], [tints[0], vivid[1]], [lum(spot.bg) > 0.4 ? shades[0] : tints[1], vivid[0]],
+      [vivid[1] || vivid[0], tints[1] || tints[0]], [tints[0] || light], [vivid[0]],
+    ][i];
+    const pick = pickOn(spot.bg, prefer.filter(Boolean));
+    const l = {type:'text', text: caps(font) ? t.toUpperCase() : t, font, bold, color: hexOf(pick.c), align:'center',
+      outline: 0, ocolor:'#111111', shadow: 0, bg:'', glow:'', spacing: caps(font) ? 6 : 0, curve: 0, grad:'', depth: 0, dcolor:'#111111',
+      x: spot.x*B.width, y: spot.y*B.height, rot: 0, scale: 1, opacity: 1, flip: false, hidden: false, size: 40};
+    // extra flair that suits the style and keeps it readable
+    const behind = lum(spot.bg) > 0.4 ? dark : light;
+    if (!pick.ok || busy) { if (i % 2) l.shadow = 45; else { l.outline = 14; l.ocolor = hexOf(behind); } }
+    if (i === 1 && vivid.length > 1 && !busy) { l.grad = [hexOf(mixC(vivid[0], [255,255,255], 0.25)), hexOf(vivid[1])]; if (!pick.ok) l.outline = 12; }
+    if (i === 4 && mood !== 'pastel') { l.depth = 40; l.dcolor = hexOf(mixC(vivid[0] || dark, [0,0,0], 0.55)); }
+    if (mood === 'dark' && i === 2) { l.glow = hexOf(vivid[0] || light); l.color = hexOf(mixC(vivid[0] || light, [255,255,255], 0.6)); }
+    if (i === 5) { l.bg = hexOf(vivid[0] || light); l.color = hexOf(contrast([255,255,255], vivid[0] || light) > 2.6 ? [255,255,255] : shades[0] || dark); l.outline = 0; l.shadow = 0; }
+    // size the words to fill about 80% of the spot's width (and not too tall)
+    const box = bbox({...l, size: 100}), bw = box[2] - box[0], bh = box[3] - box[1];
+    const maxW = spot.w*B.width*0.85, maxH = spot.h*B.height*1.05;
+    l.size = Math.max(14, Math.round(100 * Math.min(maxW/bw, maxH/bh) * (l.bg ? 0.7 : 1)));
+    out.push(l);
+  });
+  return out;
+}
+let ptStyles = [];
+async function buildPhotoText(){
+  const wrap = $('#photoText'); if (!wrap || !S.base) return;
+  const fontsReady = document.fonts.ready;
+  ptStyles = photoTextStyles();
+  await fontsReady;
+  await Promise.all(ptStyles.map(l => document.fonts.load(`${l.bold ? 700 : 400} 40px "${l.font}"`).catch(() => {})));
+  wrap.textContent = '';
+  const src = view.width > 10 ? photoC : S.base, k = 150 / Math.max(S.base.width, S.base.height);
+  const tw = Math.round(S.base.width*k), th = Math.round(S.base.height*k);
+  ptStyles.forEach((l, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pt-tile'; b.title = `${l.font}: add this style`;
+    const c = mk(tw, th), x = c.getContext('2d'); x.drawImage(src, 0, 0, tw, th);
+    x.save(); x.scale(k, k); drawLayer(x, l); x.restore();
+    b.appendChild(c); b.onclick = () => addMatchedText(i); wrap.appendChild(b);
+  });
+}
+function addMatchedText(i){
+  const p = ptStyles[i]; if (!p) return;
+  const l = {...p, grad: Array.isArray(p.grad) ? [...p.grad] : p.grad};
+  delete l.id; addLayer(l);
+  document.fonts.load(`${l.bold ? 700 : 400} 40px "${l.font}"`).then(composite).catch(() => {});
+  setTimeout(() => { const t = $('#txt'); if (!t.closest('[hidden]')) { t.focus(); t.select(); } }, 30);
+}
+/* the selected text: give it colours from the photo that read well where it is */
+let matchTurn = 0;
+function matchSelectedText(){
+  const l = selText(); if (!l) return;
+  const P = readPhoto(), B = S.base, G = P.G;
+  const box = bbox(l), cx = l.x, cy = l.y, hw = (box[2] - box[0])*l.scale/2, hh = (box[3] - box[1])*l.scale/2;
+  let c = [0, 0, 0], n = 0, detail = 0;
+  for (let y = Math.max(0, Math.floor((cy - hh)/B.height*G)); y <= Math.min(G - 1, Math.floor((cy + hh)/B.height*G)); y++)
+    for (let x = Math.max(0, Math.floor((cx - hw)/B.width*G)); x <= Math.min(G - 1, Math.floor((cx + hw)/B.width*G)); x++){ const q = P.cells[y*G + x]; c = c.map((v, i) => v + q.rgb[i]); detail += q.detail; n++; }
+  const bg = n ? c.map(v => v/n) : [128,128,128], busy = n ? detail/n > 34 : false;
+  const vivid = P.palette.map(p => hslToRgb(p.hsl[0], Math.min(1, Math.max(0.55, p.hsl[1]*1.4)), Math.min(0.62, Math.max(0.45, p.hsl[2]))));
+  const hue = (P.palette.find(p => p.hsl[1] > 0.25) || P.palette[0]).hsl[0];
+  const cands = [...vivid, hslToRgb(hue, 0.4, 0.94), hslToRgb(hue, 0.4, 0.12), [255,255,255], [17,17,17]].filter(cc => contrast(cc, bg) >= 3);
+  const pick = cands.length ? cands[matchTurn++ % cands.length] : (lum(bg) > 0.4 ? [17,17,17] : [255,255,255]);
+  l.color = hexOf(pick); l.grad = '';
+  const behind = lum(bg) > 0.4 ? hslToRgb(hue, 0.4, 0.12) : hslToRgb(hue, 0.4, 0.94);
+  if (busy || !cands.length){ if (!l.outline && !l.shadow) l.shadow = 45; if (l.outline) l.ocolor = hexOf(behind); }
+  composite(); syncPanels(); commit();
+  toast(cands.length > 1 ? 'Colours from your photo. Press again for another.' : 'Coloured to stand out here.');
+}
+$('#ptRefresh').onclick = () => { photoReadCache = {}; buildPhotoText(); };
+$('#tmatch').onclick = matchSelectedText;
+
 
 /* Sticker panel */
 (function buildStickers(){

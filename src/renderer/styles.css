@@ -481,3 +481,13 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 .up-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 .up-line{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:12.5px;color:var(--muted)}
 .btn.small{padding:5px 10px;font-size:12.5px}
+
+/* Text made for this photo */
+.pt-head{display:flex;align-items:center;justify-content:space-between}
+.pt-head .ib{width:26px;height:26px}
+.pt-head .ib svg{width:15px;height:15px}
+.pt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.pt-tile{all:unset;cursor:pointer;border-radius:10px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--line);transition:transform .12s, box-shadow .12s}
+.pt-tile:hover{transform:translateY(-1px);box-shadow:0 0 0 2px var(--accent)}
+.pt-tile:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.pt-tile canvas{display:block;width:100%;height:auto}

@@ -65,6 +65,7 @@ If you have version 1.0.0 on Windows, download and run the newest installer once
 - **Crop and rotate:** free or fixed ratios (1:1, 4:5, 3:2, 16:9, 9:16), rotate 90°, flip horizontal or vertical.
 - **Resize:** by pixels or percentage, with high-quality step-down shrinking.
 - **Text:** 14 fonts, 12 quick styles (including Neon, Sticker, Typewriter and Caption), colour, alignment, bold, letter spacing, outline, shadow, neon glow and background box.
+- **Text made for this photo:** at the top of Text, six ready-made styles worked out from your photo: fonts that suit its mood (night, warm, pastel, green…), colours taken from the photo that stand out where the words go, and a spot where they read well. **Match photo** recolours selected text the same way; press again for another colour.
 - **Projects:** File → Save Project (Ctrl+S) saves a `.tinto` file with the photo and every layer still editable. Open it again (double-click it, or Open photo) to carry on later.
 - **Retouch:** brush away blemishes, smooth skin (edges like eyes and hair stay sharp) and whiten teeth.
 - **AI upscale:** in Resize, make a small or soft photo 2× or 4× bigger with real added detail (Swin2SR, running on your device; the models are 8 MB and 21 MB, downloaded the first time). Shows progress and time left, and can be cancelled. Works on photos up to 1600 px (2×) or 800 px (4×) across on a computer, smaller on a phone.
