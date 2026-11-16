@@ -1487,6 +1487,37 @@ const txt = $('#txt');
 txt.addEventListener('input', () => { const l = selText(); if (!l) return; l.text = txt.value; composite(); refreshLayerList(); });
 txt.addEventListener('change', commit);
 $('#font').addEventListener('change', e => { const l = selText(); if (!l) return; l.font = e.target.value; document.fonts.load(`${l.bold?700:400} 40px "${l.font}"`).then(composite).catch(()=>{}); composite(); commit(); });
+/* the font list: each name shown in its own font, readable on the dark panel (the system's own
+   drop-down list can't be styled on every computer, and showed light text on a light background) */
+const fontPick = (() => {
+  const sel = $('#font'), btn = document.createElement('button'), list = document.createElement('div');
+  btn.type = 'button'; btn.className = 'input font-btn'; btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+  list.className = 'font-list'; list.setAttribute('role', 'listbox'); list.hidden = true; list.tabIndex = -1;
+  FONTS.forEach(f => {
+    const o = document.createElement('div'); o.className = 'font-opt'; o.setAttribute('role', 'option'); o.dataset.font = f;
+    o.textContent = f; o.style.fontFamily = `"${f}", system-ui, sans-serif`;
+    if (['Caveat', 'Dancing Script', 'Pacifico', 'Lobster', 'Permanent Marker'].includes(f)) o.style.fontWeight = 700;
+    o.onclick = () => choose(f); list.appendChild(o);
+  });
+  sel.hidden = true; sel.after(btn, list);
+  let hi = 0;
+  const paint = () => { const f = sel.value; btn.textContent = f; btn.style.fontFamily = `"${f}", system-ui, sans-serif`; list.querySelectorAll('.font-opt').forEach(o => o.setAttribute('aria-selected', String(o.dataset.font === f))); };
+  const mark = i => { hi = (i + FONTS.length) % FONTS.length; list.querySelectorAll('.font-opt').forEach((o, k) => o.classList.toggle('hi', k === hi)); list.children[hi].scrollIntoView({block:'nearest'}); };
+  const open = () => { list.hidden = false; btn.setAttribute('aria-expanded', 'true'); mark(Math.max(0, FONTS.indexOf(sel.value))); list.focus(); };
+  const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+  const choose = f => { close(); if (sel.value !== f){ sel.value = f; sel.dispatchEvent(new Event('change')); } paint(); btn.focus(); };
+  btn.onclick = () => list.hidden ? open() : close();
+  btn.addEventListener('keydown', e => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); open(); } });
+  list.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown'){ e.preventDefault(); mark(hi + 1); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); mark(hi - 1); }
+    else if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); choose(FONTS[hi]); }
+    else if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }
+  });
+  document.addEventListener('pointerdown', e => { if (!list.hidden && !list.contains(e.target) && e.target !== btn) close(); });
+  paint();
+  return {paint};
+})();
 const sizeMax = () => Math.round(minSide()*0.4), sizeMin = () => Math.max(6, Math.round(minSide()*0.01));
 const paintTSize = bindRange('tsize', () => { const l = selText(); if (!l) return null; const t = $('#tsize'); t.min = sizeMin(); t.max = sizeMax(); return Math.round(l.size); }, v => { const l = selText(); if (l){ l.size = v; composite(); } }, v => v+' px');
 const paintTOutline = bindRange('toutline', () => selText()?.outline ?? null, v => { const l = selText(); if (l){ l.outline = v; composite(); $('#toutlineColorF').hidden = v===0; } });
@@ -1781,7 +1812,7 @@ function syncPanels(){
   $('#textEdit').hidden = !t; $('#textAdd').hidden = !!t;
   if (t){
     if (document.activeElement !== txt) txt.value = t.text;
-    $('#font').value = t.font; paintTSize(); paintTOutline(); paintTShadow(); paintTSpacing(); paintTCurve(); paintTDepth();
+    $('#font').value = t.font; fontPick.paint(); paintTSize(); paintTOutline(); paintTShadow(); paintTSpacing(); paintTCurve(); paintTDepth();
     $('#tdcolorF').hidden = !t.depth; tdColor.set(t.dcolor || '#111111');
     const gi = t.grad === undefined || t.grad === null ? '' : String(t.grad);
     document.querySelectorAll('#tgrad .swc').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.i === gi)));

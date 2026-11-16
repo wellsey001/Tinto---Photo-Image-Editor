@@ -491,3 +491,13 @@ input[type=range]::-webkit-slider-thumb{width:18px;height:18px;margin-top:-6px;b
 .pt-tile:hover{transform:translateY(-1px);box-shadow:0 0 0 2px var(--accent)}
 .pt-tile:focus-visible{box-shadow:0 0 0 2px var(--accent)}
 .pt-tile canvas{display:block;width:100%;height:auto}
+
+/* Font list, and readable lists in every drop-down */
+.font-btn{text-align:left;cursor:pointer;position:relative;padding-right:34px;font-size:16px;width:100%}
+.font-btn::after{content:"";position:absolute;right:14px;top:50%;width:8px;height:8px;margin-top:-6px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg);opacity:.7}
+.font-list{margin-top:6px;max-height:300px;overflow-y:auto;border-radius:12px;background:var(--raise);border:1px solid var(--line);box-shadow:var(--shadow-sm);padding:4px;outline:none}
+.font-opt{padding:8px 12px;border-radius:8px;font-size:19px;line-height:1.2;color:var(--fg);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.font-opt:hover,.font-opt.hi{background:var(--hover)}
+.font-opt[aria-selected="true"]{color:var(--accent)}
+select option{background-color:#1e2025;color:#f1f0ec}
+.tab-body{overflow-x:hidden}
