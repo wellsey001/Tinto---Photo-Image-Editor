@@ -237,7 +237,7 @@ S['gift'] = ('party', 'Gift', svg(
     f'<rect x="88" y="70" width="24" height="32" fill="#ffd54a" stroke="{O}" stroke-width="{SW*.8}"/>'
     f'<path d="M100 70 C80 40 52 44 60 62 C66 74 88 72 100 70 Z" fill="#ffd54a" stroke="{O}" stroke-width="{SW}"/>'
     f'<path d="M100 70 C120 40 148 44 140 62 C134 74 112 72 100 70 Z" fill="#ffd54a" stroke="{O}" stroke-width="{SW}"/>'
-    + glint(52, 110, .55, rot=0) + face(64, 138, .62, blush=False),
+    + glint(52, 110, .55, rot=0) + face(63, 136, .8, blush=False),
     lg('box', '#6fe3b5', '#2bbf86') + lg('boxlid', '#8af0c8', '#3fd09a')))
 
 S['cake'] = ('party', 'Cake slice', svg(
@@ -539,7 +539,7 @@ S['books'] = ('cosy', 'Books', svg(
     f'<rect x="36" y="112" width="130" height="34" rx="6" fill="#6fe3b5" stroke="{O}" stroke-width="{SW}"/><rect x="44" y="118" width="114" height="22" fill="#fff6e8"/><rect x="148" y="112" width="18" height="34" fill="#2bbf86"/>'
     f'<rect x="30" y="78" width="140" height="34" rx="6" fill="#ff8fb1" stroke="{O}" stroke-width="{SW}"/><rect x="38" y="84" width="124" height="22" fill="#fff6e8"/><rect x="30" y="78" width="18" height="34" fill="#ff5d8f"/>'
     + f'<path d="M98 76 C86 54 60 54 66 70 C70 80 90 78 98 76 Z" fill="#ffd54a" stroke="{O}" stroke-width="4"/><path d="M102 76 C114 54 140 54 134 70 C130 80 110 78 102 76 Z" fill="#ffd54a" stroke="{O}" stroke-width="4"/>'
-    + face(100, 158, .7, blush=False) + glint(60, 90, .4, rot=0)))
+    + face(100, 126, .78, blush=False) + glint(60, 90, .4, rot=0)))
 
 S['plant'] = ('cosy', 'House plant', svg(
     f'<path d="M100 120 C96 90 70 70 40 72 C40 100 66 120 100 120 Z" fill="url(#lf2)" stroke="{O}" stroke-width="{SW}"/>'
@@ -577,11 +577,11 @@ S['rocket'] = ('space', 'Rocket', svg(
 
 S['ufo'] = ('space', 'UFO', svg(
     f'<path d="M74 124 L54 182 H146 L126 124 Z" fill="#fff6b0" opacity=".75"/>'
-    f'<path d="M58 92 C58 48 142 48 142 92 Z" fill="url(#dome)" stroke="{O}" stroke-width="{SW}"/>'
+    f'<path d="M52 96 C52 24 148 24 148 96 Z" fill="url(#dome)" stroke="{O}" stroke-width="{SW}"/>'
     + f'<ellipse cx="100" cy="106" rx="86" ry="28" fill="url(#ufo)" stroke="{O}" stroke-width="{SW}"/>'
-    + face(100, 66, .62, blush=False)
+    + face(100, 62, .85)
     + ''.join(f'<circle cx="{x}" cy="{y}" r="6" fill="#ffd54a" stroke="{O}" stroke-width="3"/>' for x, y in [(42, 110), (72, 118), (100, 120), (128, 118), (158, 110)])
-    + glint(76, 62, .45, rot=-40),
+    + glint(72, 50, .45, rot=-40),
     lg('dome', '#c6f2df', '#6fe3b5') + lg('ufo', '#d6c6ff', '#8b63ff')))
 
 S['alien'] = ('space', 'Alien', svg(
@@ -759,7 +759,7 @@ S['poo'] = ('silly', 'Happy poo', svg(
     + f'<ellipse cx="100" cy="122" rx="62" ry="26" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
     + f'<ellipse cx="100" cy="88" rx="44" ry="22" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
     + f'<path d="M78 70 C84 44 108 36 116 18 C126 40 124 60 116 72" fill="url(#poo)" stroke="{O}" stroke-width="{SW}"/>'
-    + face(100, 152, 1.15) + glint(72, 80, .5, rot=-20),
+    + face(100, 118, 1.05) + glint(72, 80, .5, rot=-20),
     lg('poo', '#b8835a', '#7a4a2a')))
 
 S['ghost'] = ('silly', 'Ghost', svg(
@@ -789,7 +789,7 @@ S['banana'] = ('silly', 'Banana', svg(
     f'<path d="M150 22 L162 18 L168 36 L158 40 Z" fill="#6b4a2a" stroke="{O}" stroke-width="4"/>'
     + f'<path d="M158 38 C176 90 156 168 76 182 C42 188 20 172 30 160 C90 160 130 120 142 40 Z" fill="url(#ban)" stroke="{O}" stroke-width="{SW}"/>'
     + '<path d="M148 60 C150 110 120 150 70 166" fill="none" stroke="#e0a91f" stroke-width="4" opacity=".7"/>'
-    + face(104, 136, 1.0) + glint(150, 70, .5, rot=-70),
+    + face(138, 104, .8) + glint(148, 62, .45, rot=-70),
     lg('ban', '#fff38a', '#ffd23a')))
 
 S['pickle'] = ('silly', 'Cool pickle', svg(
