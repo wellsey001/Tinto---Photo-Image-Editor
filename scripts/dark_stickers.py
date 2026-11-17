@@ -175,7 +175,7 @@ wax = 'M70 86 C82 80 118 80 130 86 L130 182 C130 188 70 188 70 182 Z'
 drip = ('M70 86 C82 80 118 80 130 86 C130 100 125 106 121 100 C117 114 111 120 107 108 C103 96 97 98 95 114 '
         'C93 128 85 128 85 114 C85 100 79 96 75 104 C72 110 70 104 70 96 Z')
 flame = 'M100 14 C118 34 122 50 112 64 C107 72 93 72 88 64 C78 50 84 32 100 14 Z'
-D['candle'] = ('Candle', svg(
+D['blackcandle'] = ('Candle', svg(
     line('M100 70 V82', 4)
     + shape(wax, BONE, stipple(132, 140, 110, 140, seed=14, fade=1))
     + shape(drip, RED, stipple(128, 96, 112, 96, seed=15, fade=1.2), w=5)
@@ -288,7 +288,7 @@ D['safetypin'] = ('Safety pin', svg('<g transform="rotate(-35 100 100)">'
 # ---- moon ----
 mo = ('M120 18 C74 22 44 60 46 104 C48 150 88 184 134 180 C154 178 170 170 182 158 '
       'C134 166 94 134 92 94 C90 60 108 34 134 22 C130 20 124 18 120 18 Z')
-D['moon'] = ('Moon', svg(
+D['crescent'] = ('Moon', svg(
     shape(mo, GOLD, stipple(150, 170, 104, 118, seed=25, fade=1.1) + stipple(96, 40, 96, 64, seed=26, fade=1.6))
     + hl('M76 52 Q66 70 64 92', 5) + hl('M68 112 Q70 120 74 128', 4)
     + star4(150, 70, 17) + star4(172, 112, 9) + star4(34, 36, 11)
@@ -336,6 +336,6 @@ D['ghostie'] = ('Emo ghost', svg(
     + shape('M128 114 C131 120 131 126 128 128 C125 126 125 120 128 114 Z', '#7fb9ff', w=3)
     + hl('M50 104 V142', 5)))
 
-ORDER = ['moon', 'candle', 'bat', 'skull', 'rose', 'spider', 'web', 'gothcross', 'coffin', 'pentagram',
+ORDER = ['crescent', 'blackcandle', 'bat', 'skull', 'rose', 'spider', 'web', 'gothcross', 'coffin', 'pentagram',
          'brokenheart', 'chain', 'safetypin', 'blackcat', 'raven', 'dagger', 'potion', 'ghostie']
 DARK = [(i, D[i][0], D[i][1]) for i in ORDER]

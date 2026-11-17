@@ -2790,7 +2790,7 @@ DESIGNS.push(
       {t:'text', text:'FRI 13 DEC · 10PM – 3AM', font:'Bebas Neue', size:.075, spacing:5, color:'#ffffff', x:.5, y:.82},
       {t:'text', text:'The Underworld · dress to impress', font:'Hanken Grotesk', bold:true, size:.03, color:'#8f84a3', x:.5, y:.89},
       {t:'sticker', id:'bat', x:.15, y:.2, size:.18, rot:-12},
-      {t:'sticker', id:'moon', x:.86, y:.18, size:.14, rot:10},
+      {t:'sticker', id:'crescent', x:.86, y:.18, size:.14, rot:10},
     ]},
   {id:'bandpromo', name:'Band promo', w:1080, h:1080, bg:{type:'solid', color:'#0b0a0c'},
     cell:{x:0, y:0, w:1, h:1}, deco:[{type:'shade', y0:.55, y1:1, alpha:.9, rev:true}],
